@@ -27,16 +27,25 @@ if (DATABASE_KIND === "sqlite") {
 
 const app = express();
 
+const allowedOrigins = [
+  "https://crm-medfetus-frontend.onrender.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  ...CORS_ALLOWED_ORIGINS
+].filter((origin, index, list) => Boolean(origin) && list.indexOf(origin) === index);
+
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || !CORS_ALLOWED_ORIGINS.length || CORS_ALLOWED_ORIGINS.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
       return;
     }
 
-    callback(new Error("Origem nao autorizada pelo CORS."));
+    callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   optionsSuccessStatus: 204
 };
 
