@@ -1,20 +1,26 @@
-import fs from "node:fs";
-import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
-import { DB_FILE, KANBAN_STAGES } from "./config.js";
+import { DATABASE_KIND, KANBAN_STAGES } from "./config.js";
 import { clinicUnits, examModels, messageTemplates, patients, physicians, users } from "./data/seedData.js";
+import { getDatabaseRuntime, getSqliteFilePath } from "./database/runtime.js";
 import { calculateExamScheduleDates, resolvePregnancySnapshot } from "./domain/obstetrics.js";
 import { hashPassword, isPasswordHashed } from "./security/auth.js";
 import { addDays, todayIso } from "./utils/date.js";
 import { normalizeBrazilPhone } from "./utils/phone.js";
 
-const dataDirectory = path.dirname(DB_FILE);
-fs.mkdirSync(dataDirectory, { recursive: true });
+const sqliteGuard = new Proxy({}, {
+  get() {
+    throw new Error("Este fluxo ainda depende da camada legada de SQLite e ainda nao foi migrado para PostgreSQL.");
+  }
+});
 
-export const db = new DatabaseSync(DB_FILE);
-db.exec("PRAGMA busy_timeout = 5000");
+const sqliteRuntime = DATABASE_KIND === "sqlite" ? await getDatabaseRuntime() : null;
+export const db = DATABASE_KIND === "sqlite" ? sqliteRuntime.raw : sqliteGuard;
+export const SQLITE_DB_FILE = DATABASE_KIND === "sqlite" ? getSqliteFilePath() : null;
 
 export function initializeDatabase() {
+  if (DATABASE_KIND !== "sqlite") {
+    throw new Error("initializeDatabase legado ainda nao pode ser usado em PostgreSQL.");
+  }
+
   db.exec("PRAGMA foreign_keys = ON");
 
   createTables();
@@ -607,6 +613,10 @@ function createTables() {
 }
 
 export function resetDatabase() {
+  if (DATABASE_KIND !== "sqlite") {
+    throw new Error("resetDatabase legado nao esta disponivel em PostgreSQL.");
+  }
+
   db.exec("PRAGMA foreign_keys = OFF");
   db.exec(`
     DROP TABLE IF EXISTS shosp_sync_logs;

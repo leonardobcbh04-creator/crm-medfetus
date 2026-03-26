@@ -1,4 +1,5 @@
 import { db } from "../db.js";
+import { getConfiguredDatabaseKind, getDatabaseRuntime } from "../database/runtime.js";
 
 function maskPhone(value) {
   const digits = String(value || "").replace(/\D/g, "");
@@ -34,26 +35,60 @@ export function recordAuditEvent({
   description,
   details = null
 }) {
-  db.prepare(`
-    INSERT INTO audit_logs (
-      actor_user_id,
-      action_type,
-      entity_type,
-      entity_id,
-      patient_id,
+  const createdAt = new Date().toISOString();
+  const detailsJson = details ? JSON.stringify(sanitizeDetails(details)) : null;
+
+  if (getConfiguredDatabaseKind() === "sqlite") {
+    db.prepare(`
+      INSERT INTO audit_logs (
+        actor_user_id,
+        action_type,
+        entity_type,
+        entity_id,
+        patient_id,
+        description,
+        details_json,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      actorUserId,
+      actionType,
+      entityType,
+      entityId,
+      patientId,
       description,
-      details_json,
-      created_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    actorUserId,
-    actionType,
-    entityType,
-    entityId,
-    patientId,
-    description,
-    details ? JSON.stringify(sanitizeDetails(details)) : null,
-    new Date().toISOString()
-  );
+      detailsJson,
+      createdAt
+    );
+    return;
+  }
+
+  void (async () => {
+    const runtime = await getDatabaseRuntime();
+    await runtime.query(`
+      INSERT INTO audit_logs (
+        actor_user_id,
+        action_type,
+        entity_type,
+        entity_id,
+        patient_id,
+        description,
+        details_json,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      actorUserId,
+      actionType,
+      entityType,
+      entityId,
+      patientId,
+      description,
+      detailsJson,
+      createdAt
+    ]);
+  })().catch((error) => {
+    console.error(error instanceof Error ? error.message : "Falha ao registrar auditoria.");
+  });
 }

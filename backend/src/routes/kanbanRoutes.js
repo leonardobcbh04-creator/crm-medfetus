@@ -1,20 +1,22 @@
 import { Router } from "express";
-import { createKanbanColumn, deleteKanbanColumn, getKanbanData, movePatientStage, updateKanbanColumn } from "../services/clinicService.js";
+import { asyncRoute, handleRouteError } from "../http/routeUtils.js";
+import { createKanbanColumn, deleteKanbanColumn, updateKanbanColumn } from "../services/clinicService.js";
+import { getKanbanDataCore, movePatientStageCore } from "../services/coreMigrationService.js";
 
 export const kanbanRoutes = Router();
 
-kanbanRoutes.get("/", (_request, response) => {
-  response.json({ columns: getKanbanData() });
-});
+kanbanRoutes.get("/", asyncRoute(async (_request, response) => {
+  response.json({ columns: await getKanbanDataCore() });
+}, "Nao foi possivel carregar o pipeline."));
 
-kanbanRoutes.patch("/move", (request, response) => {
+kanbanRoutes.patch("/move", asyncRoute(async (request, response) => {
   try {
-    const patient = movePatientStage(Number(request.body.patientId), String(request.body.stage));
+    const patient = await movePatientStageCore(Number(request.body.patientId), String(request.body.stage));
     response.json({ patient });
   } catch (error) {
-    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel mover a paciente.");
+    handleRouteError(response, error, "Nao foi possivel mover a paciente.");
   }
-});
+}, "Nao foi possivel mover a paciente."));
 
 kanbanRoutes.post("/columns", (request, response) => {
   try {
