@@ -101,7 +101,7 @@ function resolveDatabaseFile() {
 }
 
 export const NODE_ENV = readStringEnv(process.env.NODE_ENV) || "development";
-export const PORT = readNumberEnv(process.env.PORT, 4000);
+export const PORT = readNumberEnv(process.env.PORT, 10000);
 export const DATABASE_URL = readStringEnv(process.env.DATABASE_URL);
 export const DATABASE_KIND = resolveDatabaseKind(DATABASE_URL);
 export const DB_FILE = resolveDatabaseFile();
