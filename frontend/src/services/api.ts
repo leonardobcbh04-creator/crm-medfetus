@@ -27,9 +27,18 @@ import type {
 } from "../types";
 import { clearToken, getStoredToken } from "./auth";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || "http://localhost:4000/api";
+const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim()
+  || (import.meta.env.DEV ? "http://localhost:4000" : "");
+
+const API_BASE_URL = rawApiUrl
+  ? `${rawApiUrl.replace(/\/+$/, "")}${rawApiUrl.endsWith("/api") ? "" : "/api"}`
+  : "";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new Error("VITE_API_URL nao foi configurada para este ambiente.");
+  }
+
   const storedToken = getStoredToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
