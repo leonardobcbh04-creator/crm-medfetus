@@ -60,8 +60,8 @@ if (RUN_BACKGROUND_WORKERS_IN_API) {
   startLogRetentionWorker();
 }
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
 
 function shutdown() {
