@@ -65,8 +65,28 @@ function readListEnv(value) {
     .filter(Boolean);
 }
 
+function resolveDatabaseKind(configuredValue) {
+  if (!configuredValue) {
+    return "sqlite";
+  }
+
+  if (/^postgres(ql)?:\/\//i.test(configuredValue)) {
+    return "postgres";
+  }
+
+  if (configuredValue.startsWith("file:")) {
+    return "sqlite";
+  }
+
+  return "sqlite";
+}
+
 function resolveDatabaseFile() {
   const configuredValue = readStringEnv(process.env.DATABASE_URL);
+  if (resolveDatabaseKind(configuredValue) === "postgres") {
+    return "";
+  }
+
   if (!configuredValue) {
     return path.resolve(currentDirectory, "..", "data", "clinic.sqlite");
   }
@@ -82,6 +102,8 @@ function resolveDatabaseFile() {
 
 export const NODE_ENV = readStringEnv(process.env.NODE_ENV) || "development";
 export const PORT = readNumberEnv(process.env.PORT, 4000);
+export const DATABASE_URL = readStringEnv(process.env.DATABASE_URL);
+export const DATABASE_KIND = resolveDatabaseKind(DATABASE_URL);
 export const DB_FILE = resolveDatabaseFile();
 export const CORS_ALLOWED_ORIGINS = readListEnv(process.env.CORS_ALLOWED_ORIGINS);
 export const RUN_BACKGROUND_WORKERS_IN_API = readBooleanEnv(process.env.RUN_BACKGROUND_WORKERS_IN_API, false);

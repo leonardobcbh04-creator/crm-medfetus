@@ -1,9 +1,14 @@
-import { NODE_ENV } from "./config.js";
+import { DATABASE_KIND, NODE_ENV } from "./config.js";
+import { getDatabaseRuntime } from "./database/runtime.js";
 import { initializeDatabase } from "./db.js";
 import { startLogRetentionWorker, stopLogRetentionWorker } from "./services/logRetentionService.js";
 import { getShospSyncWorkerStatus, startShospSyncWorker, stopShospSyncWorker } from "./services/shospIntegration/shospSyncWorker.js";
 
-initializeDatabase();
+if (DATABASE_KIND === "sqlite") {
+  initializeDatabase();
+} else {
+  await getDatabaseRuntime();
+}
 startShospSyncWorker();
 startLogRetentionWorker();
 

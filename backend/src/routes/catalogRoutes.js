@@ -1,8 +1,12 @@
 import { Router } from "express";
-import { getPatientFormCatalogs } from "../services/clinicService.js";
+import { getPatientFormCatalogsCore } from "../services/coreMigrationService.js";
 
 export const catalogRoutes = Router();
 
-catalogRoutes.get("/", (_request, response) => {
-  response.json(getPatientFormCatalogs());
+catalogRoutes.get("/", async (_request, response) => {
+  try {
+    response.json(await getPatientFormCatalogsCore());
+  } catch (error) {
+    response.status(500).send(error instanceof Error ? error.message : "Nao foi possivel carregar os catalogos.");
+  }
 });

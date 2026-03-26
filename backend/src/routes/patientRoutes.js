@@ -2,22 +2,28 @@ import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import {
   confirmGestationalBaseEstimate,
-  createPatient,
   deletePatient,
   discardGestationalBaseEstimate,
   editGestationalBaseManually,
-  getPatientDetails,
   listGestationalBaseReviews,
-  listPatients,
-  updatePatient,
-  updatePatientExamStatus
 } from "../services/clinicService.js";
+import {
+  createPatientCore,
+  getPatientDetailsCore,
+  listPatientsCore,
+  updatePatientCore,
+  updatePatientExamStatusCore
+} from "../services/coreMigrationService.js";
 import { recordAuditEvent } from "../services/auditService.js";
 
 export const patientRoutes = Router();
 
-patientRoutes.get("/", (_request, response) => {
-  response.json({ patients: listPatients() });
+patientRoutes.get("/", async (_request, response) => {
+  try {
+    response.json({ patients: await listPatientsCore() });
+  } catch (error) {
+    response.status(500).send(error instanceof Error ? error.message : "Nao foi possivel listar as pacientes.");
+  }
 });
 
 patientRoutes.get("/manual-review/gestational-base", (request, response) => {
@@ -91,9 +97,9 @@ patientRoutes.post("/:id/gestational-base/discard", (request, response) => {
   }
 });
 
-patientRoutes.post("/", (request, response) => {
+patientRoutes.post("/", async (request, response) => {
   try {
-    const patient = createPatient({
+    const patient = await createPatientCore({
       ...request.body,
       actorUserId: request.authUser?.id || 1
     });
@@ -112,10 +118,10 @@ patientRoutes.post("/", (request, response) => {
   }
 });
 
-patientRoutes.put("/:id", (request, response) => {
+patientRoutes.put("/:id", async (request, response) => {
   try {
     const patientId = Number(request.params.id);
-    const patient = updatePatient(patientId, {
+    const patient = await updatePatientCore(patientId, {
       ...request.body,
       actorUserId: request.authUser?.id || 1
     });
@@ -156,10 +162,10 @@ patientRoutes.delete("/:id", requireAdmin, (request, response) => {
   }
 });
 
-patientRoutes.patch("/:id/exams/:examId", (request, response) => {
+patientRoutes.patch("/:id/exams/:examId", async (request, response) => {
   try {
     const patientId = Number(request.params.id);
-    const patient = updatePatientExamStatus(
+    const patient = await updatePatientExamStatusCore(
       patientId,
       Number(request.params.examId),
       {
@@ -182,21 +188,25 @@ patientRoutes.patch("/:id/exams/:examId", (request, response) => {
   }
 });
 
-patientRoutes.get("/:id", (request, response) => {
-  const patientId = Number(request.params.id);
-  const patientDetails = getPatientDetails(patientId);
-  if (!patientDetails) {
-    response.status(404).send("Paciente nao encontrada.");
-    return;
-  }
+patientRoutes.get("/:id", async (request, response) => {
+  try {
+    const patientId = Number(request.params.id);
+    const patientDetails = await getPatientDetailsCore(patientId);
+    if (!patientDetails) {
+      response.status(404).send("Paciente nao encontrada.");
+      return;
+    }
 
-  recordAuditEvent({
-    actorUserId: request.authUser?.id || null,
-    actionType: "visualizacao_paciente",
-    entityType: "patient",
-    entityId: patientId,
-    patientId,
-    description: "Ficha detalhada da paciente visualizada."
-  });
-  response.json(patientDetails);
+    recordAuditEvent({
+      actorUserId: request.authUser?.id || null,
+      actionType: "visualizacao_paciente",
+      entityType: "patient",
+      entityId: patientId,
+      patientId,
+      description: "Ficha detalhada da paciente visualizada."
+    });
+    response.json(patientDetails);
+  } catch (error) {
+    response.status(500).send(error instanceof Error ? error.message : "Nao foi possivel carregar os detalhes da paciente.");
+  }
 });
