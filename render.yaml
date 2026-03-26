@@ -1,0 +1,69 @@
+services:
+  - type: web
+    name: medfetus-backend
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildCommand: npm install --workspaces
+    startCommand: npm run start --workspace backend
+    healthCheckPath: /api/health
+    disk:
+      name: medfetus-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: /var/data/clinic.sqlite
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: RUN_BACKGROUND_WORKERS_IN_API
+        value: "true"
+      - key: SHOSP_USE_MOCK
+        value: "true"
+      - key: SHOSP_MOCK_FIXTURES
+        value: "false"
+      - key: SHOSP_API_URL
+        sync: false
+      - key: SHOSP_API_KEY
+        sync: false
+      - key: SHOSP_ACCOUNT_ID
+        sync: false
+      - key: SHOSP_API_TOKEN
+        sync: false
+      - key: SHOSP_USERNAME
+        sync: false
+      - key: SHOSP_PASSWORD
+        sync: false
+      - key: SHOSP_TIMEOUT_MS
+        value: "15000"
+      - key: SHOSP_SYNC_INTERVAL
+        value: "300000"
+      - key: SHOSP_RETRY_ATTEMPTS
+        value: "3"
+      - key: SHOSP_RETRY_DELAY_MS
+        value: "1500"
+      - key: SHOSP_PATIENTS_PATH
+        value: /patients
+      - key: SHOSP_ATTENDANCES_PATH
+        value: /attendances
+      - key: SHOSP_EXAMS_PATH
+        value: /exams
+      - key: AUDIT_LOG_RETENTION_DAYS
+        value: "365"
+      - key: SYNC_LOG_RETENTION_DAYS
+        value: "90"
+      - key: MESSAGE_LOG_RETENTION_DAYS
+        value: "30"
+      - key: LOG_RETENTION_CLEANUP_INTERVAL_HOURS
+        value: "24"
+
+  - type: static_site
+    name: medfetus-frontend
+    rootDir: .
+    buildCommand: npm install --workspaces && npm run build --workspace frontend
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false

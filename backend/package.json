@@ -1,0 +1,19 @@
+{
+  "name": "backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "dev:shosp-worker": "node --watch src/shospWorker.js",
+    "start": "node src/server.js",
+    "start:shosp-worker": "node src/shospWorker.js",
+    "seed": "node src/resetDatabase.js",
+    "clear:patients": "node src/clearPatientData.js",
+    "test": "node scripts/run-tests.mjs"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.1"
+  }
+}
