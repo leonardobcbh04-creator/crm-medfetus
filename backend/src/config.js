@@ -65,6 +65,22 @@ function readListEnv(value) {
     .filter(Boolean);
 }
 
+function readAllowedOriginsEnv() {
+  const defaultOrigins = [
+    "https://crm-medfetus-frontend.onrender.com",
+    "http://localhost:5173",
+    "http://localhost:3000"
+  ];
+
+  const configuredOrigins = [
+    ...readListEnv(process.env.CORS_ALLOWED_ORIGINS),
+    ...readListEnv(process.env.ALLOWED_ORIGINS),
+    ...readListEnv(process.env.FRONTEND_URL)
+  ];
+
+  return [...new Set([...defaultOrigins, ...configuredOrigins])];
+}
+
 function resolveDatabaseKind(configuredValue) {
   if (!configuredValue) {
     return "sqlite";
@@ -105,7 +121,7 @@ export const PORT = readNumberEnv(process.env.PORT, 10000);
 export const DATABASE_URL = readStringEnv(process.env.DATABASE_URL);
 export const DATABASE_KIND = resolveDatabaseKind(DATABASE_URL);
 export const DB_FILE = resolveDatabaseFile();
-export const CORS_ALLOWED_ORIGINS = readListEnv(process.env.CORS_ALLOWED_ORIGINS);
+export const CORS_ALLOWED_ORIGINS = readAllowedOriginsEnv();
 export const RUN_BACKGROUND_WORKERS_IN_API = readBooleanEnv(process.env.RUN_BACKGROUND_WORKERS_IN_API, false);
 
 export const MESSAGING_CONFIG = {

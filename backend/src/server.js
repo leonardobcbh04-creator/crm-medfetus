@@ -27,7 +27,7 @@ if (DATABASE_KIND === "sqlite") {
 
 const app = express();
 
-app.use(cors({
+const corsOptions = {
   origin(origin, callback) {
     if (!origin || !CORS_ALLOWED_ORIGINS.length || CORS_ALLOWED_ORIGINS.includes(origin)) {
       callback(null, true);
@@ -35,8 +35,13 @@ app.use(cors({
     }
 
     callback(new Error("Origem nao autorizada pelo CORS."));
-  }
-}));
+  },
+  credentials: true,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json());
 
 app.get("/api/health", (_request, response) => {
