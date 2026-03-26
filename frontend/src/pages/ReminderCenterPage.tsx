@@ -1,0 +1,267 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { api } from "../services/api";
+import type { ReminderCenterData } from "../types";
+import { formatBrazilPhone } from "../utils/phone";
+
+type ReminderFilters = {
+  clinicUnit: string;
+  physicianName: string;
+  examCode: string;
+};
+
+const DEFAULT_FILTERS: ReminderFilters = {
+  clinicUnit: "",
+  physicianName: "",
+  examCode: ""
+};
+
+function getUrgencyBadgeClass(status: string) {
+  if (status === "atrasado") return "badge-priority-red";
+  if (status === "pendente") return "badge-priority-orange";
+  if (status === "aproximando") return "badge-priority-yellow";
+  return "badge-priority-green";
+}
+
+function getGestationalAlertClass(level: "ok" | "warning" | "blocked") {
+  if (level === "blocked") return "form-alert form-alert-error";
+  if (level === "warning") return "form-alert form-alert-warning";
+  return "form-alert form-alert-success";
+}
+
+export function ReminderCenterPage() {
+  const [data, setData] = useState<ReminderCenterData | null>(null);
+  const [filters, setFilters] = useState<ReminderFilters>(DEFAULT_FILTERS);
+  const [loading, setLoading] = useState(true);
+  const [feedback, setFeedback] = useState("");
+  const [actingKey, setActingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadReminders(DEFAULT_FILTERS);
+  }, []);
+
+  async function loadReminders(nextFilters: ReminderFilters) {
+    setLoading(true);
+    try {
+      const response = await api.getReminders(nextFilters);
+      setData(response);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateFilter<K extends keyof ReminderFilters>(field: K, value: ReminderFilters[K]) {
+    setFilters((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleAction(patientId: number, examPatientId: number | null, action: "contacted" | "snooze" | "scheduled") {
+    if (!examPatientId) {
+      return;
+    }
+
+    const key = `${patientId}-${examPatientId}-${action}`;
+    setActingKey(key);
+    setFeedback("");
+
+    try {
+      const response = await api.updateReminder(patientId, examPatientId, action);
+      setData(response);
+      setFeedback(
+        action === "contacted"
+          ? "Paciente marcada como contatada."
+          : action === "snooze"
+            ? "Lembrete adiado para o proximo dia."
+            : "Paciente marcada como ja agendada."
+      );
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar o lembrete.");
+    } finally {
+      setActingKey(null);
+    }
+  }
+
+  if (loading && !data) {
+    return <p className="loading-text">Carregando central de lembretes...</p>;
+  }
+
+  if (!data) {
+    return <p className="loading-text">Nao foi possivel carregar a central de lembretes.</p>;
+  }
+
+  return (
+    <section className="page-section">
+      <div className="page-header">
+        <div>
+          <p className="eyebrow">Operacao</p>
+          <h2>Central de lembretes</h2>
+          <p className="page-description">
+            Lista automatica das pacientes que precisam de contato hoje, em ordem de urgencia.
+          </p>
+        </div>
+      </div>
+
+      <article className="panel-card stack-form filter-panel">
+        <div className="three-columns">
+          <label>
+            Unidade
+            <select value={filters.clinicUnit} onChange={(event) => updateFilter("clinicUnit", event.target.value)}>
+              <option value="">Todas</option>
+              {data.filterOptions.clinicUnits.map((unit) => (
+                <option key={unit} value={unit}>{unit}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Medico
+            <select value={filters.physicianName} onChange={(event) => updateFilter("physicianName", event.target.value)}>
+              <option value="">Todos</option>
+              {data.filterOptions.physicians.map((physician) => (
+                <option key={physician} value={physician}>{physician}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Exame
+            <select value={filters.examCode} onChange={(event) => updateFilter("examCode", event.target.value)}>
+              <option value="">Todos</option>
+              {data.filterOptions.exams.map((exam) => (
+                <option key={exam.code} value={exam.code}>{exam.name}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="inline-actions">
+          <button className="primary-button" type="button" onClick={() => loadReminders(filters)}>
+            Aplicar filtros
+          </button>
+          <button className="secondary-button" type="button" onClick={() => {
+            setFilters(DEFAULT_FILTERS);
+            loadReminders(DEFAULT_FILTERS);
+          }}>
+            Limpar filtros
+          </button>
+        </div>
+      </article>
+
+      {feedback ? <p className={feedback.includes("Nao foi") ? "form-error" : "form-success"}>{feedback}</p> : null}
+
+      {data.autoScheduledItems.length ? (
+        <section className="panel-card">
+          <div className="page-header">
+            <div>
+              <p className="eyebrow">Shosp</p>
+              <h3>Exames ja agendados</h3>
+              <p className="page-description">
+                Estes casos sairam automaticamente da fila de lembretes porque o Shosp ja possui agendamento futuro para o exame esperado.
+              </p>
+            </div>
+          </div>
+
+          <div className="reminder-grid">
+            {data.autoScheduledItems.map((item) => (
+              <article key={`scheduled-${item.patientId}`} className="panel-card reminder-card operational-card reminder-scheduled-card">
+                <div className="card-row">
+                  <div>
+                    <h3>{item.patientName}</h3>
+                    <p>{item.examName}</p>
+                  </div>
+                  <span className="badge badge-priority-green">Exame ja agendado</span>
+                </div>
+
+                <div className="message-metadata">
+                  <span><strong>Telefone:</strong> {formatBrazilPhone(item.phone) || "Nao informado"}</span>
+                  <span><strong>Data do agendamento:</strong> {item.scheduledDateLabel}</span>
+                  <span><strong>Horario:</strong> {item.scheduledTime || "Nao informado"}</span>
+                  <span><strong>Origem:</strong> {item.sourceLabel}</span>
+                </div>
+
+                <div className="inline-actions list-action-bar">
+                  <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
+                    Ver detalhes
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <div className="reminder-grid">
+        {data.items.length ? data.items.map((item) => (
+          <article key={`${item.patientId}-${item.examPatientId}`} className={`panel-card reminder-card reminder-${item.urgencyStatus} operational-card`}>
+            <div className="card-row">
+              <div>
+                <h3>{item.patientName}</h3>
+                <p>{item.gestationalAgeLabel}</p>
+              </div>
+              <span className={`badge ${getUrgencyBadgeClass(item.urgencyStatus)}`}>{item.urgencyLabel}</span>
+            </div>
+
+            <div className="message-metadata">
+              <span><strong>Telefone:</strong> {formatBrazilPhone(item.phone) || "Nao informado"}</span>
+              <span><strong>Exame pendente:</strong> {item.examName}</span>
+              <span><strong>Inicio da janela ideal:</strong> {item.idealWindowStartDateLabel || "Nao definido"}</span>
+              <span><strong>Base do proximo exame:</strong> {item.gestationalBaseSourceLabel}</span>
+              <span><strong>Confianca:</strong> {item.gestationalBaseConfidenceLabel}</span>
+              <span><strong>Medico:</strong> {item.physicianName || "Nao informado"}</span>
+              <span><strong>Unidade:</strong> {item.clinicUnit || "Nao informada"}</span>
+            </div>
+
+            {item.gestationalBaseIsEstimated || item.gestationalMessagingAlertLevel !== "ok" ? (
+              <div className={getGestationalAlertClass(item.gestationalMessagingAlertLevel)}>
+                <strong>
+                  {item.gestationalMessagingAlertLevel === "warning" ? "Base estimada" : "Base gestacional"}
+                </strong>
+                <span>
+                  {item.gestationalMessagingAlertMessage ||
+                    `Proximo exame definido a partir de ${item.gestationalBaseSourceLabel}.`}
+                </span>
+              </div>
+            ) : null}
+
+            <label>
+              Mensagem sugerida
+              <textarea rows={4} value={item.suggestedMessage} readOnly />
+            </label>
+
+            <div className="inline-actions list-action-bar">
+              <a href={item.whatsappUrl} target="_blank" rel="noreferrer" className="whatsapp-link">
+                Abrir WhatsApp
+              </a>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={actingKey === `${item.patientId}-${item.examPatientId}-contacted`}
+                onClick={() => handleAction(item.patientId, item.examPatientId, "contacted")}
+              >
+                {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Marcar como contatada"}
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={actingKey === `${item.patientId}-${item.examPatientId}-snooze`}
+                onClick={() => handleAction(item.patientId, item.examPatientId, "snooze")}
+              >
+                {actingKey === `${item.patientId}-${item.examPatientId}-snooze` ? "Salvando..." : "Adiar lembrete"}
+              </button>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
+                onClick={() => handleAction(item.patientId, item.examPatientId, "scheduled")}
+              >
+                {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Marcar como ja agendada"}
+              </button>
+              <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
+                Ver detalhes
+              </Link>
+            </div>
+          </article>
+        )) : <p className="empty-state">Nenhuma paciente precisa de contato hoje com os filtros atuais.</p>}
+      </div>
+    </section>
+  );
+}

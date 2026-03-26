@@ -1,0 +1,59 @@
+import { db } from "../db.js";
+
+function maskPhone(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length <= 4) {
+    return digits;
+  }
+
+  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
+}
+
+function sanitizeDetails(details) {
+  if (!details || typeof details !== "object") {
+    return details ?? null;
+  }
+
+  return Object.fromEntries(
+    Object.entries(details).map(([key, value]) => {
+      if (key.toLowerCase().includes("phone") || key.toLowerCase().includes("telefone")) {
+        return [key, maskPhone(value)];
+      }
+
+      return [key, value];
+    })
+  );
+}
+
+export function recordAuditEvent({
+  actorUserId = null,
+  actionType,
+  entityType,
+  entityId = null,
+  patientId = null,
+  description,
+  details = null
+}) {
+  db.prepare(`
+    INSERT INTO audit_logs (
+      actor_user_id,
+      action_type,
+      entity_type,
+      entity_id,
+      patient_id,
+      description,
+      details_json,
+      created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    actorUserId,
+    actionType,
+    entityType,
+    entityId,
+    patientId,
+    description,
+    details ? JSON.stringify(sanitizeDetails(details)) : null,
+    new Date().toISOString()
+  );
+}
