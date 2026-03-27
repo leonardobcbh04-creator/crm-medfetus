@@ -12,6 +12,11 @@ import {
   updatePatientExamStatus
 } from "./clinicService.js";
 import {
+  getAdminPanelDataCore,
+  getDashboardDataCore,
+  getReportsDataCore
+} from "./coreMigrationService.js";
+import {
   lookupFutureScheduledExamInShosp,
   resetShospReminderLookupCache,
   runShospIncrementalSync
@@ -194,6 +199,46 @@ test("paciente cadastrada passa a aparecer em clientes operacionais, pipeline, m
   const reminders = await getRemindersCenterData();
   const patientInReminders = reminders.items.find((item) => item.patientId === created.patient.id);
   assert.ok(patientInReminders, "Paciente deveria aparecer na central de lembretes.");
+});
+
+test("dashboard, relatorios e area administrativa carregam dados pela camada core sem quebrar os modulos visiveis", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const created = createPatient({
+    name: "Paciente Modulos Core",
+    phone: "31975554444",
+    birthDate: "1990-08-22",
+    gestationalWeeks: 22,
+    gestationalDays: 1,
+    physicianName: "Dra. Helena Castro",
+    clinicUnit: "Unidade Centro",
+    pregnancyType: "Unica",
+    highRisk: false,
+    notes: "Usada para validar dashboard, relatorios e admin.",
+    actorUserId: 1
+  });
+
+  const before = getPatientDetails(created.patient.id);
+  const nextExam = before.exams.find((exam) => exam.code === before.patient.nextExam.code);
+  assert.ok(nextExam, "A paciente precisa ter proximo exame para aparecer nas telas operacionais.");
+
+  const adminData = await getAdminPanelDataCore();
+  assert.ok(adminData.users.length >= 1);
+  assert.ok(adminData.units.length >= 1);
+  assert.ok(adminData.physicians.length >= 1);
+  assert.ok(adminData.examConfigs.length >= 1);
+
+  const dashboardData = await getDashboardDataCore();
+  assert.ok(dashboardData.summary.patientsToContactToday >= 1);
+  assert.ok(Array.isArray(dashboardData.lists.patientsToContactToday));
+  assert.ok(dashboardData.lists.patientsToContactToday.some((patient) => patient.id === created.patient.id));
+
+  const reportsData = await getReportsDataCore();
+  assert.ok(reportsData.summary.pendingExams >= 1);
+  assert.ok(Array.isArray(reportsData.reports.pendingExams));
+  assert.ok(reportsData.reports.pendingExams.some((exam) => exam.patientId === created.patient.id));
+  assert.ok(Array.isArray(reportsData.reports.patientsByStage));
 });
 
 test("marcar exame posterior como realizado deixa exames anteriores como superados e sem alerta operacional ativo", { concurrency: false }, () => {

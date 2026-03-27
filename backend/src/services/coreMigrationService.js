@@ -11,13 +11,18 @@ import {
   insertMessageDeliveryLog,
   insertMessageRecord,
   insertPatientRecord,
+  listAdminUsersRows,
   listAutomaticExamModels,
   listClinicUnitsRows,
   listExamConfigRows,
+  listExamInferenceRuleRows,
   listKanbanColumnsRows,
   listLatestMessageRows,
+  listMessageDeliveryLogRows,
   listMessageRows,
   listMessageHistoryRowsByPatient,
+  listMessageTemplateRows,
+  listMovementRows,
   listMovementRowsByPatient,
   listPatientExamRows,
   listPatientsBaseRows,
@@ -36,11 +41,14 @@ import {
   createMessage as createMessageLegacy,
   createPatient as createPatientLegacy,
   getAuthenticatedUserByToken as getAuthenticatedUserByTokenLegacy,
+  getAdminPanelData as getAdminPanelDataLegacy,
+  getDashboardData as getDashboardDataLegacy,
   getKanbanData as getKanbanDataLegacy,
   getMessagingOverview as getMessagingOverviewLegacy,
   getPatientDetails as getPatientDetailsLegacy,
   getRemindersCenterData as getRemindersCenterDataLegacy,
   getRemindersCount as getRemindersCountLegacy,
+  getReportsData as getReportsDataLegacy,
   listPatients as listPatientsLegacy,
   listExamConfigs as listExamConfigsLegacy,
   listExamProtocolPresets,
@@ -298,6 +306,70 @@ function normalizeReminderFilters(input = {}) {
     physicianName: input.physicianName ? String(input.physicianName) : "",
     examCode: input.examCode ? String(input.examCode) : ""
   };
+}
+
+function normalizeDashboardFilters(input = {}) {
+  const today = todayIso();
+  const period = String(input.period || "7d");
+
+  let dateFrom = input.dateFrom || addDays(today, -29);
+  let dateTo = input.dateTo || today;
+
+  if (!input.dateFrom && !input.dateTo) {
+    if (period === "7d") {
+      dateFrom = addDays(today, -6);
+    }
+    if (period === "15d") {
+      dateFrom = addDays(today, -14);
+    }
+    if (period === "90d") {
+      dateFrom = addDays(today, -89);
+    }
+  }
+
+  return {
+    period,
+    dateFrom,
+    dateTo,
+    clinicUnit: String(input.clinicUnit || ""),
+    physicianName: String(input.physicianName || "")
+  };
+}
+
+function isDateWithinRange(date, filters) {
+  if (!date) {
+    return false;
+  }
+
+  return date >= filters.dateFrom && date <= filters.dateTo;
+}
+
+function applyPatientFilters(patients, filters) {
+  return patients.filter((patient) => {
+    if (filters.clinicUnit && patient.clinicUnit !== filters.clinicUnit) {
+      return false;
+    }
+    if (filters.physicianName && patient.physicianName !== filters.physicianName) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function buildDashboardBuckets(filters) {
+  const buckets = [];
+  let cursor = filters.dateFrom;
+  while (cursor <= filters.dateTo) {
+    buckets.push({
+      date: cursor,
+      label: formatDatePtBr(cursor),
+      messages: 0,
+      scheduled: 0,
+      completed: 0
+    });
+    cursor = addDays(cursor, 1);
+  }
+  return buckets;
 }
 
 function shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters = null) {
@@ -626,6 +698,330 @@ export async function getKanbanDataCore() {
     isSystem: Boolean(stage.isSystem),
     patients: sortPatientsByPriority(patients.filter((patient) => patient.stage === stage.id))
   }));
+}
+
+export async function getDashboardDataCore(inputFilters = {}) {
+  if (isSqliteMode()) {
+    return getDashboardDataLegacy(inputFilters);
+  }
+
+  const filters = normalizeDashboardFilters(inputFilters);
+  const [allPatients, patientExamRows, messageRows, movementRows] = await Promise.all([
+    listPatientsCore(),
+    listPatientExamRows(),
+    listMessageRows(),
+    listMovementRows()
+  ]);
+
+  const filterOptions = {
+    clinicUnits: [...new Set(allPatients.map((patient) => patient.clinicUnit).filter(Boolean))].sort(),
+    physicians: [...new Set(allPatients.map((patient) => patient.physicianName).filter(Boolean))].sort()
+  };
+  const patients = applyPatientFilters(allPatients, filters);
+  const patientIds = new Set(patients.map((patient) => patient.id));
+  const patientExamsMap = buildPatientExamsMap(patientExamRows);
+  const examRows = patientExamRows.filter((exam) => patientIds.has(exam.patientId));
+  const filteredMessageRows = messageRows.filter((message) => patientIds.has(message.patientId));
+  const filteredMovementRows = movementRows.filter((movement) => patientIds.has(movement.patientId));
+  const today = todayIso();
+  const endOfWeek = addDays(today, 6);
+  const pendingExamCounts = new Map();
+  const patientsToContactToday = sortPatientsByPriority(
+    patients.filter((patient) => {
+      const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.code === patient.nextExam.code);
+      return shouldPatientEnterReminderQueue(patient, nextExamRow, today);
+    })
+  );
+
+  examRows
+    .filter((exam) => exam.status !== "realizado")
+    .forEach((exam) => {
+      pendingExamCounts.set(exam.name, (pendingExamCounts.get(exam.name) || 0) + 1);
+    });
+
+  const examsMostPending = [...pendingExamCounts.entries()]
+    .map(([name, total]) => ({ name, total }))
+    .sort((left, right) => right.total - left.total || left.name.localeCompare(right.name, "pt-BR"))
+    .slice(0, 5);
+
+  const messagesInPeriod = filteredMessageRows.filter((message) => isDateWithinRange(message.sentAt || message.createdAt, filters));
+  const scheduledMovementsInPeriod = filteredMovementRows.filter(
+    (movement) => movement.actionType === "exame_agendado" && isDateWithinRange(movement.createdAt, filters)
+  );
+  const completedExamsInPeriod = examRows.filter((exam) => isDateWithinRange(exam.completedDate, filters));
+  const chartBuckets = buildDashboardBuckets(filters);
+  const bucketsByDate = new Map(chartBuckets.map((bucket) => [bucket.date, bucket]));
+
+  messagesInPeriod.forEach((message) => {
+    const bucket = bucketsByDate.get(message.sentAt || message.createdAt);
+    if (bucket) {
+      bucket.messages += 1;
+    }
+  });
+
+  examRows.filter((exam) => isDateWithinRange(exam.scheduledDate, filters)).forEach((exam) => {
+    const bucket = bucketsByDate.get(exam.scheduledDate);
+    if (bucket) {
+      bucket.scheduled += 1;
+    }
+  });
+
+  completedExamsInPeriod.forEach((exam) => {
+    const bucket = bucketsByDate.get(exam.completedDate);
+    if (bucket) {
+      bucket.completed += 1;
+    }
+  });
+
+  return {
+    filters,
+    filterOptions,
+    summary: {
+      remindersDueToday: patientsToContactToday.length,
+      gestationalBaseManualReview: patients.filter((patient) => isMessagingBlockedByGestationalBase(patient)).length,
+      patientsToContactToday: patientsToContactToday.length,
+      overduePatients: patients.filter((patient) => patient.nextExam.deadlineStatus === DEADLINE_STATUS.OVERDUE).length,
+      scheduledThisWeek: new Set(
+        examRows
+          .filter((exam) => exam.scheduledDate && exam.scheduledDate >= today && exam.scheduledDate <= endOfWeek)
+          .map((exam) => exam.patientId)
+      ).size,
+      conversionRate: messagesInPeriod.length ? Math.round((scheduledMovementsInPeriod.length / messagesInPeriod.length) * 100) : 0,
+      totalMessagesSent: messagesInPeriod.length,
+      totalExamsCompleted: completedExamsInPeriod.length
+    },
+    lists: {
+      patientsToContactToday: patientsToContactToday.slice(0, 8),
+      overduePatients: sortPatientsByPriority(
+        patients.filter((patient) => patient.nextExam.deadlineStatus === DEADLINE_STATUS.OVERDUE)
+      ).slice(0, 8),
+      scheduledThisWeek: sortPatientsByPriority(
+        patients.filter((patient) =>
+          examRows.some(
+            (exam) => exam.patientId === patient.id && exam.scheduledDate && exam.scheduledDate >= today && exam.scheduledDate <= endOfWeek
+          )
+        )
+      ).slice(0, 8),
+      examsMostPending
+    },
+    charts: {
+      activityByDay: chartBuckets,
+      completedExamsByPeriod: chartBuckets.map((bucket) => ({
+        date: bucket.date,
+        label: bucket.label,
+        total: bucket.completed
+      }))
+    }
+  };
+}
+
+export async function getReportsDataCore(inputFilters = {}) {
+  if (isSqliteMode()) {
+    return getReportsDataLegacy(inputFilters);
+  }
+
+  const filters = normalizeDashboardFilters(inputFilters);
+  const [allPatients, patientExamRows, messageRows, movementRows, columns] = await Promise.all([
+    listPatientsCore(),
+    listPatientExamRows(),
+    listMessageRows(),
+    listMovementRows(),
+    listKanbanColumnsRows()
+  ]);
+
+  const filterOptions = {
+    clinicUnits: [...new Set(allPatients.map((patient) => patient.clinicUnit).filter(Boolean))].sort(),
+    physicians: [...new Set(allPatients.map((patient) => patient.physicianName).filter(Boolean))].sort()
+  };
+  const patients = applyPatientFilters(allPatients, filters);
+  const patientIds = new Set(patients.map((patient) => patient.id));
+  const examRows = patientExamRows.filter((exam) => patientIds.has(exam.patientId));
+  const filteredMessageRows = messageRows.filter((message) => patientIds.has(message.patientId));
+  const filteredMovementRows = movementRows.filter((movement) => patientIds.has(movement.patientId));
+
+  const pendingExams = examRows
+    .filter((exam) => exam.status !== "realizado")
+    .map((exam) => {
+      const patient = patients.find((item) => item.id === exam.patientId);
+      const assessedExam = analyzePatientExamTimeline([exam]).assessedExams[0];
+      return {
+        patientId: exam.patientId,
+        patientName: patient?.name || "Paciente",
+        examName: exam.name,
+        examCode: exam.code,
+        predictedDate: exam.predictedDate,
+        predictedDateLabel: exam.predictedDate ? formatDatePtBr(exam.predictedDate) : "Nao definida",
+        deadlineStatusLabel: assessedExam?.deadlineStatusLabel || "Pendente",
+        physicianName: patient?.physicianName || null,
+        clinicUnit: patient?.clinicUnit || null
+      };
+    })
+    .sort((left, right) => {
+      if (left.predictedDate && right.predictedDate && left.predictedDate !== right.predictedDate) {
+        return left.predictedDate.localeCompare(right.predictedDate);
+      }
+      return left.patientName.localeCompare(right.patientName, "pt-BR");
+    });
+
+  const overdueExams = pendingExams.filter((exam) => exam.deadlineStatusLabel === "Atrasado");
+
+  const contactsMade = [
+    ...filteredMessageRows
+      .filter((message) => isDateWithinRange(message.sentAt || message.createdAt, filters))
+      .map((message) => {
+        const patient = patients.find((item) => item.id === message.patientId);
+        const date = message.sentAt || message.createdAt;
+        return {
+          patientId: message.patientId,
+          patientName: patient?.name || "Paciente",
+          contactType: "Mensagem",
+          status: message.responseStatus === "respondida" ? "Respondida" : "Enviada",
+          date,
+          dateLabel: formatDatePtBr(date),
+          userName: message.createdByUserName || null,
+          physicianName: patient?.physicianName || null,
+          clinicUnit: patient?.clinicUnit || null
+        };
+      }),
+    ...filteredMovementRows
+      .filter((movement) => movement.actionType === "contato_realizado" && isDateWithinRange(movement.createdAt, filters))
+      .map((movement) => {
+        const patient = patients.find((item) => item.id === movement.patientId);
+        return {
+          patientId: movement.patientId,
+          patientName: patient?.name || "Paciente",
+          contactType: "Contato manual",
+          status: "Realizado",
+          date: movement.createdAt,
+          dateLabel: formatDatePtBr(movement.createdAt),
+          userName: movement.createdByUserName || null,
+          physicianName: patient?.physicianName || null,
+          clinicUnit: patient?.clinicUnit || null
+        };
+      })
+  ].sort((left, right) => right.date.localeCompare(left.date));
+
+  const scheduledByPeriod = examRows
+    .filter((exam) => isDateWithinRange(exam.scheduledDate, filters))
+    .map((exam) => {
+      const patient = patients.find((item) => item.id === exam.patientId);
+      return {
+        patientId: exam.patientId,
+        patientName: patient?.name || "Paciente",
+        examName: exam.name,
+        scheduledDate: exam.scheduledDate,
+        scheduledDateLabel: exam.scheduledDate ? formatDatePtBr(exam.scheduledDate) : "Nao informado",
+        scheduledTime: exam.scheduledTime || null,
+        userName: exam.scheduledByName || null,
+        physicianName: patient?.physicianName || null,
+        clinicUnit: patient?.clinicUnit || null
+      };
+    })
+    .sort((left, right) => right.scheduledDate.localeCompare(left.scheduledDate));
+
+  const scheduledMovementsInPeriod = filteredMovementRows.filter(
+    (movement) => movement.actionType === "exame_agendado" && isDateWithinRange(movement.createdAt, filters)
+  );
+
+  const productivityMap = new Map();
+  const trackedActions = filteredMovementRows.filter((movement) =>
+    ["mensagem_enviada", "contato_realizado", "exame_agendado", "exame_realizado", "movimentacao_kanban"].includes(movement.actionType) &&
+    isDateWithinRange(movement.createdAt, filters)
+  );
+
+  trackedActions.forEach((movement) => {
+    const userId = movement.createdByUserId || 0;
+    const userName = movement.createdByUserName || "Nao identificado";
+    const current = productivityMap.get(userId) || {
+      userId,
+      userName,
+      contacts: 0,
+      scheduled: 0,
+      completed: 0,
+      totalActions: 0
+    };
+
+    if (["mensagem_enviada", "contato_realizado"].includes(movement.actionType)) {
+      current.contacts += 1;
+    }
+    if (movement.actionType === "exame_agendado") {
+      current.scheduled += 1;
+    }
+    if (movement.actionType === "exame_realizado") {
+      current.completed += 1;
+    }
+    current.totalActions += 1;
+    productivityMap.set(userId, current);
+  });
+
+  const productivityByUser = [...productivityMap.values()].sort((left, right) => {
+    if (right.totalActions !== left.totalActions) {
+      return right.totalActions - left.totalActions;
+    }
+    return left.userName.localeCompare(right.userName, "pt-BR");
+  });
+
+  const patientsByStage = columns.map((column) => ({
+    stage: column.id,
+    stageTitle: column.title,
+    total: patients.filter((patient) => patient.stage === column.id).length
+  }));
+
+  const contactsCount = contactsMade.length;
+  return {
+    filters,
+    filterOptions,
+    summary: {
+      pendingExams: pendingExams.length,
+      overdueExams: overdueExams.length,
+      contactsMade: contactsCount,
+      scheduledCount: scheduledByPeriod.length,
+      conversionRate: contactsCount ? Math.round((scheduledMovementsInPeriod.length / contactsCount) * 100) : 0
+    },
+    reports: {
+      patientsByStage,
+      pendingExams,
+      overdueExams,
+      contactsMade,
+      scheduledByPeriod,
+      productivityByUser
+    }
+  };
+}
+
+export async function getAdminPanelDataCore() {
+  if (isSqliteMode()) {
+    return getAdminPanelDataLegacy();
+  }
+
+  const [users, units, physicians, examConfigsResponse, examInferenceRules, messageTemplates, messageDeliveryLogs] = await Promise.all([
+    listAdminUsersRows(),
+    listClinicUnitsRows(),
+    listPhysiciansRows(),
+    listExamConfigsCore(),
+    listExamInferenceRuleRows(),
+    listMessageTemplateRows(),
+    listMessageDeliveryLogRows()
+  ]);
+
+  return {
+    users: users.map((user) => ({
+      ...user,
+      role: String(user.role || "").trim().toLowerCase() === "atendente" ? "recepcao" : user.role,
+      active: Boolean(user.active)
+    })),
+    units: units.map((unit) => ({ ...unit, active: Boolean(unit.active) })),
+    physicians: physicians.map((physician) => ({ ...physician, active: Boolean(physician.active) })),
+    examConfigs: examConfigsResponse.examConfigs,
+    examInferenceRules: examInferenceRules.map((item) => ({
+      ...item,
+      active: Boolean(item.active),
+      allowAutomaticInference: Boolean(item.allowAutomaticInference)
+    })),
+    messageTemplates: messageTemplates.map((template) => ({ ...template, active: Boolean(template.active) })),
+    messageDeliveryLogs,
+    messagingConfig: getMessagingRuntimeConfig()
+  };
 }
 
 export async function getPatientDetailsCore(patientId) {

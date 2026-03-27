@@ -196,27 +196,47 @@ export function AdminPage() {
   async function loadAdminData() {
     setLoading(true);
     try {
-      const [response, shospResponse, mappingsResponse] = await Promise.all([
+      const [adminResult, shospStatusResult, shospMappingsResult] = await Promise.allSettled([
         api.getAdminPanel(),
         api.getShospIntegrationStatus(),
         api.getShospExamMappings()
       ]);
-      setAdminData(response);
-      setShospStatus(shospResponse);
-      setShospMappings(mappingsResponse.mappings);
-      setShospSettingsForm({
-        useMock: shospResponse.persistedConfig?.useMock ?? true,
-        apiBaseUrl: shospResponse.persistedConfig?.apiBaseUrl || "",
-        apiToken: "",
-        apiKey: "",
-        username: shospResponse.persistedConfig?.username || "",
-        password: "",
-        companyId: shospResponse.persistedConfig?.companyId || "",
-        patientsPath: String(shospResponse.persistedConfig?.settings?.patientsPath || shospResponse.settings.patientsPath || "/patients"),
-        attendancesPath: String(shospResponse.persistedConfig?.settings?.attendancesPath || shospResponse.settings.attendancesPath || "/attendances"),
-        examsPath: String(shospResponse.persistedConfig?.settings?.examsPath || shospResponse.settings.examsPath || "/exams"),
-        timeoutMs: String(shospResponse.persistedConfig?.settings?.timeoutMs || shospResponse.settings.timeoutMs || 15000)
-      });
+
+      if (adminResult.status !== "fulfilled") {
+        throw adminResult.reason;
+      }
+
+      setAdminData(adminResult.value);
+
+      if (shospStatusResult.status === "fulfilled") {
+        const shospResponse = shospStatusResult.value;
+        setShospStatus(shospResponse);
+        setShospSettingsForm({
+          useMock: shospResponse.persistedConfig?.useMock ?? true,
+          apiBaseUrl: shospResponse.persistedConfig?.apiBaseUrl || "",
+          apiToken: "",
+          apiKey: "",
+          username: shospResponse.persistedConfig?.username || "",
+          password: "",
+          companyId: shospResponse.persistedConfig?.companyId || "",
+          patientsPath: String(shospResponse.persistedConfig?.settings?.patientsPath || shospResponse.settings.patientsPath || "/patients"),
+          attendancesPath: String(shospResponse.persistedConfig?.settings?.attendancesPath || shospResponse.settings.attendancesPath || "/attendances"),
+          examsPath: String(shospResponse.persistedConfig?.settings?.examsPath || shospResponse.settings.examsPath || "/exams"),
+          timeoutMs: String(shospResponse.persistedConfig?.settings?.timeoutMs || shospResponse.settings.timeoutMs || 15000)
+        });
+      } else {
+        setShospStatus(null);
+      }
+
+      if (shospMappingsResult.status === "fulfilled") {
+        setShospMappings(shospMappingsResult.value.mappings);
+      } else {
+        setShospMappings([]);
+      }
+
+      if (shospStatusResult.status !== "fulfilled" || shospMappingsResult.status !== "fulfilled") {
+        setFeedback("A area administrativa foi carregada, mas a integracao com o Shosp ainda nao respondeu neste ambiente.");
+      }
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a area administrativa.");
     } finally {
