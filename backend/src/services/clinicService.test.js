@@ -241,3 +241,39 @@ test("marcar exame posterior como realizado deixa exames anteriores como superad
   assert.equal(lastMovement.actionType, "exame_realizado");
   assert.match(lastMovement.description, /marcado como realizado/i);
 });
+
+test("exame marcado como ja realizado usa status concluido sem manter alerta de atraso e preenche exibicao de realizacao", { concurrency: false }, () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const created = createPatient({
+    name: "Paciente Realizado Sem Data",
+    phone: "31976665555",
+    birthDate: "1991-01-15",
+    gestationalWeeks: 14,
+    gestationalDays: 4,
+    physicianName: "Dra. Helena Castro",
+    clinicUnit: "Unidade Centro",
+    pregnancyType: "Unica",
+    highRisk: false,
+    notes: "Valida a fonte de verdade do status realizado.",
+    actorUserId: 1
+  });
+
+  const before = getPatientDetails(created.patient.id);
+  const exam = before.exams.find((item) => item.code === "obstetrica_sexo");
+  assert.ok(exam, "Obstetrica para sexo deveria existir na timeline.");
+
+  const updated = updatePatientExamStatus(created.patient.id, exam.id, {
+    status: "realizado",
+    completedOutsideClinic: true,
+    actorUserId: 1
+  });
+
+  const realizedExam = updated.exams.find((item) => item.code === "obstetrica_sexo");
+  assert.equal(realizedExam?.status, "realizado");
+  assert.equal(realizedExam?.deadlineStatus, "realizado");
+  assert.equal(realizedExam?.shouldHaveBeenDone, false);
+  assert.equal(realizedExam?.completedDate, null);
+  assert.equal(realizedExam?.completedDateLabel, "Ja realizado (data nao informada)");
+});

@@ -239,6 +239,18 @@ function buildReminderLabel(examRow) {
   return "Dentro da janela ideal";
 }
 
+function buildCompletedDateLabel(exam) {
+  if (exam.completedDate) {
+    return formatDatePtBr(exam.completedDate);
+  }
+
+  if (exam.status === "realizado") {
+    return exam.completedOutsideClinic ? "Ja realizado (data nao informada)" : "Realizado (data nao informada)";
+  }
+
+  return null;
+}
+
 function sortPatientsByPriority(patients) {
   return [...patients].sort((left, right) => {
     if (left.priorityScore !== right.priorityScore) {
@@ -636,7 +648,7 @@ export async function getPatientDetailsCore(patientId) {
     ...exam,
     predictedDateLabel: formatDatePtBr(exam.predictedDate),
     scheduledDateLabel: exam.scheduledDate ? formatDatePtBr(exam.scheduledDate) : null,
-    completedDateLabel: exam.completedDate ? formatDatePtBr(exam.completedDate) : null,
+    completedDateLabel: buildCompletedDateLabel(exam),
     suggestedMessage: renderExamReminderMessage(
       exam.defaultMessage,
       patient,

@@ -508,6 +508,18 @@ function getMovementHistoryByPatient() {
   }, new Map());
 }
 
+function buildCompletedDateLabel(exam) {
+  if (exam.completedDate) {
+    return formatDatePtBr(exam.completedDate);
+  }
+
+  if (exam.status === "realizado") {
+    return exam.completedOutsideClinic ? "Ja realizado (data nao informada)" : "Realizado (data nao informada)";
+  }
+
+  return null;
+}
+
 function buildNextExam(patientExamRows) {
   const timeline = analyzePatientExamTimeline(patientExamRows);
   const pendingExam = timeline.nextExam;
@@ -2528,7 +2540,7 @@ export function getPatientDetails(patientId) {
     schedulingNotes: exam.schedulingNotes || null,
     scheduledByName: exam.scheduledByName || null,
     completedDate: exam.completedDate,
-    completedDateLabel: exam.completedDate ? formatDatePtBr(exam.completedDate) : null,
+    completedDateLabel: buildCompletedDateLabel(exam),
     completedByName: exam.completedByName || null,
     completedOutsideClinic: Boolean(exam.completedOutsideClinic),
     status: exam.status
