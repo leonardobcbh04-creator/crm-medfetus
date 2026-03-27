@@ -69,6 +69,7 @@ import {
 } from "../security/auth.js";
 import { addDays, formatDatePtBr, todayIso } from "../utils/date.js";
 import { normalizeBrazilPhone, toWhatsAppPhone } from "../utils/phone.js";
+import { getMessagingRuntimeConfig } from "./messaging/messagingService.js";
 import { lookupFutureScheduledExamInShosp } from "./shospIntegration/shospIntegrationService.js";
 
 function isSqliteMode() {
