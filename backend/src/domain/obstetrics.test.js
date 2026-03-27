@@ -200,3 +200,77 @@ test("identifica exame atrasado e proximo exame da paciente", () => {
   assert.equal(timeline.assessedExams[0].deadlineStatus, DEADLINE_STATUS.OVERDUE);
   assert.equal(timeline.assessedExams[1].deadlineStatus, DEADLINE_STATUS.WITHIN_WINDOW);
 });
+
+test("marca exames anteriores como superados quando a paciente ja avancou para uma etapa posterior", () => {
+  const timeline = analyzePatientExamTimeline(
+    [
+      {
+        examModelId: 1,
+        code: "exame_obstetrico_inicial",
+        name: "Exame obstetrico inicial",
+        flowType: "automatico",
+        sortOrder: 1,
+        startWeek: 5,
+        endWeek: 10.86,
+        targetWeek: 8,
+        predictedDate: "2026-02-12",
+        reminderDate1: "2026-02-05",
+        reminderDate2: "2026-02-10",
+        completedDate: null,
+        status: "pendente"
+      },
+      {
+        examModelId: 2,
+        code: "morfologico_1_trimestre",
+        name: "Morfologico 1o trimestre",
+        flowType: "automatico",
+        sortOrder: 2,
+        startWeek: 11,
+        endWeek: 14,
+        targetWeek: 12,
+        predictedDate: "2026-03-12",
+        reminderDate1: "2026-03-05",
+        reminderDate2: "2026-03-10",
+        completedDate: null,
+        status: "pendente"
+      },
+      {
+        examModelId: 4,
+        code: "morfologico_2_trimestre",
+        name: "Morfologico 2o trimestre",
+        flowType: "automatico",
+        sortOrder: 4,
+        startWeek: 20,
+        endWeek: 24,
+        targetWeek: 22,
+        predictedDate: "2026-05-21",
+        reminderDate1: "2026-05-14",
+        reminderDate2: "2026-05-19",
+        completedDate: "2026-05-21",
+        status: "realizado"
+      },
+      {
+        examModelId: 5,
+        code: "ecocardiograma_fetal",
+        name: "Ecocardiograma fetal",
+        flowType: "automatico",
+        sortOrder: 5,
+        startWeek: 24,
+        endWeek: 28,
+        targetWeek: 26,
+        predictedDate: "2026-06-18",
+        reminderDate1: "2026-06-11",
+        reminderDate2: "2026-06-16",
+        completedDate: null,
+        status: "pendente"
+      }
+    ],
+    "2026-05-25"
+  );
+
+  assert.equal(timeline.assessedExams[0].deadlineStatus, DEADLINE_STATUS.SUPERSEDED);
+  assert.equal(timeline.assessedExams[1].deadlineStatus, DEADLINE_STATUS.SUPERSEDED);
+  assert.equal(timeline.assessedExams[0].shouldHaveBeenDone, false);
+  assert.equal(timeline.nextExam?.code, "ecocardiograma_fetal");
+  assert.equal(timeline.overdueExam, null);
+});

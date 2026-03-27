@@ -52,7 +52,7 @@ function getTimelineActionMeta(exam: PatientDetails["exams"][number]) {
   if (exam.status === "realizado") {
     return {
       label: "OK",
-      text: exam.completedOutsideClinic ? "Marcado como ja realizado" : "Exame realizado",
+      text: exam.completedOutsideClinic ? "Historico anterior confirmado" : "Exame realizado",
       className: "timeline-icon-done"
     };
   }
@@ -63,6 +63,10 @@ function getTimelineActionMeta(exam: PatientDetails["exams"][number]) {
 
   if (exam.shouldHaveBeenDone) {
     return { label: "!", text: "Exame atrasado", className: "timeline-icon-alert" };
+  }
+
+  if (exam.deadlineStatus === "superado") {
+    return { label: ">>", text: "Etapa superada", className: "timeline-icon-planned" };
   }
 
   return { label: "EX", text: "Exame previsto", className: "timeline-icon-planned" };
@@ -453,7 +457,7 @@ export function PatientDetailPage() {
                     </div>
                     <div className="priority-badge-row">
                       {currentTimelineExamId === exam.id ? (
-                        <span className="badge badge-attention">Momento atual</span>
+                        <span className="badge badge-attention">Proximo exame</span>
                       ) : null}
                       <span className={`badge ${getExamTrimesterMeta(exam).className}`}>
                         {getExamTrimesterMeta(exam).label}
@@ -461,6 +465,8 @@ export function PatientDetailPage() {
                       <span className={`badge ${
                         exam.status === "realizado"
                           ? "badge-priority-green"
+                          : exam.deadlineStatus === "superado"
+                            ? "badge-priority-blue"
                           : exam.deadlineStatus === "atrasado"
                             ? "badge-priority-red"
                             : exam.deadlineStatus === "pendente"
@@ -475,13 +481,16 @@ export function PatientDetailPage() {
                         {exam.required ? "Obrigatorio" : "Recomendado"}
                       </span>
                       {exam.completedOutsideClinic ? (
-                        <span className="badge badge-priority-blue">Outra clinica</span>
+                        <span className="badge badge-priority-blue">Historico anterior</span>
                       ) : null}
                       {exam.importedFromShosp ? (
                         <span className="badge badge-soft badge-priority-blue">Shosp</span>
                       ) : null}
                       {exam.shouldHaveBeenDone ? (
                         <span className="badge badge-priority-red">Janela ideal passou</span>
+                      ) : null}
+                      {exam.deadlineStatus === "superado" ? (
+                        <span className="badge badge-priority-blue">Superado</span>
                       ) : null}
                     </div>
                   </div>
@@ -493,6 +502,9 @@ export function PatientDetailPage() {
                   </div>
                   {exam.shouldHaveBeenDone ? (
                     <p className="timeline-warning">Este exame ja passou da janela ideal e precisa de atencao da equipe.</p>
+                  ) : null}
+                  {exam.deadlineStatus === "superado" ? (
+                    <p className="timeline-notes">Esta etapa da jornada ja foi superada pela evolucao da gestacao e nao exige acao operacional ativa.</p>
                   ) : null}
                   {exam.schedulingNotes ? <p className="timeline-notes">{exam.schedulingNotes}</p> : null}
                   {exam.status !== "realizado" ? (
@@ -810,7 +822,7 @@ export function PatientDetailPage() {
                     <span className={`badge badge-soft ${exam.required ? "badge-priority-red" : "badge-priority-blue"}`}>
                       {exam.required ? "Obrigatorio" : "Recomendado"}
                     </span>
-                    {exam.completedOutsideClinic ? <span className="badge badge-priority-blue">Outra clinica</span> : null}
+                    {exam.completedOutsideClinic ? <span className="badge badge-priority-blue">Historico anterior</span> : null}
                     {exam.importedFromShosp ? <span className="badge badge-soft badge-priority-blue">Shosp</span> : null}
                     {exam.importedFromShosp && exam.status === "agendado" ? <span className="badge badge-priority-green">Agendado no Shosp</span> : null}
                   </div>

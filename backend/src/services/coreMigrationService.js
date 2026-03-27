@@ -958,13 +958,13 @@ export async function getRemindersCenterDataCore(inputFilters = {}) {
 
   const reminderCandidates = sortPatientsByPriority(
     patients.filter((patient) => {
-      const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.status === "pendente");
+      const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.code === patient.nextExam.code);
       return shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters);
     })
   );
 
   const detectionResults = await Promise.all(reminderCandidates.map(async (patient) => {
-    const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.status === "pendente");
+    const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.code === patient.nextExam.code);
     const shospSchedule = await lookupFutureScheduledExamInShosp({
       externalPatientId: patient.shospPatientId || null,
       examCode: patient.nextExam.code || null

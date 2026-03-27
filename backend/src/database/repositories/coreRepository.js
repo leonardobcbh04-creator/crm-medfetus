@@ -213,6 +213,7 @@ export async function listPatientExamRows() {
         em.name,
         em.required,
         em.flow_type AS flowType,
+        em.sort_order AS sortOrder,
         em.start_week AS startWeek,
         em.end_week AS endWeek,
         em.target_week AS targetWeek,
@@ -257,6 +258,7 @@ export async function listPatientExamRows() {
       em.name,
       em.required,
       em.flow_type AS "flowType",
+      em.sort_order AS "sortOrder",
       em.start_week AS "startWeek",
       em.end_week AS "endWeek",
       em.target_week AS "targetWeek",
@@ -1178,7 +1180,9 @@ export async function getPatientExamRow(patientId, examId) {
         ep.status,
         p.stage AS patientStage,
         em.code,
-        em.name
+        em.name,
+        em.flow_type AS flowType,
+        em.sort_order AS sortOrder
       FROM exames_paciente ep
       INNER JOIN patients p ON p.id = ep.patient_id
       INNER JOIN exames_modelo em ON em.id = ep.exam_model_id
@@ -1207,7 +1211,9 @@ export async function getPatientExamRow(patientId, examId) {
       ep.status,
       p.stage AS "patientStage",
       em.code,
-      em.name
+      em.name,
+      em.flow_type AS "flowType",
+      em.sort_order AS "sortOrder"
     FROM exames_paciente ep
     INNER JOIN patients p ON p.id = ep.patient_id
     INNER JOIN exames_modelo em ON em.id = ep.exam_model_id
