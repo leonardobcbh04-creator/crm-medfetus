@@ -49,10 +49,18 @@ function getExamTrimesterMeta(exam: PatientDetails["exams"][number]) {
 }
 
 function getTimelineActionMeta(exam: PatientDetails["exams"][number]) {
-  if (exam.status === "realizado") {
+  if (exam.timelineStatus === "historico_anterior_confirmado") {
     return {
       label: "OK",
-      text: exam.completedOutsideClinic ? "Historico anterior confirmado" : "Exame realizado",
+      text: "Historico anterior confirmado",
+      className: "timeline-icon-done"
+    };
+  }
+
+  if (exam.timelineStatus === "realizado") {
+    return {
+      label: "OK",
+      text: "Exame realizado",
       className: "timeline-icon-done"
     };
   }
@@ -61,15 +69,43 @@ function getTimelineActionMeta(exam: PatientDetails["exams"][number]) {
     return { label: "AG", text: "Exame agendado", className: "timeline-icon-scheduled" };
   }
 
-  if (exam.shouldHaveBeenDone) {
+  if (exam.showOperationalAlert) {
     return { label: "!", text: "Exame atrasado", className: "timeline-icon-alert" };
   }
 
-  if (exam.deadlineStatus === "superado") {
+  if (exam.timelineStatus === "superado") {
     return { label: ">>", text: "Etapa superada", className: "timeline-icon-planned" };
   }
 
   return { label: "EX", text: "Exame previsto", className: "timeline-icon-planned" };
+}
+
+function getTimelinePrimaryBadge(exam: PatientDetails["exams"][number]) {
+  if (exam.timelineStatus === "historico_anterior_confirmado") {
+    return { label: "Historico anterior confirmado", className: "badge-priority-blue" };
+  }
+
+  if (exam.timelineStatus === "realizado") {
+    return { label: "Realizado", className: "badge-priority-green" };
+  }
+
+  if (exam.timelineStatus === "superado") {
+    return { label: "Superado", className: "badge-priority-blue" };
+  }
+
+  if (exam.showOperationalAlert) {
+    return { label: "Atrasado", className: "badge-priority-red" };
+  }
+
+  if (exam.deadlineStatus === "pendente") {
+    return { label: exam.deadlineStatusLabel || "Pendente", className: "badge-priority-orange" };
+  }
+
+  if (exam.deadlineStatus === "aproximando") {
+    return { label: exam.deadlineStatusLabel || "Aproximando", className: "badge-priority-yellow" };
+  }
+
+  return { label: exam.deadlineStatusLabel || "Planejado", className: "badge-priority-green" };
 }
 
 export function PatientDetailPage() {
@@ -441,7 +477,7 @@ export function PatientDetailPage() {
             {timelineItems.length ? timelineItems.map((exam) => (
               <div
                 key={exam.id}
-                className={`timeline-item ${currentTimelineExamId === exam.id ? "timeline-item-current" : ""} ${exam.shouldHaveBeenDone ? "timeline-item-overdue" : ""}`}
+                className={`timeline-item ${currentTimelineExamId === exam.id ? "timeline-item-current" : ""} ${exam.showOperationalAlert ? "timeline-item-overdue" : ""}`}
               >
                 <div className={`timeline-marker ${getExamTrimesterMeta(exam).className}`} />
                 <div className="timeline-content">
@@ -462,20 +498,8 @@ export function PatientDetailPage() {
                       <span className={`badge ${getExamTrimesterMeta(exam).className}`}>
                         {getExamTrimesterMeta(exam).label}
                       </span>
-                      <span className={`badge ${
-                        exam.status === "realizado"
-                          ? "badge-priority-green"
-                          : exam.deadlineStatus === "superado"
-                            ? "badge-priority-blue"
-                          : exam.deadlineStatus === "atrasado"
-                            ? "badge-priority-red"
-                            : exam.deadlineStatus === "pendente"
-                              ? "badge-priority-orange"
-                              : exam.deadlineStatus === "aproximando"
-                                ? "badge-priority-yellow"
-                                : "badge-priority-green"
-                      }`}>
-                        {exam.status === "realizado" ? "Realizado" : exam.deadlineStatusLabel || "Planejado"}
+                      <span className={`badge ${getTimelinePrimaryBadge(exam).className}`}>
+                        {getTimelinePrimaryBadge(exam).label}
                       </span>
                       <span className={`badge badge-soft ${exam.required ? "badge-priority-red" : "badge-priority-blue"}`}>
                         {exam.required ? "Obrigatorio" : "Recomendado"}
@@ -486,11 +510,8 @@ export function PatientDetailPage() {
                       {exam.importedFromShosp ? (
                         <span className="badge badge-soft badge-priority-blue">Shosp</span>
                       ) : null}
-                      {exam.shouldHaveBeenDone ? (
+                      {exam.showOperationalAlert ? (
                         <span className="badge badge-priority-red">Janela ideal passou</span>
-                      ) : null}
-                      {exam.deadlineStatus === "superado" ? (
-                        <span className="badge badge-priority-blue">Superado</span>
                       ) : null}
                     </div>
                   </div>
@@ -500,10 +521,10 @@ export function PatientDetailPage() {
                     <span><strong>Horario:</strong> {exam.scheduledTime || "Nao informado"}</span>
                     <span><strong>Realizado em:</strong> {exam.completedDateLabel || "Ainda nao realizado"}</span>
                   </div>
-                  {exam.shouldHaveBeenDone ? (
+                  {exam.showOperationalAlert ? (
                     <p className="timeline-warning">Este exame ja passou da janela ideal e precisa de atencao da equipe.</p>
                   ) : null}
-                  {exam.deadlineStatus === "superado" ? (
+                  {exam.timelineStatus === "superado" ? (
                     <p className="timeline-notes">Esta etapa da jornada ja foi superada pela evolucao da gestacao e nao exige acao operacional ativa.</p>
                   ) : null}
                   {exam.schedulingNotes ? <p className="timeline-notes">{exam.schedulingNotes}</p> : null}

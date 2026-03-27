@@ -226,8 +226,10 @@ test("marcar exame posterior como realizado deixa exames anteriores como superad
 
   const supersededExam = updated.exams.find((exam) => exam.code === "morfologico_1_trimestre");
   assert.equal(supersededExam?.status, "pendente");
+  assert.equal(supersededExam?.timelineStatus, "superado");
   assert.equal(supersededExam?.deadlineStatus, "superado");
   assert.equal(supersededExam?.shouldHaveBeenDone, false);
+  assert.equal(supersededExam?.showOperationalAlert, false);
   assert.equal(supersededExam?.completedDate, null);
 
   const currentExam = updated.exams.find((exam) => exam.code === "morfologico_2_trimestre");
@@ -272,8 +274,10 @@ test("exame marcado como ja realizado usa status concluido sem manter alerta de 
 
   const realizedExam = updated.exams.find((item) => item.code === "obstetrica_sexo");
   assert.equal(realizedExam?.status, "realizado");
+  assert.equal(realizedExam?.timelineStatus, "historico_anterior_confirmado");
   assert.equal(realizedExam?.deadlineStatus, "realizado");
   assert.equal(realizedExam?.shouldHaveBeenDone, false);
+  assert.equal(realizedExam?.showOperationalAlert, false);
   assert.equal(realizedExam?.completedDate, null);
   assert.equal(realizedExam?.completedDateLabel, "Ja realizado (data nao informada)");
 });

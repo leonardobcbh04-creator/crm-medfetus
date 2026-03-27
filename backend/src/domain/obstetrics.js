@@ -354,6 +354,22 @@ function buildAlertLabel(deadlineStatus) {
   return "Dentro do prazo";
 }
 
+function resolveTimelineStatus(exam, deadlineStatus) {
+  if (exam.status === "realizado") {
+    return exam.completedOutsideClinic ? "historico_anterior_confirmado" : "realizado";
+  }
+
+  if (deadlineStatus === DEADLINE_STATUS.SUPERSEDED) {
+    return "superado";
+  }
+
+  if (deadlineStatus === DEADLINE_STATUS.OVERDUE) {
+    return "atrasado";
+  }
+
+  return "pendente";
+}
+
 function calculateIdealWindowRange(exam) {
   if (!exam?.predictedDate) {
     return { idealWindowStartDate: null, idealWindowEndDate: null };
@@ -432,13 +448,16 @@ export function analyzePatientExamTimeline(patientExamRows, referenceDate = toda
 
       const effectiveDeadlineStatus = isSuperseded ? DEADLINE_STATUS.SUPERSEDED : deadline.key;
       const effectiveDeadlineLabel = isSuperseded ? DEADLINE_LABELS[DEADLINE_STATUS.SUPERSEDED] : deadline.label;
+      const timelineStatus = resolveTimelineStatus(exam, effectiveDeadlineStatus);
 
       return {
         ...exam,
         deadlineStatus: effectiveDeadlineStatus,
         deadlineStatusLabel: effectiveDeadlineLabel,
+        timelineStatus,
         daysUntilIdealDate: deadline.daysUntilIdealDate,
-        shouldHaveBeenDone: effectiveDeadlineStatus === DEADLINE_STATUS.OVERDUE,
+        shouldHaveBeenDone: timelineStatus === "atrasado",
+        showOperationalAlert: timelineStatus === "atrasado",
         alertLevel: buildAlertLevel(effectiveDeadlineStatus, deadline.daysUntilIdealDate),
         alertLabel: buildAlertLabel(effectiveDeadlineStatus),
         isSuperseded,
