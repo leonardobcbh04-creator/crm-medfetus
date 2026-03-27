@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { handleRouteError } from "../http/routeUtils.js";
+import { asyncRoute, handleRouteError } from "../http/routeUtils.js";
 import {
   createExamConfig,
   createAdminUser,
@@ -10,7 +10,6 @@ import {
   deleteClinicUnit,
   deleteExamConfig,
   deletePhysician,
-  getAdminPanelData,
   updateExamInferenceRule,
   updateMessageTemplate,
   updateAdminUser,
@@ -18,13 +17,14 @@ import {
   updateExamConfig,
   updatePhysician
 } from "../services/clinicService.js";
+import { getAdminPanelDataCore } from "../services/coreMigrationService.js";
 import { runMariaGertrudesOperationalTest } from "../services/operationalTestService.js";
 
 export const adminRoutes = Router();
 
-adminRoutes.get("/", (_request, response) => {
-  response.json(getAdminPanelData());
-});
+adminRoutes.get("/", asyncRoute(async (_request, response) => {
+  response.json(await getAdminPanelDataCore());
+}, "Nao foi possivel carregar a area administrativa."));
 
 adminRoutes.post("/users", (request, response) => {
   try {

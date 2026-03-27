@@ -633,6 +633,218 @@ export async function listMessageRows() {
   return result.rows;
 }
 
+export async function listMovementRows() {
+  const kind = getConfiguredDatabaseKind();
+  if (kind === "sqlite") {
+    const db = await getSqliteDb();
+    return db.prepare(`
+      SELECT
+        hm.id,
+        hm.patient_id AS patientId,
+        hm.from_stage AS fromStage,
+        hm.to_stage AS toStage,
+        hm.action_type AS actionType,
+        hm.description,
+        hm.created_at AS createdAt,
+        hm.created_by_user_id AS createdByUserId,
+        users.name AS createdByUserName
+      FROM historico_de_movimentacoes hm
+      LEFT JOIN users ON users.id = hm.created_by_user_id
+      ORDER BY hm.created_at DESC, hm.id DESC
+    `).all();
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      hm.id,
+      hm.patient_id AS "patientId",
+      hm.from_stage AS "fromStage",
+      hm.to_stage AS "toStage",
+      hm.action_type AS "actionType",
+      hm.description,
+      hm.created_at AS "createdAt",
+      hm.created_by_user_id AS "createdByUserId",
+      users.name AS "createdByUserName"
+    FROM historico_de_movimentacoes hm
+    LEFT JOIN users ON users.id = hm.created_by_user_id
+    ORDER BY hm.created_at DESC, hm.id DESC
+  `);
+  return result.rows;
+}
+
+export async function listAdminUsersRows() {
+  const kind = getConfiguredDatabaseKind();
+  if (kind === "sqlite") {
+    const db = await getSqliteDb();
+    return db.prepare(`
+      SELECT
+        id,
+        name,
+        email,
+        role,
+        active,
+        created_at AS createdAt,
+        updated_at AS updatedAt
+      FROM users
+      ORDER BY name COLLATE NOCASE
+    `).all();
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      id,
+      name,
+      email,
+      role,
+      active,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM users
+    ORDER BY name
+  `);
+  return result.rows;
+}
+
+export async function listExamInferenceRuleRows() {
+  const kind = getConfiguredDatabaseKind();
+  if (kind === "sqlite") {
+    const db = await getSqliteDb();
+    return db.prepare(`
+      SELECT
+        rule.id,
+        rule.exam_model_id AS examModelId,
+        exam.name AS examName,
+        exam.code AS examCode,
+        rule.typical_start_week AS typicalStartWeek,
+        rule.typical_end_week AS typicalEndWeek,
+        rule.reference_week AS referenceWeek,
+        rule.uncertainty_margin_weeks AS uncertaintyMarginWeeks,
+        rule.allow_automatic_inference AS allowAutomaticInference,
+        rule.active,
+        rule.created_at AS createdAt,
+        rule.updated_at AS updatedAt
+      FROM regras_inferencia_gestacional rule
+      INNER JOIN exames_modelo exam ON exam.id = rule.exam_model_id
+      ORDER BY exam.sort_order, exam.name COLLATE NOCASE
+    `).all();
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      rule.id,
+      rule.exam_model_id AS "examModelId",
+      exam.name AS "examName",
+      exam.code AS "examCode",
+      rule.typical_start_week AS "typicalStartWeek",
+      rule.typical_end_week AS "typicalEndWeek",
+      rule.reference_week AS "referenceWeek",
+      rule.uncertainty_margin_weeks AS "uncertaintyMarginWeeks",
+      rule.allow_automatic_inference AS "allowAutomaticInference",
+      rule.active,
+      rule.created_at AS "createdAt",
+      rule.updated_at AS "updatedAt"
+    FROM regras_inferencia_gestacional rule
+    INNER JOIN exames_modelo exam ON exam.id = rule.exam_model_id
+    ORDER BY exam.sort_order, exam.name
+  `);
+  return result.rows;
+}
+
+export async function listMessageTemplateRows() {
+  const kind = getConfiguredDatabaseKind();
+  if (kind === "sqlite") {
+    const db = await getSqliteDb();
+    return db.prepare(`
+      SELECT
+        id,
+        code,
+        name,
+        channel,
+        language,
+        content,
+        active,
+        created_at AS createdAt,
+        updated_at AS updatedAt
+      FROM message_templates
+      ORDER BY name COLLATE NOCASE
+    `).all();
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      id,
+      code,
+      name,
+      channel,
+      language,
+      content,
+      active,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM message_templates
+    ORDER BY name
+  `);
+  return result.rows;
+}
+
+export async function listMessageDeliveryLogRows() {
+  const kind = getConfiguredDatabaseKind();
+  if (kind === "sqlite") {
+    const db = await getSqliteDb();
+    return db.prepare(`
+      SELECT
+        logs.id,
+        logs.message_id AS messageId,
+        logs.patient_id AS patientId,
+        patients.name AS patientName,
+        logs.template_id AS templateId,
+        templates.name AS templateName,
+        logs.provider,
+        logs.status,
+        logs.external_message_id AS externalMessageId,
+        logs.error_message AS errorMessage,
+        logs.sent_at AS sentAt,
+        logs.delivered_at AS deliveredAt,
+        logs.responded_at AS respondedAt,
+        logs.created_at AS createdAt
+      FROM message_delivery_logs logs
+      LEFT JOIN patients ON patients.id = logs.patient_id
+      LEFT JOIN message_templates templates ON templates.id = logs.template_id
+      ORDER BY logs.created_at DESC, logs.id DESC
+      LIMIT 50
+    `).all();
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      logs.id,
+      logs.message_id AS "messageId",
+      logs.patient_id AS "patientId",
+      patients.name AS "patientName",
+      logs.template_id AS "templateId",
+      templates.name AS "templateName",
+      logs.provider,
+      logs.status,
+      logs.external_message_id AS "externalMessageId",
+      logs.error_message AS "errorMessage",
+      logs.sent_at AS "sentAt",
+      logs.delivered_at AS "deliveredAt",
+      logs.responded_at AS "respondedAt",
+      logs.created_at AS "createdAt"
+    FROM message_delivery_logs logs
+    LEFT JOIN patients ON patients.id = logs.patient_id
+    LEFT JOIN message_templates templates ON templates.id = logs.template_id
+    ORDER BY logs.created_at DESC, logs.id DESC
+    LIMIT 50
+  `);
+  return result.rows;
+}
+
 export async function insertPatientRecord(payload) {
   const kind = getConfiguredDatabaseKind();
   if (kind === "sqlite") {
