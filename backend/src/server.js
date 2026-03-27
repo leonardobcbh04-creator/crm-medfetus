@@ -44,7 +44,7 @@ const corsOptions = {
     callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   optionsSuccessStatus: 204
 };
@@ -65,7 +65,7 @@ app.use("/api/dashboard", requireAuth, dashboardRoutes);
 app.use("/api/kanban", requireAuth, kanbanRoutes);
 app.use("/api/patients", requireAuth, patientRoutes);
 app.use("/api/reports", requireAuth, reportRoutes);
-app.use("/api/exam-configs", requireAuth, requireAdmin, examRoutes);
+app.use("/api/exam-configs", requireAuth, examRoutes);
 app.use("/api/messages", requireAuth, messageRoutes);
 app.use("/api/reminders", requireAuth, reminderRoutes);
 

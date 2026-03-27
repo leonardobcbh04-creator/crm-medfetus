@@ -5,6 +5,8 @@ import {
   authenticate,
   createPatient,
   getAuthenticatedUserByToken,
+  getKanbanData,
+  getMessagingOverview,
   getPatientDetails,
   getRemindersCenterData
 } from "./clinicService.js";
@@ -157,4 +159,38 @@ test("cadastro com ultimo exame realizado marca historico anterior sem data e su
   `).get(created.patient.id);
   const metadata = movement?.metadataJson ? JSON.parse(movement.metadataJson) : null;
   assert.equal(metadata?.lastCompletedExamCode, "ecocardiograma_fetal");
+});
+
+test("paciente cadastrada passa a aparecer em clientes operacionais, pipeline, mensagens e lembretes", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const created = createPatient({
+    name: "Paciente Operacional",
+    phone: "31988887777",
+    birthDate: "1991-09-15",
+    gestationalWeeks: 21,
+    gestationalDays: 0,
+    physicianName: "Dra. Helena Castro",
+    clinicUnit: "Unidade Centro",
+    pregnancyType: "Unica",
+    highRisk: false,
+    notes: "Fluxo para validar telas operacionais.",
+    actorUserId: 1
+  });
+
+  const patientDetails = getPatientDetails(created.patient.id);
+  assert.ok(patientDetails);
+
+  const kanban = getKanbanData();
+  const patientInKanban = kanban.flatMap((column) => column.patients).find((patient) => patient.id === created.patient.id);
+  assert.ok(patientInKanban, "Paciente deveria aparecer no pipeline.");
+
+  const messagingItems = getMessagingOverview();
+  const patientInMessaging = messagingItems.find((item) => item.patientId === created.patient.id);
+  assert.ok(patientInMessaging, "Paciente deveria aparecer na fila de mensagens.");
+
+  const reminders = await getRemindersCenterData();
+  const patientInReminders = reminders.items.find((item) => item.patientId === created.patient.id);
+  assert.ok(patientInReminders, "Paciente deveria aparecer na central de lembretes.");
 });
