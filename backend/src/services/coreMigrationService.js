@@ -995,7 +995,15 @@ export async function getAdminPanelDataCore() {
     return getAdminPanelDataLegacy();
   }
 
-  const [users, units, physicians, examConfigsResponse, examInferenceRules, messageTemplates, messageDeliveryLogs] = await Promise.all([
+  const [
+    usersResult,
+    unitsResult,
+    physiciansResult,
+    examConfigsResult,
+    examInferenceRulesResult,
+    messageTemplatesResult,
+    messageDeliveryLogsResult
+  ] = await Promise.allSettled([
     listAdminUsersRows(),
     listClinicUnitsRows(),
     listPhysiciansRows(),
@@ -1004,6 +1012,38 @@ export async function getAdminPanelDataCore() {
     listMessageTemplateRows(),
     listMessageDeliveryLogRows()
   ]);
+
+  if (usersResult.status === "rejected") {
+    console.error("[admin] Falha ao carregar usuarios.", usersResult.reason);
+  }
+  if (unitsResult.status === "rejected") {
+    console.error("[admin] Falha ao carregar unidades.", unitsResult.reason);
+  }
+  if (physiciansResult.status === "rejected") {
+    console.error("[admin] Falha ao carregar medicos.", physiciansResult.reason);
+  }
+  if (examConfigsResult.status === "rejected") {
+    console.error("[admin] Falha ao carregar exames.", examConfigsResult.reason);
+  }
+  if (examInferenceRulesResult.status === "rejected") {
+    console.error("[admin] Falha ao carregar regras de inferencia.", examInferenceRulesResult.reason);
+  }
+  if (messageTemplatesResult.status === "rejected") {
+    console.error("[admin] Falha ao carregar templates de mensagem.", messageTemplatesResult.reason);
+  }
+  if (messageDeliveryLogsResult.status === "rejected") {
+    console.error("[admin] Falha ao carregar logs de mensageria.", messageDeliveryLogsResult.reason);
+  }
+
+  const users = usersResult.status === "fulfilled" ? usersResult.value : [];
+  const units = unitsResult.status === "fulfilled" ? unitsResult.value : [];
+  const physicians = physiciansResult.status === "fulfilled" ? physiciansResult.value : [];
+  const examConfigsResponse = examConfigsResult.status === "fulfilled"
+    ? examConfigsResult.value
+    : { examConfigs: [], presets: [] };
+  const examInferenceRules = examInferenceRulesResult.status === "fulfilled" ? examInferenceRulesResult.value : [];
+  const messageTemplates = messageTemplatesResult.status === "fulfilled" ? messageTemplatesResult.value : [];
+  const messageDeliveryLogs = messageDeliveryLogsResult.status === "fulfilled" ? messageDeliveryLogsResult.value : [];
 
   return {
     users: users.map((user) => ({

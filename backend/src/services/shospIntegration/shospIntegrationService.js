@@ -20,6 +20,54 @@ function timestampIso() {
   return new Date().toISOString();
 }
 
+function buildUnavailableShospStatus(message = "Shosp integration not configured") {
+  return {
+    mode: "unavailable",
+    configured: false,
+    connection: {
+      connected: false,
+      label: "Indisponivel",
+      detail: message
+    },
+    summary: {
+      lastSyncAt: null,
+      patientsSynced: 0,
+      examsImported: 0,
+      detectedSchedules: 0,
+      recentErrorsCount: 0,
+      recentErrors: []
+    },
+    apiMetrics: {
+      totalRequests: 0,
+      successfulRequests: 0,
+      totalResponseMs: 0,
+      averageResponseMs: null,
+      lastResponseMs: null,
+      lastSuccessAt: null,
+      lastFailureAt: null,
+      lastErrorMessage: message
+    },
+    worker: {
+      enabled: false,
+      running: false,
+      intervalMs: 0,
+      lastRunAt: null,
+      lastResult: null,
+      lastError: message
+    },
+    settings: {
+      baseUrl: "",
+      patientsPath: "",
+      attendancesPath: "",
+      examsPath: "",
+      timeoutMs: 0
+    },
+    persistedConfig: null,
+    cursors: [],
+    logs: []
+  };
+}
+
 function getShospProvider() {
   return getEffectiveShospRuntimeConfig().mode === "mock" ? createShospMockProvider() : createShospApiClient();
 }
@@ -858,122 +906,132 @@ async function runScopedSync({ scope, syncKey, fetcher, processor, incremental =
 }
 
 export function getShospIntegrationStatus() {
-  const runtimeConfig = getEffectiveShospRuntimeConfig();
-  const configured = Boolean(
-    runtimeConfig.mode === "mock" ||
-    (runtimeConfig.baseUrl && (runtimeConfig.apiToken || runtimeConfig.apiKey || runtimeConfig.username))
-  );
-  const integrationConfig = db.prepare(`
-    SELECT
-      use_mock AS useMock,
-      api_base_url AS apiBaseUrl,
-      api_token AS apiToken,
-      api_key AS apiKey,
-      username,
-      password,
-      company_id AS companyId,
-      last_patients_cursor AS lastPatientsCursor,
-      last_attendances_cursor AS lastAttendancesCursor,
-      last_success_at AS lastSuccessAt,
-      settings_json AS settingsJson,
-      updated_at AS updatedAt
-    FROM configuracoes_de_integracao
-    WHERE integration_key = 'shosp'
-  `).get();
+  try {
+    const runtimeConfig = getEffectiveShospRuntimeConfig();
+    const configured = Boolean(
+      runtimeConfig.mode === "mock" ||
+      (runtimeConfig.baseUrl && (runtimeConfig.apiToken || runtimeConfig.apiKey || runtimeConfig.username))
+    );
+    const integrationConfig = db.prepare(`
+      SELECT
+        use_mock AS useMock,
+        api_base_url AS apiBaseUrl,
+        api_token AS apiToken,
+        api_key AS apiKey,
+        username,
+        password,
+        company_id AS companyId,
+        last_patients_cursor AS lastPatientsCursor,
+        last_attendances_cursor AS lastAttendancesCursor,
+        last_success_at AS lastSuccessAt,
+        settings_json AS settingsJson,
+        updated_at AS updatedAt
+      FROM configuracoes_de_integracao
+      WHERE integration_key = 'shosp'
+    `).get();
 
-  const lastLogs = db.prepare(`
-    SELECT
-      id,
-      integration_key AS integrationKey,
-      scope,
-      mode,
-      status,
-      started_at AS startedAt,
-      finished_at AS finishedAt,
-      records_received AS recordsReceived,
-      records_processed AS recordsProcessed,
-      records_created AS recordsCreated,
-      records_updated AS recordsUpdated,
-      sync_error AS errorMessage,
-      payload_json AS detailsJson
-    FROM logs_de_sincronizacao
-    WHERE integration_key = 'shosp'
-    ORDER BY id DESC
-    LIMIT 15
-  `).all().map((log) => ({
-    ...log,
-    details: log.detailsJson ? JSON.parse(log.detailsJson) : null,
-    durationMs: parseLogDurationMs(log.startedAt, log.finishedAt)
-  }));
+    const lastLogs = db.prepare(`
+      SELECT
+        id,
+        integration_key AS integrationKey,
+        scope,
+        mode,
+        status,
+        started_at AS startedAt,
+        finished_at AS finishedAt,
+        records_received AS recordsReceived,
+        records_processed AS recordsProcessed,
+        records_created AS recordsCreated,
+        records_updated AS recordsUpdated,
+        sync_error AS errorMessage,
+        payload_json AS detailsJson
+      FROM logs_de_sincronizacao
+      WHERE integration_key = 'shosp'
+      ORDER BY id DESC
+      LIMIT 15
+    `).all().map((log) => ({
+      ...log,
+      details: log.detailsJson ? JSON.parse(log.detailsJson) : null,
+      durationMs: parseLogDurationMs(log.startedAt, log.finishedAt)
+    }));
 
-  const cursors = db.prepare(`
-    SELECT
-      sync_key AS syncKey,
-      last_cursor AS lastCursor,
-      last_success_at AS lastSuccessAt,
-      updated_at AS updatedAt
-    FROM shosp_sync_state
-    ORDER BY sync_key
-  `).all();
+    const cursors = db.prepare(`
+      SELECT
+        sync_key AS syncKey,
+        last_cursor AS lastCursor,
+        last_success_at AS lastSuccessAt,
+        updated_at AS updatedAt
+      FROM shosp_sync_state
+      ORDER BY sync_key
+    `).all();
 
-  const apiMetrics = getShospApiRuntimeMetrics();
-  const summary = getShospSyncSummary();
-  const connection = getConnectionStatus(runtimeConfig, configured, apiMetrics);
+    const apiMetrics = getShospApiRuntimeMetrics();
+    const summary = getShospSyncSummary();
+    const connection = getConnectionStatus(runtimeConfig, configured, apiMetrics);
 
-  return {
-    mode: runtimeConfig.mode,
-    configured,
-    connection,
-    summary,
-    apiMetrics,
-    worker: getShospSyncWorkerStatus(),
-    settings: {
-      baseUrl: runtimeConfig.baseUrl,
-      patientsPath: runtimeConfig.patientsPath,
-      attendancesPath: runtimeConfig.attendancesPath,
-      examsPath: runtimeConfig.examsPath,
-      timeoutMs: runtimeConfig.timeoutMs
-    },
-    persistedConfig: integrationConfig
-      ? {
-          useMock: Boolean(integrationConfig.useMock),
-          apiBaseUrl: integrationConfig.apiBaseUrl,
-          apiToken: "",
-          apiKey: "",
-          username: null,
-          password: "",
-          companyId: null,
-          lastPatientsCursor: integrationConfig.lastPatientsCursor,
-          lastAttendancesCursor: integrationConfig.lastAttendancesCursor,
-          lastSuccessAt: integrationConfig.lastSuccessAt,
-          settings: integrationConfig.settingsJson ? JSON.parse(integrationConfig.settingsJson) : {}
-        }
-      : null,
-    cursors,
-    logs: lastLogs
-  };
+    return {
+      mode: runtimeConfig.mode,
+      configured,
+      connection,
+      summary,
+      apiMetrics,
+      worker: getShospSyncWorkerStatus(),
+      settings: {
+        baseUrl: runtimeConfig.baseUrl,
+        patientsPath: runtimeConfig.patientsPath,
+        attendancesPath: runtimeConfig.attendancesPath,
+        examsPath: runtimeConfig.examsPath,
+        timeoutMs: runtimeConfig.timeoutMs
+      },
+      persistedConfig: integrationConfig
+        ? {
+            useMock: Boolean(integrationConfig.useMock),
+            apiBaseUrl: integrationConfig.apiBaseUrl,
+            apiToken: "",
+            apiKey: "",
+            username: null,
+            password: "",
+            companyId: null,
+            lastPatientsCursor: integrationConfig.lastPatientsCursor,
+            lastAttendancesCursor: integrationConfig.lastAttendancesCursor,
+            lastSuccessAt: integrationConfig.lastSuccessAt,
+            settings: integrationConfig.settingsJson ? JSON.parse(integrationConfig.settingsJson) : {}
+          }
+        : null,
+      cursors,
+      logs: lastLogs
+    };
+  } catch (error) {
+    console.error("[shosp] Falha ao carregar status da integracao.", error);
+    return buildUnavailableShospStatus("Shosp integration not configured");
+  }
 }
 
 export function listShospExamMappings() {
-  return db.prepare(`
-    SELECT
-      mapping.id,
-      mapping.shosp_exam_code AS shospExamCode,
-      mapping.shosp_exam_name AS shospExamName,
-      mapping.exam_model_id AS examModelId,
-      exam.name AS examModelName,
-      exam.code AS examModelCode,
-      mapping.active,
-      mapping.notes,
-      mapping.created_at AS createdAt,
-      mapping.updated_at AS updatedAt
-    FROM mapeamento_de_tipos_de_exame_shosp mapping
-    INNER JOIN exames_modelo exam ON exam.id = mapping.exam_model_id
-    ORDER BY mapping.shosp_exam_name COLLATE NOCASE, mapping.id
-  `).all().map((item) => ({
-    ...item,
-    active: Boolean(item.active)
-  }));
+  try {
+    return db.prepare(`
+      SELECT
+        mapping.id,
+        mapping.shosp_exam_code AS shospExamCode,
+        mapping.shosp_exam_name AS shospExamName,
+        mapping.exam_model_id AS examModelId,
+        exam.name AS examModelName,
+        exam.code AS examModelCode,
+        mapping.active,
+        mapping.notes,
+        mapping.created_at AS createdAt,
+        mapping.updated_at AS updatedAt
+      FROM mapeamento_de_tipos_de_exame_shosp mapping
+      INNER JOIN exames_modelo exam ON exam.id = mapping.exam_model_id
+      ORDER BY mapping.shosp_exam_name COLLATE NOCASE, mapping.id
+    `).all().map((item) => ({
+      ...item,
+      active: Boolean(item.active)
+    }));
+  } catch (error) {
+    console.error("[shosp] Falha ao carregar mapeamentos de exame.", error);
+    return [];
+  }
 }
 
 export function updateShospExamMapping(mappingId, input) {

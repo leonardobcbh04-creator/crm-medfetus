@@ -19,11 +19,26 @@ import {
 } from "../services/clinicService.js";
 import { getAdminPanelDataCore } from "../services/coreMigrationService.js";
 import { runMariaGertrudesOperationalTest } from "../services/operationalTestService.js";
+import { getMessagingRuntimeConfig } from "../services/messaging/messagingService.js";
 
 export const adminRoutes = Router();
 
 adminRoutes.get("/", asyncRoute(async (_request, response) => {
-  response.json(await getAdminPanelDataCore());
+  try {
+    response.json(await getAdminPanelDataCore());
+  } catch (error) {
+    console.error("[admin] Falha ao carregar painel administrativo completo.", error);
+    response.json({
+      users: [],
+      units: [],
+      physicians: [],
+      examConfigs: [],
+      examInferenceRules: [],
+      messageTemplates: [],
+      messageDeliveryLogs: [],
+      messagingConfig: getMessagingRuntimeConfig()
+    });
+  }
 }, "Nao foi possivel carregar a area administrativa."));
 
 adminRoutes.post("/users", (request, response) => {
