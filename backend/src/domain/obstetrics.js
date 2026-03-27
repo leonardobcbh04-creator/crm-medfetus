@@ -292,12 +292,12 @@ export function calculateExamScheduleDates(
 // - aproximando: entrou na janela do primeiro lembrete
 // - dentro_do_prazo: ainda esta confortavel dentro da janela
 export function calculateDeadlineStatus(
-  { predictedDate, reminderDate1, reminderDate2, completedDate },
+  { predictedDate, reminderDate1, reminderDate2, completedDate, completedOutsideClinic, status },
   referenceDate = todayIso()
 ) {
   const baseDate = normalizeReferenceDate(referenceDate);
 
-  if (completedDate) {
+  if (status === "realizado" || completedDate || completedOutsideClinic) {
     return {
       key: DEADLINE_STATUS.COMPLETED,
       label: DEADLINE_LABELS[DEADLINE_STATUS.COMPLETED],
