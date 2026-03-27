@@ -269,8 +269,10 @@ test("marca exames anteriores como superados quando a paciente ja avancou para u
   );
 
   assert.equal(timeline.assessedExams[0].deadlineStatus, DEADLINE_STATUS.SUPERSEDED);
+  assert.equal(timeline.assessedExams[0].timelineStatus, "superado");
   assert.equal(timeline.assessedExams[1].deadlineStatus, DEADLINE_STATUS.SUPERSEDED);
   assert.equal(timeline.assessedExams[0].shouldHaveBeenDone, false);
+  assert.equal(timeline.assessedExams[0].showOperationalAlert, false);
   assert.equal(timeline.nextExam?.code, "ecocardiograma_fetal");
   assert.equal(timeline.overdueExam, null);
 });

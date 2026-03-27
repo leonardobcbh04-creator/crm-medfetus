@@ -236,8 +236,10 @@ export type PatientExamRecord = {
   status: string;
   deadlineStatus?: string;
   deadlineStatusLabel?: string;
+  timelineStatus?: string;
   daysUntilIdealDate?: number;
   shouldHaveBeenDone?: boolean;
+  showOperationalAlert?: boolean;
   alertLevel?: AlertLevel;
   alertLabel?: string;
   idealDateLabel?: string;
