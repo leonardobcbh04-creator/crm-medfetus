@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 import { applyExamProtocolPreset, updateExamConfig } from "../services/clinicService.js";
 import { listExamConfigsCore } from "../services/coreMigrationService.js";
 
@@ -12,12 +13,12 @@ examRoutes.get("/", async (_request, response) => {
   }
 });
 
-examRoutes.put("/:id", (request, response) => {
+examRoutes.put("/:id", requireAdmin, (request, response) => {
   const examConfig = updateExamConfig(Number(request.params.id), request.body);
   response.json({ examConfig });
 });
 
-examRoutes.post("/apply-preset", (request, response) => {
+examRoutes.post("/apply-preset", requireAdmin, (request, response) => {
   try {
     const result = applyExamProtocolPreset(String(request.body.presetId || ""));
     response.json(result);
