@@ -398,6 +398,7 @@ function getPatientExamsByPatient() {
       em.name,
       em.required,
       em.flow_type AS flowType,
+      em.sort_order AS sortOrder,
       em.start_week AS startWeek,
       em.end_week AS endWeek,
       em.target_week AS targetWeek,
@@ -873,7 +874,7 @@ export function getDashboardData(inputFilters = {}) {
   const pendingExamCounts = new Map();
   const patientsToContactToday = sortPatientsByPriority(
     patients.filter((patient) => {
-      const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.status === "pendente");
+      const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.code === patient.nextExam.code);
       return shouldPatientEnterReminderQueue(patient, nextExamRow, today);
     })
   );
@@ -1381,7 +1382,7 @@ export async function getRemindersCenterData(inputFilters = {}) {
   );
 
   const detectionResults = await Promise.all(reminderCandidates.map(async (patient) => {
-    const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.status === "pendente");
+    const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.code === patient.nextExam.code);
     const shospSchedule = await lookupFutureScheduledExamInShosp({
       externalPatientId: patient.shospPatientId || null,
       examCode: patient.nextExam.code || null
@@ -2171,6 +2172,9 @@ export function updatePatientExamStatus(patientId, examId, input) {
       exames_paciente.patient_id AS patientId,
       exames_paciente.exam_model_id AS examModelId,
       em.name AS examName,
+      em.code AS examCode,
+      em.flow_type AS flowType,
+      em.sort_order AS sortOrder,
       exames_paciente.status,
       exames_paciente.scheduled_date AS scheduledDate,
       exames_paciente.scheduled_time AS scheduledTime,
@@ -2216,7 +2220,9 @@ export function updatePatientExamStatus(patientId, examId, input) {
         ? String(input.schedulingNotes || exam.schedulingNotes || "").trim()
         : "";
   const completedDate = nextStatus === "realizado"
-    ? String(input.completedDate || exam.completedDate || now)
+    ? completedOutsideClinic
+      ? null
+      : String(input.completedDate || exam.completedDate || now)
     : null;
 
   if (nextStatus === "agendado" && !scheduledDate) {
@@ -2251,7 +2257,7 @@ export function updatePatientExamStatus(patientId, examId, input) {
       schedulingNotes: schedulingNotes || null,
       scheduledByUserId: nextStatus === "agendado" ? actorUserId : nextStatus === "realizado" ? exam.scheduledByUserId : null,
       completedDate,
-      completedByUserId: nextStatus === "realizado" ? actorUserId : null,
+      completedByUserId: nextStatus === "realizado" && !completedOutsideClinic ? actorUserId : null,
       completedOutsideClinic: nextStatus === "realizado" && completedOutsideClinic ? 1 : 0,
       updatedAt: now
     });
@@ -2337,8 +2343,8 @@ export function updatePatientExamStatus(patientId, examId, input) {
           : "exame_reaberto",
       nextStatus === "realizado"
         ? completedOutsideClinic
-          ? `Exame ${exam.examName} marcado como realizado em outra clinica.`
-          : `Exame ${exam.examName} marcado como realizado na ficha da paciente.`
+          ? `Exame ${exam.examName} marcado como ja realizado.`
+          : `Exame ${exam.examName} marcado como realizado.`
         : nextStatus === "agendado"
           ? `Exame ${exam.examName} agendado para ${scheduledDate}${scheduledTime ? ` as ${scheduledTime}` : ""}.`
           : "Exame retornou para acompanhamento pendente.",
@@ -2498,6 +2504,10 @@ export function getPatientDetails(patientId) {
     examModelId: exam.examModelId,
     code: exam.code,
     name: exam.name,
+    sortOrder: exam.sortOrder,
+    startWeek: exam.startWeek,
+    endWeek: exam.endWeek,
+    targetWeek: exam.targetWeek,
     suggestedMessage: renderExamReminderMessage(
       exam.defaultMessage,
       patient,

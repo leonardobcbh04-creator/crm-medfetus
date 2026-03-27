@@ -8,7 +8,8 @@ import {
   getKanbanData,
   getMessagingOverview,
   getPatientDetails,
-  getRemindersCenterData
+  getRemindersCenterData,
+  updatePatientExamStatus
 } from "./clinicService.js";
 import {
   lookupFutureScheduledExamInShosp,
@@ -81,11 +82,11 @@ test("usa cache temporario ao consultar agendamento futuro no Shosp", { concurre
 
     const firstLookup = await lookupFutureScheduledExamInShosp({
       externalPatientId: "shosp-p-1004",
-      examCode: "exame_obstetrico_inicial"
+      examCode: "morfologico_2_trimestre"
     });
     const secondLookup = await lookupFutureScheduledExamInShosp({
       externalPatientId: "shosp-p-1004",
-      examCode: "exame_obstetrico_inicial"
+      examCode: "morfologico_2_trimestre"
     });
 
     assert.equal(firstLookup?.externalExamItemId, "shosp-i-7010");
@@ -193,4 +194,50 @@ test("paciente cadastrada passa a aparecer em clientes operacionais, pipeline, m
   const reminders = await getRemindersCenterData();
   const patientInReminders = reminders.items.find((item) => item.patientId === created.patient.id);
   assert.ok(patientInReminders, "Paciente deveria aparecer na central de lembretes.");
+});
+
+test("marcar exame posterior como realizado deixa exames anteriores como superados e sem alerta operacional ativo", { concurrency: false }, () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const created = createPatient({
+    name: "Paciente Timeline Coerente",
+    phone: "31977776666",
+    birthDate: "1990-06-20",
+    gestationalWeeks: 25,
+    gestationalDays: 0,
+    physicianName: "Dra. Helena Castro",
+    clinicUnit: "Unidade Centro",
+    pregnancyType: "Unica",
+    highRisk: false,
+    notes: "Usada para validar reconciliacao da timeline.",
+    actorUserId: 1
+  });
+
+  const before = getPatientDetails(created.patient.id);
+  const morpho2 = before.exams.find((exam) => exam.code === "morfologico_2_trimestre");
+  assert.ok(morpho2, "Morfologico do 2o trimestre deveria existir na esteira.");
+
+  const updated = updatePatientExamStatus(created.patient.id, morpho2.id, {
+    status: "realizado",
+    completedDate: "2026-03-26",
+    actorUserId: 1
+  });
+
+  const supersededExam = updated.exams.find((exam) => exam.code === "morfologico_1_trimestre");
+  assert.equal(supersededExam?.status, "pendente");
+  assert.equal(supersededExam?.deadlineStatus, "superado");
+  assert.equal(supersededExam?.shouldHaveBeenDone, false);
+  assert.equal(supersededExam?.completedDate, null);
+
+  const currentExam = updated.exams.find((exam) => exam.code === "morfologico_2_trimestre");
+  assert.equal(currentExam?.completedOutsideClinic, false);
+  assert.equal(currentExam?.completedDate, "2026-03-26");
+  assert.equal(currentExam?.deadlineStatus, "realizado");
+
+  assert.equal(updated.patient.nextExam.code, "ecocardiograma_fetal");
+
+  const lastMovement = updated.movements[0];
+  assert.equal(lastMovement.actionType, "exame_realizado");
+  assert.match(lastMovement.description, /marcado como realizado/i);
 });

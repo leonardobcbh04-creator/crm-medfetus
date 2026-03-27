@@ -5,7 +5,8 @@ export const DEADLINE_STATUS = {
   APPROACHING: "aproximando",
   PENDING: "pendente",
   OVERDUE: "atrasado",
-  COMPLETED: "realizado"
+  COMPLETED: "realizado",
+  SUPERSEDED: "superado"
 };
 
 const DEADLINE_LABELS = {
@@ -13,7 +14,8 @@ const DEADLINE_LABELS = {
   [DEADLINE_STATUS.APPROACHING]: "Aproximando",
   [DEADLINE_STATUS.PENDING]: "Pendente",
   [DEADLINE_STATUS.OVERDUE]: "Atrasado",
-  [DEADLINE_STATUS.COMPLETED]: "Realizado"
+  [DEADLINE_STATUS.COMPLETED]: "Realizado",
+  [DEADLINE_STATUS.SUPERSEDED]: "Superado"
 };
 
 export const GESTATIONAL_BASE_SOURCE = {
@@ -348,7 +350,27 @@ function buildAlertLabel(deadlineStatus) {
   if (deadlineStatus === DEADLINE_STATUS.PENDING) return "Pendente";
   if (deadlineStatus === DEADLINE_STATUS.APPROACHING) return "Aproximando";
   if (deadlineStatus === DEADLINE_STATUS.COMPLETED) return "Realizado";
+  if (deadlineStatus === DEADLINE_STATUS.SUPERSEDED) return "Superado";
   return "Dentro do prazo";
+}
+
+function calculateIdealWindowRange(exam) {
+  if (!exam?.predictedDate) {
+    return { idealWindowStartDate: null, idealWindowEndDate: null };
+  }
+
+  const targetWeek = Number(exam.targetWeek);
+  const startWeek = Number(exam.startWeek);
+  const endWeek = Number(exam.endWeek);
+
+  if (Number.isNaN(targetWeek) || Number.isNaN(startWeek) || Number.isNaN(endWeek)) {
+    return { idealWindowStartDate: null, idealWindowEndDate: null };
+  }
+
+  return {
+    idealWindowStartDate: addDays(exam.predictedDate, (startWeek - targetWeek) * 7),
+    idealWindowEndDate: addDays(exam.predictedDate, (endWeek - targetWeek) * 7)
+  };
 }
 
 // Analisa todos os exames previstos de uma paciente e devolve:
@@ -356,19 +378,70 @@ function buildAlertLabel(deadlineStatus) {
 // - qual e o proximo exame
 // - o status operacional do prazo de cada um
 export function analyzePatientExamTimeline(patientExamRows, referenceDate = todayIso()) {
-  const assessedExams = [...patientExamRows]
-    .sort((left, right) => left.predictedDate.localeCompare(right.predictedDate))
-    .map((exam) => {
+  const sortedExams = [...patientExamRows]
+    .sort((left, right) => {
+      const leftSort = Number(left.sortOrder ?? Number.MAX_SAFE_INTEGER);
+      const rightSort = Number(right.sortOrder ?? Number.MAX_SAFE_INTEGER);
+      if (leftSort !== rightSort) {
+        return leftSort - rightSort;
+      }
+
+      return String(left.predictedDate || "").localeCompare(String(right.predictedDate || ""));
+    })
+    .map((exam) => ({
+      ...exam,
+      ...calculateIdealWindowRange(exam)
+    }));
+
+  const highestCompletedAutomaticSortOrder = sortedExams.reduce((highest, exam) => {
+    if (exam.flowType !== "automatico" || exam.status !== "realizado") {
+      return highest;
+    }
+
+    return Math.max(highest, Number(exam.sortOrder ?? -1));
+  }, -1);
+
+  const assessedExams = sortedExams.map((exam) => {
       const deadline = calculateDeadlineStatus(exam, referenceDate);
+      const examSortOrder = Number(exam.sortOrder ?? Number.MAX_SAFE_INTEGER);
+      const hasLaterOperationalStage = sortedExams.some((candidate) => {
+        if (candidate.flowType !== "automatico") {
+          return false;
+        }
+
+        const candidateSortOrder = Number(candidate.sortOrder ?? Number.MAX_SAFE_INTEGER);
+        if (candidateSortOrder <= examSortOrder) {
+          return false;
+        }
+
+        if (candidate.status === "realizado" || candidate.status === "agendado") {
+          return true;
+        }
+
+        return Boolean(candidate.idealWindowStartDate && referenceDate >= candidate.idealWindowStartDate);
+      });
+
+      const isSuperseded = (
+        exam.status !== "realizado" &&
+        exam.flowType === "automatico" &&
+        (
+          examSortOrder < highestCompletedAutomaticSortOrder ||
+          (deadline.key === DEADLINE_STATUS.OVERDUE && hasLaterOperationalStage)
+        )
+      );
+
+      const effectiveDeadlineStatus = isSuperseded ? DEADLINE_STATUS.SUPERSEDED : deadline.key;
+      const effectiveDeadlineLabel = isSuperseded ? DEADLINE_LABELS[DEADLINE_STATUS.SUPERSEDED] : deadline.label;
 
       return {
         ...exam,
-        deadlineStatus: deadline.key,
-        deadlineStatusLabel: deadline.label,
+        deadlineStatus: effectiveDeadlineStatus,
+        deadlineStatusLabel: effectiveDeadlineLabel,
         daysUntilIdealDate: deadline.daysUntilIdealDate,
-        shouldHaveBeenDone: deadline.key === DEADLINE_STATUS.OVERDUE,
-        alertLevel: buildAlertLevel(deadline.key, deadline.daysUntilIdealDate),
-        alertLabel: buildAlertLabel(deadline.key),
+        shouldHaveBeenDone: effectiveDeadlineStatus === DEADLINE_STATUS.OVERDUE,
+        alertLevel: buildAlertLevel(effectiveDeadlineStatus, deadline.daysUntilIdealDate),
+        alertLabel: buildAlertLabel(effectiveDeadlineStatus),
+        isSuperseded,
         idealDateLabel: formatDatePtBr(exam.predictedDate)
       };
     });
@@ -377,7 +450,9 @@ export function analyzePatientExamTimeline(patientExamRows, referenceDate = toda
     (exam) => exam.status !== "realizado" && exam.deadlineStatus === DEADLINE_STATUS.OVERDUE
   ) ?? null;
 
-  const nextExam = assessedExams.find((exam) => exam.status !== "realizado") ?? null;
+  const nextExam = assessedExams.find(
+    (exam) => exam.status !== "realizado" && exam.deadlineStatus !== DEADLINE_STATUS.SUPERSEDED
+  ) ?? null;
 
   return {
     assessedExams,
