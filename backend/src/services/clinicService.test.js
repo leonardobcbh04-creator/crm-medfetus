@@ -225,6 +225,8 @@ test("mensagens automaticas e central de lembretes refletem prioridade alta e or
   assert.equal(messagingItem?.priorityLevel, "alta");
   assert.equal(messagingItem?.messageType, "atraso");
   assert.equal(messagingItem?.messageOrigin, "timeline_atraso");
+  assert.ok(messagingItem?.examPatientId);
+  assert.match(messagingItem?.whatsappUrl || "", /^https:\/\/wa\.me\//);
   assert.match(messagingItem?.suggestedMessage || "", /prioridade no agendamento/i);
 
   const reminders = await getRemindersCenterData();

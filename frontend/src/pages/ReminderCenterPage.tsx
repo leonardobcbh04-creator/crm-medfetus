@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../services/api";
 import type { ReminderCenterData } from "../types";
@@ -9,6 +9,9 @@ type ReminderFilters = {
   physicianName: string;
   examCode: string;
 };
+
+type PriorityFilterValue = "todas" | "alta" | "media" | "baixa";
+type MessageTypeFilterValue = "todos" | "atraso" | "janela_ideal" | "janela_proxima" | "acompanhamento";
 
 const DEFAULT_FILTERS: ReminderFilters = {
   clinicUnit: "",
@@ -41,9 +44,12 @@ export function ReminderCenterPage() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState("");
   const [actingKey, setActingKey] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilterValue>("todas");
+  const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilterValue>("todos");
 
   useEffect(() => {
-    loadReminders(DEFAULT_FILTERS);
+    void loadReminders(DEFAULT_FILTERS);
   }, []);
 
   async function loadReminders(nextFilters: ReminderFilters) {
@@ -51,6 +57,8 @@ export function ReminderCenterPage() {
     try {
       const response = await api.getReminders(nextFilters);
       setData(response);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a central de lembretes.");
     } finally {
       setLoading(false);
     }
@@ -86,6 +94,42 @@ export function ReminderCenterPage() {
     }
   }
 
+  async function handleCopyMessage(message: string, patientName: string) {
+    try {
+      await navigator.clipboard.writeText(message);
+      setFeedback(`Mensagem de ${patientName} copiada.`);
+    } catch {
+      setFeedback("Nao foi possivel copiar a mensagem.");
+    }
+  }
+
+  const filteredItems = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return data.items.filter((item) => {
+      if (
+        normalizedSearch &&
+        !`${item.patientName} ${item.phone} ${item.examName}`.toLowerCase().includes(normalizedSearch)
+      ) {
+        return false;
+      }
+
+      if (priorityFilter !== "todas" && item.priorityLevel !== priorityFilter) {
+        return false;
+      }
+
+      if (messageTypeFilter !== "todos" && item.messageType !== messageTypeFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [data, messageTypeFilter, priorityFilter, search]);
+
   if (loading && !data) {
     return <p className="loading-text">Carregando central de lembretes...</p>;
   }
@@ -106,8 +150,39 @@ export function ReminderCenterPage() {
         </div>
       </div>
 
-      <article className="panel-card stack-form filter-panel">
-        <div className="three-columns">
+      <article className="panel-card stack-form filter-panel operational-filter-panel">
+        <div className="operational-filter-grid operational-filter-grid-five">
+          <label>
+            Buscar paciente
+            <input
+              type="search"
+              placeholder="Nome, telefone ou exame"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+
+          <label>
+            Prioridade
+            <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as PriorityFilterValue)}>
+              <option value="todas">Todas</option>
+              <option value="alta">Alta</option>
+              <option value="media">Media</option>
+              <option value="baixa">Baixa</option>
+            </select>
+          </label>
+
+          <label>
+            Tipo
+            <select value={messageTypeFilter} onChange={(event) => setMessageTypeFilter(event.target.value as MessageTypeFilterValue)}>
+              <option value="todos">Todos</option>
+              <option value="atraso">Atraso</option>
+              <option value="janela_ideal">Janela ideal</option>
+              <option value="janela_proxima">Janela proxima</option>
+              <option value="acompanhamento">Acompanhamento</option>
+            </select>
+          </label>
+
           <label>
             Unidade
             <select value={filters.clinicUnit} onChange={(event) => updateFilter("clinicUnit", event.target.value)}>
@@ -127,7 +202,9 @@ export function ReminderCenterPage() {
               ))}
             </select>
           </label>
+        </div>
 
+        <div className="operational-filter-grid operational-filter-grid-three">
           <label>
             Exame
             <select value={filters.examCode} onChange={(event) => updateFilter("examCode", event.target.value)}>
@@ -140,12 +217,15 @@ export function ReminderCenterPage() {
         </div>
 
         <div className="inline-actions">
-          <button className="primary-button" type="button" onClick={() => loadReminders(filters)}>
+          <button className="primary-button" type="button" onClick={() => void loadReminders(filters)}>
             Aplicar filtros
           </button>
           <button className="secondary-button" type="button" onClick={() => {
             setFilters(DEFAULT_FILTERS);
-            loadReminders(DEFAULT_FILTERS);
+            setSearch("");
+            setPriorityFilter("todas");
+            setMessageTypeFilter("todos");
+            void loadReminders(DEFAULT_FILTERS);
           }}>
             Limpar filtros
           </button>
@@ -184,7 +264,7 @@ export function ReminderCenterPage() {
                   <span><strong>Origem:</strong> {item.sourceLabel}</span>
                 </div>
 
-                <div className="inline-actions list-action-bar">
+                <div className="inline-actions list-action-bar operational-action-bar">
                   <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
                     Ver detalhes
                   </Link>
@@ -196,8 +276,8 @@ export function ReminderCenterPage() {
       ) : null}
 
       <div className="reminder-grid">
-        {data.items.length ? data.items.map((item) => (
-          <article key={`${item.patientId}-${item.examPatientId}`} className={`panel-card reminder-card reminder-${item.urgencyStatus} operational-card`}>
+        {filteredItems.length ? filteredItems.map((item) => (
+          <article key={`${item.patientId}-${item.examPatientId}`} className={`panel-card reminder-card operational-card ${item.priorityLevel === "alta" ? "operational-priority-high" : ""} reminder-${item.urgencyStatus}`}>
             <div className="card-row">
               <div>
                 <h3>{item.patientName}</h3>
@@ -239,7 +319,10 @@ export function ReminderCenterPage() {
               <textarea rows={4} value={item.suggestedMessage} readOnly />
             </label>
 
-            <div className="inline-actions list-action-bar">
+            <div className="inline-actions list-action-bar operational-action-bar">
+              <button className="secondary-button" type="button" onClick={() => void handleCopyMessage(item.suggestedMessage, item.patientName)}>
+                Copiar mensagem
+              </button>
               <a href={item.whatsappUrl} target="_blank" rel="noreferrer" className="whatsapp-link">
                 Abrir WhatsApp
               </a>
@@ -247,7 +330,7 @@ export function ReminderCenterPage() {
                 className="secondary-button"
                 type="button"
                 disabled={actingKey === `${item.patientId}-${item.examPatientId}-contacted`}
-                onClick={() => handleAction(item.patientId, item.examPatientId, "contacted")}
+                onClick={() => void handleAction(item.patientId, item.examPatientId, "contacted")}
               >
                 {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Marcar como contatada"}
               </button>
@@ -255,7 +338,7 @@ export function ReminderCenterPage() {
                 className="secondary-button"
                 type="button"
                 disabled={actingKey === `${item.patientId}-${item.examPatientId}-snooze`}
-                onClick={() => handleAction(item.patientId, item.examPatientId, "snooze")}
+                onClick={() => void handleAction(item.patientId, item.examPatientId, "snooze")}
               >
                 {actingKey === `${item.patientId}-${item.examPatientId}-snooze` ? "Salvando..." : "Adiar lembrete"}
               </button>
@@ -263,7 +346,7 @@ export function ReminderCenterPage() {
                 className="secondary-button"
                 type="button"
                 disabled={actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
-                onClick={() => handleAction(item.patientId, item.examPatientId, "scheduled")}
+                onClick={() => void handleAction(item.patientId, item.examPatientId, "scheduled")}
               >
                 {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Marcar como ja agendada"}
               </button>

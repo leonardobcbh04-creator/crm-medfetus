@@ -319,7 +319,9 @@ export type MessagingItem = {
   nextExam: Patient["nextExam"];
   suggestedMessage: string;
   reminderLabel: string;
+  examPatientId: number | null;
   examModelId: number | null;
+  whatsappUrl: string;
   latestMessage: MessageRecord | null;
   messageHistory: MessageRecord[];
   priorityScore?: number;

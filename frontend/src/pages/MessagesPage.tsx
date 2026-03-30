@@ -6,6 +6,8 @@ import { getPatientPriorityMeta } from "../utils/patientPriority";
 import { getWhatsAppUrl } from "../utils/phone";
 
 type FilterValue = "todos" | "hoje" | "atrasadas" | "respondidas" | "sem_resposta";
+type PriorityFilterValue = "todas" | "alta" | "media" | "baixa";
+type MessageTypeFilterValue = "todos" | "atraso" | "janela_ideal" | "janela_proxima" | "acompanhamento";
 
 function getGestationalAlertClass(level: "ok" | "warning" | "blocked") {
   if (level === "blocked") return "form-alert form-alert-error";
@@ -26,20 +28,33 @@ export function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterValue>("todos");
   const [search, setSearch] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilterValue>("todas");
+  const [messageTypeFilter, setMessageTypeFilter] = useState<MessageTypeFilterValue>("todos");
+  const [unitFilter, setUnitFilter] = useState("");
+  const [physicianFilter, setPhysicianFilter] = useState("");
+  const [actingKey, setActingKey] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getMessagingItems()
-      .then((response) => {
-        setItems(response.items);
-        setDrafts(
-          response.items.reduce<Record<number, string>>((accumulator, item) => {
-            accumulator[item.patientId] = item.suggestedMessage;
-            return accumulator;
-          }, {})
-        );
-      })
-      .finally(() => setLoading(false));
+    void loadMessagingItems();
   }, []);
+
+  async function loadMessagingItems() {
+    setLoading(true);
+    try {
+      const response = await api.getMessagingItems();
+      setItems(response.items);
+      setDrafts((current) => ({
+        ...response.items.reduce<Record<number, string>>((accumulator, item) => {
+          accumulator[item.patientId] = current[item.patientId] ?? item.suggestedMessage;
+          return accumulator;
+        }, {})
+      }));
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a fila de mensagens.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleRegisterSend(item: MessagingItem) {
     const content = drafts[item.patientId] || item.suggestedMessage;
@@ -62,13 +77,53 @@ export function MessagesPage() {
       return;
     }
 
-    const response = await api.updateMessage(item.latestMessage.id, {
-      responseStatus,
-      responseText: responseStatus === "respondida" ? "Paciente respondeu pelo WhatsApp." : null
-    });
+    try {
+      const response = await api.updateMessage(item.latestMessage.id, {
+        responseStatus,
+        responseText: responseStatus === "respondida" ? "Paciente respondeu pelo WhatsApp." : null
+      });
 
-    syncPatientMessage(item.patientId, response.message);
-    setFeedback(`Status da mensagem atualizado para ${item.patientName}.`);
+      syncPatientMessage(item.patientId, response.message);
+      setFeedback(`Status da mensagem atualizado para ${item.patientName}.`);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a mensagem.");
+    }
+  }
+
+  async function handleReminderAction(item: MessagingItem, action: "contacted" | "snooze" | "scheduled") {
+    if (!item.examPatientId) {
+      return;
+    }
+
+    const key = `${item.patientId}-${item.examPatientId}-${action}`;
+    setActingKey(key);
+    setFeedback("");
+
+    try {
+      await api.updateReminder(item.patientId, item.examPatientId, action);
+      await loadMessagingItems();
+      setFeedback(
+        action === "contacted"
+          ? `Paciente ${item.patientName} marcada como contatada.`
+          : action === "snooze"
+            ? `Lembrete de ${item.patientName} adiado para o proximo dia.`
+            : `Paciente ${item.patientName} marcada como ja agendada.`
+      );
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a fila operacional.");
+    } finally {
+      setActingKey(null);
+    }
+  }
+
+  async function handleCopyMessage(item: MessagingItem) {
+    const content = drafts[item.patientId] || item.suggestedMessage;
+    try {
+      await navigator.clipboard.writeText(content);
+      setFeedback(`Mensagem de ${item.patientName} copiada.`);
+    } catch {
+      setFeedback("Nao foi possivel copiar a mensagem.");
+    }
   }
 
   function syncPatientMessage(patientId: number, message: MessageRecord) {
@@ -85,6 +140,15 @@ export function MessagesPage() {
     );
   }
 
+  const unitOptions = useMemo(
+    () => [...new Set(items.map((item) => item.clinicUnit).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
+    [items]
+  );
+  const physicianOptions = useMemo(
+    () => [...new Set(items.map((item) => item.physicianName).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
+    [items]
+  );
+
   const filteredItems = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
@@ -97,13 +161,29 @@ export function MessagesPage() {
         return false;
       }
 
+      if (priorityFilter !== "todas" && item.priorityLevel !== priorityFilter) {
+        return false;
+      }
+
+      if (messageTypeFilter !== "todos" && item.messageType !== messageTypeFilter) {
+        return false;
+      }
+
+      if (unitFilter && item.clinicUnit !== unitFilter) {
+        return false;
+      }
+
+      if (physicianFilter && item.physicianName !== physicianFilter) {
+        return false;
+      }
+
       if (filter === "todos") return true;
       if (filter === "hoje") return item.nextExam.alertLevel === "hoje";
       if (filter === "atrasadas") return item.nextExam.alertLevel === "urgente";
       if (filter === "respondidas") return item.latestMessage?.responseStatus === "respondida";
       return item.latestMessage?.responseStatus === "sem_resposta";
     });
-  }, [filter, items, search]);
+  }, [filter, items, messageTypeFilter, physicianFilter, priorityFilter, search, unitFilter]);
 
   if (loading) {
     return <p className="loading-text">Carregando mensagens automaticas...</p>;
@@ -121,27 +201,73 @@ export function MessagesPage() {
         </div>
       </div>
 
-      <div className="toolbar-row">
-        <input
-          type="search"
-          placeholder="Buscar por nome, telefone ou exame"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
+      <article className="panel-card stack-form filter-panel operational-filter-panel">
+        <div className="operational-filter-grid operational-filter-grid-five">
+          <label>
+            Buscar paciente
+            <input
+              type="search"
+              placeholder="Nome, telefone ou exame"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
 
-      <div className="message-filter-bar">
-        <button className={filter === "todos" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("todos")}>Todos</button>
-        <button className={filter === "hoje" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("hoje")}>Hoje</button>
-        <button className={filter === "atrasadas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("atrasadas")}>Atrasadas</button>
-        <button className={filter === "respondidas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("respondidas")}>Respondidas</button>
-        <button className={filter === "sem_resposta" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("sem_resposta")}>Sem resposta</button>
-      </div>
+          <label>
+            Prioridade
+            <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as PriorityFilterValue)}>
+              <option value="todas">Todas</option>
+              <option value="alta">Alta</option>
+              <option value="media">Media</option>
+              <option value="baixa">Baixa</option>
+            </select>
+          </label>
+
+          <label>
+            Tipo
+            <select value={messageTypeFilter} onChange={(event) => setMessageTypeFilter(event.target.value as MessageTypeFilterValue)}>
+              <option value="todos">Todos</option>
+              <option value="atraso">Atraso</option>
+              <option value="janela_ideal">Janela ideal</option>
+              <option value="janela_proxima">Janela proxima</option>
+              <option value="acompanhamento">Acompanhamento</option>
+            </select>
+          </label>
+
+          <label>
+            Unidade
+            <select value={unitFilter} onChange={(event) => setUnitFilter(event.target.value)}>
+              <option value="">Todas</option>
+              {unitOptions.map((unit) => (
+                <option key={unit} value={unit || ""}>{unit}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Medico
+            <select value={physicianFilter} onChange={(event) => setPhysicianFilter(event.target.value)}>
+              <option value="">Todos</option>
+              {physicianOptions.map((physician) => (
+                <option key={physician} value={physician || ""}>{physician}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="message-filter-bar">
+          <button className={filter === "todos" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("todos")}>Todos</button>
+          <button className={filter === "hoje" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("hoje")}>Hoje</button>
+          <button className={filter === "atrasadas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("atrasadas")}>Atrasadas</button>
+          <button className={filter === "respondidas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("respondidas")}>Respondidas</button>
+          <button className={filter === "sem_resposta" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("sem_resposta")}>Sem resposta</button>
+        </div>
+      </article>
 
       {feedback ? <p className={feedback.includes("Nao foi") || feedback.includes("baixa confianca") ? "form-error" : "form-success"}>{feedback}</p> : null}
 
       <div className="messages-grid">
-        {filteredItems.map((item) => {
+        {filteredItems.length ? filteredItems.map((item) => {
           const draftMessage = drafts[item.patientId] || item.suggestedMessage;
           const whatsappUrl = getWhatsAppUrl(item.phone, encodeURIComponent(draftMessage));
           const priority = getPatientPriorityMeta({
@@ -163,7 +289,7 @@ export function MessagesPage() {
           return (
             <article
               key={item.patientId}
-              className={`panel-card message-card ${priority.cardClassName} ${priority.needsImmediateAction ? "patient-card-immediate" : ""}`}
+              className={`panel-card message-card operational-card ${item.priorityLevel === "alta" ? "operational-priority-high" : ""} ${priority.cardClassName} ${priority.needsImmediateAction ? "patient-card-immediate" : ""}`}
             >
               <div className="card-row">
                 <div>
@@ -217,7 +343,10 @@ export function MessagesPage() {
                 />
               </label>
 
-              <div className="message-actions list-action-bar">
+              <div className="message-actions list-action-bar operational-action-bar">
+                <button className="secondary-button" type="button" onClick={() => void handleCopyMessage(item)}>
+                  Copiar mensagem
+                </button>
                 <a className="whatsapp-link" href={whatsappUrl} target="_blank" rel="noreferrer">
                   Abrir WhatsApp
                 </a>
@@ -225,14 +354,38 @@ export function MessagesPage() {
                   className="secondary-button"
                   type="button"
                   disabled={item.gestationalMessagingAlertLevel === "blocked"}
-                  onClick={() => handleRegisterSend(item)}
+                  onClick={() => void handleRegisterSend(item)}
                 >
                   Registrar envio
                 </button>
-                <button className="secondary-button" type="button" onClick={() => handleUpdateResponse(item, "respondida")}>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-contacted`}
+                  onClick={() => void handleReminderAction(item, "contacted")}
+                >
+                  {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Marcar como contatada"}
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-snooze`}
+                  onClick={() => void handleReminderAction(item, "snooze")}
+                >
+                  {actingKey === `${item.patientId}-${item.examPatientId}-snooze` ? "Salvando..." : "Adiar lembrete"}
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
+                  onClick={() => void handleReminderAction(item, "scheduled")}
+                >
+                  {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Marcar como ja agendada"}
+                </button>
+                <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "respondida")}>
                   Marcar respondida
                 </button>
-                <button className="secondary-button" type="button" onClick={() => handleUpdateResponse(item, "sem_resposta")}>
+                <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "sem_resposta")}>
                   Marcar sem resposta
                 </button>
                 <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
@@ -259,7 +412,7 @@ export function MessagesPage() {
               </div>
             </article>
           );
-        })}
+        }) : <p className="empty-state">Nenhuma paciente encontrada com os filtros atuais.</p>}
       </div>
     </section>
   );

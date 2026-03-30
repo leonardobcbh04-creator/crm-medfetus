@@ -983,6 +983,23 @@ textarea:focus {
   gap: 10px;
 }
 
+.operational-filter-panel {
+  gap: 14px;
+}
+
+.operational-filter-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.operational-filter-grid-five {
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+}
+
+.operational-filter-grid-three {
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+}
+
 .message-card {
   display: grid;
   gap: 16px;
@@ -996,6 +1013,21 @@ textarea:focus {
 .reminder-card {
   display: grid;
   gap: 16px;
+}
+
+.operational-priority-high {
+  border-color: rgba(201, 78, 63, 0.42);
+  box-shadow: 0 22px 54px rgba(201, 78, 63, 0.14);
+}
+
+.operational-action-bar {
+  align-items: stretch;
+}
+
+.operational-action-bar .secondary-button,
+.operational-action-bar .whatsapp-link {
+  min-height: 42px;
+  justify-content: center;
 }
 
 .reminder-atrasado {
@@ -2527,7 +2559,10 @@ textarea:focus {
   .stats-grid,
   .kanban-grid,
   .settings-grid,
-  .messages-grid {
+  .messages-grid,
+  .reminder-grid,
+  .operational-filter-grid-five,
+  .operational-filter-grid-three {
     grid-template-columns: 1fr;
   }
 
