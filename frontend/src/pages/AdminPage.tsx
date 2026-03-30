@@ -21,6 +21,26 @@ type AdminTab = "usuarios" | "cadastros" | "exames" | "mensageria" | "integracoe
 type IntegrationSubTab = "visao" | "mapeamentos";
 type PatientCleanupPreset = "today" | "last_7_days" | "last_30_days" | "all" | "custom";
 
+const EMPTY_ADMIN_PANEL: AdminPanelData = {
+  users: [],
+  units: [],
+  physicians: [],
+  examConfigs: [],
+  examInferenceRules: [],
+  messageTemplates: [],
+  messageDeliveryLogs: [],
+  messagingConfig: {
+    provider: "manual_stub",
+    channel: "whatsapp",
+    externalApiBaseUrl: "",
+    externalApiToken: "",
+    externalPhoneNumberId: "",
+    templatesEnabled: true,
+    dryRun: true,
+    isExternalProviderConfigured: false
+  }
+};
+
 function SectionHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return (
     <div className="form-section-header">
@@ -171,24 +191,31 @@ export function AdminPage() {
   }, []);
 
   async function refreshShospIntegrationData() {
-    const [statusResponse, mappingsResponse] = await Promise.all([
+    const [statusResult, mappingsResult] = await Promise.allSettled([
       api.getShospIntegrationStatus(),
       api.getShospExamMappings()
     ]);
+
+    const statusResponse = statusResult.status === "fulfilled" ? statusResult.value : null;
+    const mappingsResponse = mappingsResult.status === "fulfilled" ? mappingsResult.value : { mappings: [] };
 
     setShospStatus(statusResponse);
     setShospMappings(mappingsResponse.mappings);
     setShospSettingsForm((current) => ({
       ...current,
-      useMock: statusResponse.persistedConfig?.useMock ?? current.useMock,
-      apiBaseUrl: statusResponse.persistedConfig?.apiBaseUrl || current.apiBaseUrl,
-      username: statusResponse.persistedConfig?.username || current.username,
-      companyId: statusResponse.persistedConfig?.companyId || current.companyId,
-      patientsPath: String(statusResponse.persistedConfig?.settings?.patientsPath || statusResponse.settings.patientsPath || current.patientsPath),
-      attendancesPath: String(statusResponse.persistedConfig?.settings?.attendancesPath || statusResponse.settings.attendancesPath || current.attendancesPath),
-      examsPath: String(statusResponse.persistedConfig?.settings?.examsPath || statusResponse.settings.examsPath || current.examsPath),
-      timeoutMs: String(statusResponse.persistedConfig?.settings?.timeoutMs || statusResponse.settings.timeoutMs || current.timeoutMs)
+      useMock: statusResponse?.persistedConfig?.useMock ?? current.useMock,
+      apiBaseUrl: statusResponse?.persistedConfig?.apiBaseUrl || current.apiBaseUrl,
+      username: statusResponse?.persistedConfig?.username || current.username,
+      companyId: statusResponse?.persistedConfig?.companyId || current.companyId,
+      patientsPath: String(statusResponse?.persistedConfig?.settings?.patientsPath || statusResponse?.settings.patientsPath || current.patientsPath),
+      attendancesPath: String(statusResponse?.persistedConfig?.settings?.attendancesPath || statusResponse?.settings.attendancesPath || current.attendancesPath),
+      examsPath: String(statusResponse?.persistedConfig?.settings?.examsPath || statusResponse?.settings.examsPath || current.examsPath),
+      timeoutMs: String(statusResponse?.persistedConfig?.settings?.timeoutMs || statusResponse?.settings.timeoutMs || current.timeoutMs)
     }));
+
+    if (statusResult.status !== "fulfilled" || mappingsResult.status !== "fulfilled") {
+      setFeedback("A integracao com o Shosp nao respondeu neste ambiente. A area administrativa segue disponivel em modo reduzido.");
+    }
 
     return { statusResponse, mappingsResponse };
   }
@@ -202,11 +229,8 @@ export function AdminPage() {
         api.getShospExamMappings()
       ]);
 
-      if (adminResult.status !== "fulfilled") {
-        throw adminResult.reason;
-      }
-
-      setAdminData(adminResult.value);
+      const nextAdminData = adminResult.status === "fulfilled" ? adminResult.value : EMPTY_ADMIN_PANEL;
+      setAdminData(nextAdminData);
 
       if (shospStatusResult.status === "fulfilled") {
         const shospResponse = shospStatusResult.value;
@@ -234,10 +258,14 @@ export function AdminPage() {
         setShospMappings([]);
       }
 
-      if (shospStatusResult.status !== "fulfilled" || shospMappingsResult.status !== "fulfilled") {
+      if (adminResult.status !== "fulfilled") {
+        console.error("[admin-page] Falha ao carregar /api/admin.", adminResult.reason);
+        setFeedback("A area administrativa foi carregada em modo reduzido porque parte dos dados principais nao respondeu.");
+      } else if (shospStatusResult.status !== "fulfilled" || shospMappingsResult.status !== "fulfilled") {
         setFeedback("A area administrativa foi carregada, mas a integracao com o Shosp ainda nao respondeu neste ambiente.");
       }
     } catch (error) {
+      setAdminData(EMPTY_ADMIN_PANEL);
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a area administrativa.");
     } finally {
       setLoading(false);

@@ -23,21 +23,42 @@ import { getMessagingRuntimeConfig } from "../services/messaging/messagingServic
 
 export const adminRoutes = Router();
 
+function buildAdminPanelFallback() {
+  let messagingConfig;
+  try {
+    messagingConfig = getMessagingRuntimeConfig();
+  } catch (error) {
+    console.error("[admin] Falha ao carregar configuracao de mensageria para fallback.", error);
+    messagingConfig = {
+      provider: "manual_stub",
+      channel: "whatsapp",
+      externalApiBaseUrl: "",
+      externalApiToken: "",
+      externalPhoneNumberId: "",
+      templatesEnabled: true,
+      dryRun: true,
+      isExternalProviderConfigured: false
+    };
+  }
+
+  return {
+    users: [],
+    units: [],
+    physicians: [],
+    examConfigs: [],
+    examInferenceRules: [],
+    messageTemplates: [],
+    messageDeliveryLogs: [],
+    messagingConfig
+  };
+}
+
 adminRoutes.get("/", asyncRoute(async (_request, response) => {
   try {
     response.json(await getAdminPanelDataCore());
   } catch (error) {
     console.error("[admin] Falha ao carregar painel administrativo completo.", error);
-    response.json({
-      users: [],
-      units: [],
-      physicians: [],
-      examConfigs: [],
-      examInferenceRules: [],
-      messageTemplates: [],
-      messageDeliveryLogs: [],
-      messagingConfig: getMessagingRuntimeConfig()
-    });
+    response.status(200).json(buildAdminPanelFallback());
   }
 }, "Nao foi possivel carregar a area administrativa."));
 
