@@ -29,6 +29,12 @@ function getGestationalAlertClass(level: "ok" | "warning" | "blocked") {
   return "form-alert form-alert-success";
 }
 
+function getOperationalPriorityBadgeClass(level?: "alta" | "media" | "baixa") {
+  if (level === "alta") return "badge-priority-red";
+  if (level === "media") return "badge-priority-yellow";
+  return "badge-priority-green";
+}
+
 export function ReminderCenterPage() {
   const [data, setData] = useState<ReminderCenterData | null>(null);
   const [filters, setFilters] = useState<ReminderFilters>(DEFAULT_FILTERS);
@@ -200,10 +206,16 @@ export function ReminderCenterPage() {
               <span className={`badge ${getUrgencyBadgeClass(item.urgencyStatus)}`}>{item.urgencyLabel}</span>
             </div>
 
+            <div className="priority-badge-row">
+              <span className={`badge badge-soft ${getOperationalPriorityBadgeClass(item.priorityLevel)}`}>{item.priorityLabel || "Prioridade operacional"}</span>
+              <span className="badge badge-soft badge-priority-blue">{item.messageTypeLabel || "Mensagem operacional"}</span>
+            </div>
+
             <div className="message-metadata">
               <span><strong>Telefone:</strong> {formatBrazilPhone(item.phone) || "Nao informado"}</span>
               <span><strong>Exame pendente:</strong> {item.examName}</span>
               <span><strong>Inicio da janela ideal:</strong> {item.idealWindowStartDateLabel || "Nao definido"}</span>
+              <span><strong>Origem da mensagem:</strong> {item.messageOriginLabel || "Timeline operacional"}</span>
               <span><strong>Base do proximo exame:</strong> {item.gestationalBaseSourceLabel}</span>
               <span><strong>Confianca:</strong> {item.gestationalBaseConfidenceLabel}</span>
               <span><strong>Medico:</strong> {item.physicianName || "Nao informado"}</span>

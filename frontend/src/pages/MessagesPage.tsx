@@ -13,6 +13,12 @@ function getGestationalAlertClass(level: "ok" | "warning" | "blocked") {
   return "form-alert form-alert-success";
 }
 
+function getOperationalPriorityBadgeClass(level?: "alta" | "media" | "baixa") {
+  if (level === "alta") return "badge-priority-red";
+  if (level === "media") return "badge-priority-yellow";
+  return "badge-priority-green";
+}
+
 export function MessagesPage() {
   const [items, setItems] = useState<MessagingItem[]>([]);
   const [drafts, setDrafts] = useState<Record<number, string>>({});
@@ -169,13 +175,16 @@ export function MessagesPage() {
 
               <div className="priority-badge-row">
                 <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
+                <span className={`badge badge-soft ${getOperationalPriorityBadgeClass(item.priorityLevel)}`}>{item.priorityLabel || "Prioridade operacional"}</span>
                 <span className={`badge badge-soft ${priority.badgeClassName}`}>{item.reminderLabel}</span>
+                <span className="badge badge-soft badge-priority-blue">{item.messageTypeLabel || "Mensagem operacional"}</span>
                 {priority.needsImmediateAction ? <span className="badge badge-attention">Acao imediata</span> : null}
               </div>
 
               <div className="message-metadata">
                 <span><strong>Proximo exame:</strong> {item.nextExam.name}</span>
                 <span><strong>Previsao:</strong> {item.nextExam.dateLabel}</span>
+                <span><strong>Origem da mensagem:</strong> {item.messageOriginLabel || "Timeline operacional"}</span>
                 <span><strong>Base do proximo exame:</strong> {item.gestationalBaseSourceLabel}</span>
                 <span><strong>Confianca:</strong> {item.gestationalBaseConfidenceLabel}</span>
                 <span><strong>Medico:</strong> {item.physicianName || "Nao informado"}</span>

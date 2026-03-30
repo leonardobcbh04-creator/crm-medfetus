@@ -201,6 +201,41 @@ test("paciente cadastrada passa a aparecer em clientes operacionais, pipeline, m
   assert.ok(patientInReminders, "Paciente deveria aparecer na central de lembretes.");
 });
 
+test("mensagens automaticas e central de lembretes refletem prioridade alta e origem de atraso", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const created = createPatient({
+    name: "Paciente Mensagem Prioritaria",
+    phone: "31974443333",
+    birthDate: "1991-05-20",
+    gestationalWeeks: 36,
+    gestationalDays: 0,
+    physicianName: "Dra. Helena Castro",
+    clinicUnit: "Unidade Centro",
+    pregnancyType: "Unica",
+    highRisk: false,
+    notes: "Usada para validar prioridade operacional de mensagens.",
+    actorUserId: 1
+  });
+
+  const messagingItems = getMessagingOverview();
+  const messagingItem = messagingItems.find((item) => item.patientId === created.patient.id);
+  assert.ok(messagingItem);
+  assert.equal(messagingItem?.priorityLevel, "alta");
+  assert.equal(messagingItem?.messageType, "atraso");
+  assert.equal(messagingItem?.messageOrigin, "timeline_atraso");
+  assert.match(messagingItem?.suggestedMessage || "", /prioridade no agendamento/i);
+
+  const reminders = await getRemindersCenterData();
+  const reminderItem = reminders.items.find((item) => item.patientId === created.patient.id);
+  assert.ok(reminderItem);
+  assert.equal(reminderItem?.priorityLevel, "alta");
+  assert.equal(reminderItem?.messageType, "atraso");
+  assert.equal(reminderItem?.messageOrigin, "timeline_atraso");
+  assert.match(reminderItem?.suggestedMessage || "", /prioridade no agendamento/i);
+});
+
 test("dashboard, relatorios e area administrativa carregam dados pela camada core sem quebrar os modulos visiveis", { concurrency: false }, async () => {
   resetDatabase();
   initializeDatabase();
