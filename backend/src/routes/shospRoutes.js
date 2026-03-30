@@ -17,7 +17,56 @@ import {
 export const shospRoutes = Router();
 
 shospRoutes.get("/status", (_request, response) => {
-  response.json(getShospIntegrationStatus());
+  try {
+    response.json(getShospIntegrationStatus());
+  } catch (error) {
+    console.error("[shosp-route] Falha ao responder status da integracao.", error);
+    response.status(200).json({
+      mode: "unavailable",
+      configured: false,
+      connection: {
+        connected: false,
+        label: "Indisponivel",
+        detail: "Shosp integration not configured"
+      },
+      summary: {
+        lastSyncAt: null,
+        patientsSynced: 0,
+        examsImported: 0,
+        detectedSchedules: 0,
+        recentErrorsCount: 0,
+        recentErrors: []
+      },
+      apiMetrics: {
+        totalRequests: 0,
+        successfulRequests: 0,
+        totalResponseMs: 0,
+        averageResponseMs: null,
+        lastResponseMs: null,
+        lastSuccessAt: null,
+        lastFailureAt: null,
+        lastErrorMessage: "Shosp integration not configured"
+      },
+      worker: {
+        enabled: false,
+        running: false,
+        intervalMs: 0,
+        lastRunAt: null,
+        lastResult: null,
+        lastError: "Shosp integration not configured"
+      },
+      settings: {
+        baseUrl: "",
+        patientsPath: "",
+        attendancesPath: "",
+        examsPath: "",
+        timeoutMs: 0
+      },
+      persistedConfig: null,
+      cursors: [],
+      logs: []
+    });
+  }
 });
 
 shospRoutes.put("/settings", (request, response) => {
@@ -38,7 +87,12 @@ shospRoutes.post("/test-live-connection", asyncRoute(async (_request, response) 
 }, "Nao foi possivel testar a conexao live com o Shosp."));
 
 shospRoutes.get("/exam-mappings", (_request, response) => {
-  response.json({ mappings: listShospExamMappings() });
+  try {
+    response.json({ mappings: listShospExamMappings() });
+  } catch (error) {
+    console.error("[shosp-route] Falha ao responder mapeamentos de exame.", error);
+    response.status(200).json({ mappings: [] });
+  }
 });
 
 shospRoutes.put("/exam-mappings/:id", (request, response) => {
