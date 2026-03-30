@@ -323,6 +323,12 @@ export type MessagingItem = {
   latestMessage: MessageRecord | null;
   messageHistory: MessageRecord[];
   priorityScore?: number;
+  priorityLevel?: "alta" | "media" | "baixa";
+  priorityLabel?: string;
+  messageType?: string;
+  messageTypeLabel?: string;
+  messageOrigin?: string;
+  messageOriginLabel?: string;
   gestationalBaseSourceLabel: string;
   gestationalBaseConfidenceLabel: string;
   gestationalBaseIsEstimated: boolean;
@@ -358,6 +364,12 @@ export type ReminderCenterData = {
     urgencyStatus: string;
     urgencyLabel: string;
     priorityScore: number;
+    priorityLevel?: "alta" | "media" | "baixa";
+    priorityLabel?: string;
+    messageType?: string;
+    messageTypeLabel?: string;
+    messageOrigin?: string;
+    messageOriginLabel?: string;
     suggestedMessage: string;
     gestationalBaseSourceLabel: string;
     gestationalBaseConfidenceLabel: string;

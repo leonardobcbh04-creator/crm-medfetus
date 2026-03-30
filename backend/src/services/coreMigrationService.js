@@ -248,6 +248,56 @@ function buildReminderLabel(examRow) {
   return "Dentro da janela ideal";
 }
 
+function getOperationalMessagePriority(deadlineStatus) {
+  if (deadlineStatus === DEADLINE_STATUS.OVERDUE) {
+    return { level: "alta", label: "Alta prioridade", score: 0 };
+  }
+  if ([DEADLINE_STATUS.PENDING, DEADLINE_STATUS.APPROACHING].includes(deadlineStatus)) {
+    return { level: "media", label: "Media prioridade", score: 1 };
+  }
+  return { level: "baixa", label: "Baixa prioridade", score: 2 };
+}
+
+function getOperationalMessageType(deadlineStatus) {
+  if (deadlineStatus === DEADLINE_STATUS.OVERDUE) {
+    return { type: "atraso", label: "Exame em atraso", origin: "timeline_atraso", originLabel: "Timeline - atraso operacional" };
+  }
+  if (deadlineStatus === DEADLINE_STATUS.PENDING) {
+    return { type: "janela_ideal", label: "Janela ideal ativa", origin: "timeline_janela_ideal", originLabel: "Timeline - janela ideal" };
+  }
+  if (deadlineStatus === DEADLINE_STATUS.APPROACHING) {
+    return { type: "janela_proxima", label: "Janela se aproximando", origin: "timeline_proximidade", originLabel: "Timeline - proximidade da janela" };
+  }
+  return { type: "acompanhamento", label: "Acompanhamento normal", origin: "timeline_acompanhamento", originLabel: "Timeline - acompanhamento" };
+}
+
+function buildOperationalSuggestedMessage(template, patient, exam, fallbackMessage, deadlineStatus) {
+  const baseMessage = renderExamReminderMessage(template, patient, exam, fallbackMessage).trim();
+  const examName = exam?.name || patient?.nextExam?.name || "seu exame";
+  const examContext = exam?.required
+    ? "Esse exame faz parte do protocolo principal desta fase."
+    : "Esse exame e recomendado conforme a evolucao da gestacao.";
+
+  let operationalContext = `Contexto atual: ${patient?.gestationalAgeLabel || "fase atual da gestacao"}.`;
+  if (deadlineStatus === DEADLINE_STATUS.OVERDUE) {
+    operationalContext = `Observacao da equipe: o ${examName} esta atrasado e precisa de prioridade no agendamento.`;
+  } else if (deadlineStatus === DEADLINE_STATUS.PENDING) {
+    operationalContext = `Observacao da equipe: este e o momento ideal para organizar o ${examName}.`;
+  } else if (deadlineStatus === DEADLINE_STATUS.APPROACHING) {
+    operationalContext = `Observacao da equipe: a janela ideal do ${examName} esta se aproximando.`;
+  } else {
+    operationalContext = `Observacao da equipe: seguimos acompanhando o melhor momento para o ${examName}.`;
+  }
+
+  return `${baseMessage}\n\n${operationalContext}\n${examContext}`.trim();
+}
+
+function findOperationalExamRow(patientExams, patient) {
+  return patientExams.find((row) => row.code && row.code === patient?.nextExam?.code)
+    || patientExams.find((row) => row.status !== "realizado")
+    || null;
+}
+
 function buildCompletedDateLabel(exam) {
   if (exam.completedDate) {
     return formatDatePtBr(exam.completedDate);
@@ -520,10 +570,10 @@ function enrichPatient(patient, patientExamsMap, latestMessagesMap) {
   const snapshot = resolvePregnancySnapshot(patient, todayIso(), { patientExams });
   const latestMessage = latestMessagesMap.get(patient.id) ?? null;
   const nextExam = snapshot.gestationalBaseRequiresManualReview ? buildManualReviewNextExam() : buildNextExam(patientExams);
-  const nextPendingExamRow = patientExams.find((row) => row.status !== "realizado");
+  const nextPendingExamRow = findOperationalExamRow(patientExams, { nextExam });
   const nextExamSuggestedMessage = snapshot.gestationalBaseRequiresManualReview
     ? null
-    : renderExamReminderMessage(
+    : buildOperationalSuggestedMessage(
         nextPendingExamRow?.defaultMessage,
         {
           ...patient,
@@ -531,8 +581,10 @@ function enrichPatient(patient, patientExamsMap, latestMessagesMap) {
           estimatedDueDate: snapshot.dpp ? formatDatePtBr(snapshot.dpp) : ""
         },
         nextPendingExamRow,
-        `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com o agendamento do seu exame?`
+        `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com o agendamento do seu exame?`,
+        nextExam.deadlineStatus
       );
+  const messagePriority = getOperationalMessagePriority(nextExam.deadlineStatus);
   const normalizedStage = inferStage(
     {
       ...patient,
@@ -567,7 +619,7 @@ function enrichPatient(patient, patientExamsMap, latestMessagesMap) {
       ...nextExam,
       suggestedMessage: nextExamSuggestedMessage
     },
-    priorityScore: getAlertPriority(nextExam.alertLevel),
+    priorityScore: messagePriority.score,
     latestMessage,
     stageTitle: getStageTitle(normalizedStage)
   };
@@ -1435,11 +1487,14 @@ export async function getRemindersCenterDataCore(inputFilters = {}) {
   }));
 
   const items = detectionResults.filter((result) => !result.shospSchedule?.scheduledDate).map(({ patient, nextExamRow }) => {
-    const suggestedMessage = renderExamReminderMessage(
+    const messagePriority = getOperationalMessagePriority(patient.nextExam.deadlineStatus);
+    const messageType = getOperationalMessageType(patient.nextExam.deadlineStatus);
+    const suggestedMessage = buildOperationalSuggestedMessage(
       nextExamRow?.defaultMessage,
       patient,
       nextExamRow,
-      `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com o agendamento do seu exame?`
+      `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com o agendamento do seu exame?`,
+      patient.nextExam.deadlineStatus
     );
     const gestationalMessagingAlert = buildGestationalMessagingAlert(patient);
 
@@ -1457,7 +1512,13 @@ export async function getRemindersCenterDataCore(inputFilters = {}) {
       idealWindowStartDateLabel: nextExamRow?.idealWindowStartDate ? formatDatePtBr(nextExamRow.idealWindowStartDate) : null,
       urgencyStatus: patient.nextExam.deadlineStatus || "dentro_do_prazo",
       urgencyLabel: patient.nextExam.deadlineStatusLabel || patient.nextExam.alertLabel,
-      priorityScore: patient.priorityScore || 0,
+      priorityScore: messagePriority.score,
+      priorityLevel: messagePriority.level,
+      priorityLabel: messagePriority.label,
+      messageType: messageType.type,
+      messageTypeLabel: messageType.label,
+      messageOrigin: messageType.origin,
+      messageOriginLabel: messageType.originLabel,
       suggestedMessage,
       gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
       gestationalBaseConfidenceLabel: patient.gestationalBaseConfidenceLabel || "Nao avaliada",
@@ -1605,13 +1666,16 @@ export async function getMessagingOverviewCore() {
     patients
       .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
       .map((patient) => {
-        const nextPendingExam = (patientExamsMap.get(patient.id) ?? []).find((row) => row.status !== "realizado");
+        const nextPendingExam = findOperationalExamRow(patientExamsMap.get(patient.id) ?? [], patient);
         const latestMessage = latestMessagesMap.get(patient.id) ?? null;
-        const suggestedMessage = renderExamReminderMessage(
+        const messagePriority = getOperationalMessagePriority(patient.nextExam.deadlineStatus);
+        const messageType = getOperationalMessageType(patient.nextExam.deadlineStatus);
+        const suggestedMessage = buildOperationalSuggestedMessage(
           nextPendingExam?.defaultMessage,
           patient,
           nextPendingExam,
-          `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com seu acompanhamento?`
+          `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com seu acompanhamento?`,
+          patient.nextExam.deadlineStatus
         );
         const gestationalMessagingAlert = buildGestationalMessagingAlert(patient);
 
@@ -1624,7 +1688,13 @@ export async function getMessagingOverviewCore() {
           stage: patient.stage,
           gestationalAgeLabel: patient.gestationalAgeLabel,
           nextExam: patient.nextExam,
-          priorityScore: patient.priorityScore,
+          priorityScore: messagePriority.score,
+          priorityLevel: messagePriority.level,
+          priorityLabel: messagePriority.label,
+          messageType: messageType.type,
+          messageTypeLabel: messageType.label,
+          messageOrigin: messageType.origin,
+          messageOriginLabel: messageType.originLabel,
           suggestedMessage,
           reminderLabel: nextPendingExam ? buildReminderLabel(nextPendingExam) : "Sem mensagem pendente",
           examModelId: nextPendingExam?.examModelId ?? null,
