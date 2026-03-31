@@ -1,5 +1,5 @@
 import { KANBAN_STAGES } from "../config.js";
-import { getConfiguredDatabaseKind } from "../database/runtime.js";
+import { getConfiguredDatabaseKind, getDatabaseRuntime } from "../database/runtime.js";
 import {
   createUserSession,
   getActiveSessionByTokenHash,
@@ -40,6 +40,21 @@ import {
   authenticate as authenticateLegacy,
   createMessage as createMessageLegacy,
   createPatient as createPatientLegacy,
+  createAdminUser,
+  createClinicUnit,
+  createExamConfig,
+  createKanbanColumn,
+  createPhysician,
+  deletePatient as deletePatientLegacy,
+  deletePatientsByCreatedRange as deletePatientsByCreatedRangeLegacy,
+  deleteAdminUser,
+  deleteClinicUnit,
+  deleteExamConfig,
+  deleteKanbanColumn,
+  deletePhysician,
+  confirmGestationalBaseEstimate as confirmGestationalBaseEstimateLegacy,
+  discardGestationalBaseEstimate as discardGestationalBaseEstimateLegacy,
+  editGestationalBaseManually as editGestationalBaseManuallyLegacy,
   getAuthenticatedUserByToken as getAuthenticatedUserByTokenLegacy,
   getAdminPanelData as getAdminPanelDataLegacy,
   getDashboardData as getDashboardDataLegacy,
@@ -49,15 +64,24 @@ import {
   getRemindersCenterData as getRemindersCenterDataLegacy,
   getRemindersCount as getRemindersCountLegacy,
   getReportsData as getReportsDataLegacy,
+  listGestationalBaseReviews as listGestationalBaseReviewsLegacy,
   listPatients as listPatientsLegacy,
   listExamConfigs as listExamConfigsLegacy,
   listExamProtocolPresets,
   getPatientFormCatalogs as getPatientFormCatalogsLegacy,
   movePatientStage as movePatientStageLegacy,
+  updateAdminUser,
+  updateClinicUnit,
+  updateExamConfig,
+  updateExamInferenceRule,
+  updateKanbanColumn,
+  updateMessageTemplate,
   updatePatient as updatePatientLegacy,
   updatePatientExamStatus as updatePatientExamStatusLegacy,
+  updatePhysician,
   updateMessageStatus as updateMessageStatusLegacy,
-  updateReminderStatus as updateReminderStatusLegacy
+  updateReminderStatus as updateReminderStatusLegacy,
+  applyExamProtocolPreset
 } from "./clinicService.js";
 import {
   buildSessionExpiry,
@@ -71,6 +95,7 @@ import { addDays, formatDatePtBr, todayIso } from "../utils/date.js";
 import { normalizeBrazilPhone, toWhatsAppPhone } from "../utils/phone.js";
 import { getMessagingRuntimeConfig } from "./messaging/messagingService.js";
 import { lookupFutureScheduledExamInShosp } from "./shospIntegration/shospIntegrationService.js";
+import { recordAuditEvent } from "./auditService.js";
 
 function isSqliteMode() {
   return getConfiguredDatabaseKind() === "sqlite";
@@ -152,6 +177,151 @@ function getGestationalStoragePayload(snapshot, referenceDate = todayIso()) {
     gestationalReviewRequired: snapshot.gestationalBaseRequiresManualReview ? 1 : 0,
     gestationalBaseConflict: snapshot.gestationalBaseHasConflict ? 1 : 0,
     gestationalBaseConflictNote: snapshot.gestationalBaseConflictNote || null
+  };
+}
+
+function normalizeExamCode(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function slugifyKanbanTitle(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+}
+
+function validateExamConfigInput(input) {
+  const name = String(input.name || "").trim();
+  const code = normalizeExamCode(input.code || input.name);
+  const flowType = String(input.flowType || "automatico").trim().toLowerCase();
+  const startWeek = Number(input.startWeek);
+  const endWeek = Number(input.endWeek);
+  const targetWeek = Number(input.targetWeek);
+  const reminderDaysBefore1 = Number(input.reminderDaysBefore1 ?? 7);
+  const reminderDaysBefore2 = Number(input.reminderDaysBefore2 ?? 2);
+
+  if (!name) {
+    throw new Error("Informe o nome do exame.");
+  }
+  if (!code) {
+    throw new Error("Informe um codigo valido para o exame.");
+  }
+  if (!["automatico", "avulso"].includes(flowType)) {
+    throw new Error("Tipo de fluxo invalido.");
+  }
+  if (Number.isNaN(startWeek) || Number.isNaN(endWeek) || Number.isNaN(targetWeek)) {
+    throw new Error("Preencha a janela gestacional com valores validos.");
+  }
+  if (startWeek < 0 || endWeek < startWeek) {
+    throw new Error("A janela recomendada do exame esta invalida.");
+  }
+  if (targetWeek < startWeek || targetWeek > endWeek) {
+    throw new Error("A semana alvo precisa estar dentro da janela do exame.");
+  }
+  if (Number.isNaN(reminderDaysBefore1) || Number.isNaN(reminderDaysBefore2) || reminderDaysBefore1 < 0 || reminderDaysBefore2 < 0) {
+    throw new Error("Os dias de antecedencia dos lembretes precisam ser validos.");
+  }
+  if (reminderDaysBefore1 < reminderDaysBefore2) {
+    throw new Error("O lembrete 1 precisa acontecer antes do lembrete 2.");
+  }
+  if (!String(input.defaultMessage || "").trim()) {
+    throw new Error("Informe a mensagem padrao do lembrete.");
+  }
+}
+
+function validateExamInferenceRuleInput(input) {
+  const typicalStartWeek = Number(input.typicalStartWeek);
+  const typicalEndWeek = Number(input.typicalEndWeek);
+  const referenceWeek = Number(input.referenceWeek);
+  const uncertaintyMarginWeeks = Number(input.uncertaintyMarginWeeks);
+
+  if (
+    Number.isNaN(typicalStartWeek) ||
+    Number.isNaN(typicalEndWeek) ||
+    Number.isNaN(referenceWeek) ||
+    Number.isNaN(uncertaintyMarginWeeks)
+  ) {
+    throw new Error("Preencha semanas e margem de incerteza com valores validos.");
+  }
+  if (typicalStartWeek < 0 || typicalEndWeek < typicalStartWeek) {
+    throw new Error("A faixa gestacional tipica do exame esta invalida.");
+  }
+  if (referenceWeek < typicalStartWeek || referenceWeek > typicalEndWeek) {
+    throw new Error("A semana de referencia precisa ficar dentro da faixa tipica.");
+  }
+  if (uncertaintyMarginWeeks < 0) {
+    throw new Error("A margem de incerteza nao pode ser negativa.");
+  }
+}
+
+function resolvePatientCleanupRange(input = {}) {
+  const preset = String(input.preset || "today").trim().toLowerCase();
+  const today = todayIso();
+
+  if (preset === "all") {
+    return { preset, dateFrom: null, dateTo: null, label: "Todos os pacientes" };
+  }
+  if (preset === "today") {
+    return { preset, dateFrom: today, dateTo: today, label: "Pacientes criados hoje" };
+  }
+  if (preset === "last_7_days") {
+    return { preset, dateFrom: addDays(today, -6), dateTo: today, label: "Pacientes criados nos ultimos 7 dias" };
+  }
+  if (preset === "last_30_days") {
+    return { preset, dateFrom: addDays(today, -29), dateTo: today, label: "Pacientes criados nos ultimos 30 dias" };
+  }
+  if (preset === "custom") {
+    const dateFrom = String(input.dateFrom || "").trim();
+    const dateTo = String(input.dateTo || "").trim();
+    if (!dateFrom || !dateTo) {
+      throw new Error("Informe a data inicial e a data final para a faixa personalizada.");
+    }
+    if (dateFrom > dateTo) {
+      throw new Error("A data inicial nao pode ser maior que a data final.");
+    }
+    return {
+      preset,
+      dateFrom,
+      dateTo,
+      label: `Pacientes criados de ${formatDatePtBr(dateFrom)} ate ${formatDatePtBr(dateTo)}`
+    };
+  }
+
+  throw new Error("Faixa de exclusao invalida.");
+}
+
+function buildPatientUpdatePayload(patient, overrides = {}) {
+  return {
+    name: overrides.name ?? patient.name,
+    phone: overrides.phone ?? patient.phone,
+    birthDate: overrides.birthDate ?? patient.birthDate,
+    dum: overrides.dum ?? patient.dum ?? null,
+    dpp: overrides.dpp ?? patient.dpp ?? null,
+    currentGestationalWeeks: overrides.currentGestationalWeeks ?? patient.gestationalWeeks ?? null,
+    currentGestationalDays: overrides.currentGestationalDays ?? patient.gestationalDays ?? null,
+    gestationalBaseDate: overrides.gestationalBaseDate ?? patient.gestationalBaseDate ?? null,
+    gestationalBaseSource: overrides.gestationalBaseSource ?? patient.gestationalBaseSource ?? "idade_gestacional_informada",
+    gestationalBaseConfidence: overrides.gestationalBaseConfidence ?? patient.gestationalBaseConfidence ?? "alta",
+    gestationalBaseIsEstimated: overrides.gestationalBaseIsEstimated ?? (patient.gestationalBaseIsEstimated ? 1 : 0),
+    gestationalReviewRequired: overrides.gestationalReviewRequired ?? (patient.gestationalReviewRequired ? 1 : 0),
+    gestationalBaseConflict: overrides.gestationalBaseConflict ?? (patient.gestationalBaseHasConflict ? 1 : 0),
+    gestationalBaseConflictNote: overrides.gestationalBaseConflictNote ?? patient.gestationalBaseConflictNote ?? null,
+    physicianName: overrides.physicianName ?? patient.physicianName ?? null,
+    clinicUnit: overrides.clinicUnit ?? patient.clinicUnit ?? null,
+    pregnancyType: overrides.pregnancyType ?? patient.pregnancyType ?? null,
+    highRisk: overrides.highRisk ?? (patient.highRisk ? 1 : 0),
+    notes: overrides.notes ?? patient.notes ?? "",
+    status: overrides.status ?? patient.status ?? "ativa",
+    updatedAt: overrides.updatedAt ?? todayIso()
   };
 }
 
@@ -1845,5 +2015,924 @@ export async function listExamConfigsCore() {
   return {
     examConfigs,
     presets: listExamProtocolPresets()
+  };
+}
+
+function getLastCompletedClinicExamForReviewCore(patientExams) {
+  return [...patientExams]
+    .filter((exam) => exam.completedDate && exam.status === "realizado" && !exam.completedOutsideClinic)
+    .sort((left, right) => String(right.completedDate).localeCompare(String(left.completedDate)))[0] ?? null;
+}
+
+async function rebuildPatientExamScheduleCore(patientId, snapshot, lastCompletedExamCode = "") {
+  const automaticExamModels = await listAutomaticExamModels();
+  const currentExamRows = buildPatientExamsMap(await listPatientExamRows()).get(patientId) ?? [];
+  const preservedState = new Map(currentExamRows.map((exam) => [exam.examModelId, exam]));
+  const rebuiltExamRows = buildExamScheduleRows(patientId, automaticExamModels, snapshot, preservedState, lastCompletedExamCode);
+  await replacePatientExams(patientId, rebuiltExamRows, todayIso());
+}
+
+export async function listGestationalBaseReviewsCore() {
+  const patientExamsMap = buildPatientExamsMap(await listPatientExamRows());
+
+  return (await listPatientsCore())
+    .filter((patient) => patient.gestationalReviewRequired || patient.stage === "revisao_base_gestacional")
+    .map((patient) => {
+      const patientExams = patientExamsMap.get(patient.id) ?? [];
+      const lastExam = getLastCompletedClinicExamForReviewCore(patientExams);
+
+      return {
+        patientId: patient.id,
+        patientName: patient.name,
+        phone: patient.phone,
+        lastExamName: lastExam?.name || "Nenhum exame encontrado",
+        lastExamDate: lastExam?.completedDate || null,
+        lastExamDateLabel: lastExam?.completedDate ? formatDatePtBr(lastExam.completedDate) : "Nao informado",
+        suggestedEstimate: patient.dpp
+          ? `Idade gestacional sugerida: ${patient.gestationalAgeLabel} • DPP estimada: ${formatDatePtBr(patient.dpp)}`
+          : "Sem estimativa sugerida segura",
+        confidence: patient.gestationalBaseConfidence || "insuficiente",
+        confidenceLabel: patient.gestationalBaseConfidenceLabel || "Sem confianca suficiente",
+        sourceLabel: patient.gestationalBaseSourceLabel || "Nao definida",
+        explanation: patient.gestationalBaseConflictNote || patient.gestationalBaseExplanation || "",
+        hasConflict: Boolean(patient.gestationalBaseHasConflict),
+        canConfirm: Boolean(patient.dpp && patient.gestationalBaseSource !== "revisao_manual")
+      };
+    });
+}
+
+export async function confirmGestationalBaseEstimateCore(patientId, actorUserId = 1) {
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+
+  const patientExams = buildPatientExamsMap(await listPatientExamRows()).get(patientId) ?? [];
+  const snapshot = resolvePregnancySnapshot(patient, todayIso(), { patientExams });
+  if (!snapshot.dpp || snapshot.gestationalBaseSource === "revisao_manual") {
+    throw new Error("Nao existe estimativa segura para confirmar.");
+  }
+
+  const now = todayIso();
+  const payload = getGestationalStoragePayload({ ...snapshot, gestationalBaseRequiresManualReview: false }, now);
+
+  await updatePatientRecord(patientId, buildPatientUpdatePayload(patient, { ...payload, updatedAt: now }));
+  await rebuildPatientExamScheduleCore(patientId, { ...snapshot, gestationalBaseRequiresManualReview: false });
+  await updatePatientStage(patientId, "contato_pendente", now);
+  await insertMovementRecord({
+    patientId,
+    fromStage: patient.stage,
+    toStage: "contato_pendente",
+    actionType: "confirmacao_base_gestacional",
+    description: "Estimativa da base gestacional confirmada manualmente pela equipe.",
+    metadataJson: JSON.stringify({ source: snapshot.gestationalBaseSource, confidence: snapshot.gestationalBaseConfidence }),
+    createdByUserId: actorUserId,
+    createdAt: now
+  });
+
+  return getPatientDetailsCore(patientId);
+}
+
+export async function editGestationalBaseManuallyCore(patientId, input) {
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+
+  const gestationalWeeks = Number(input.gestationalWeeks);
+  const gestationalDays = Number(input.gestationalDays);
+  if (!Number.isInteger(gestationalWeeks) || gestationalWeeks < 0) {
+    throw new Error("Informe as semanas da idade gestacional.");
+  }
+  if (!Number.isInteger(gestationalDays) || gestationalDays < 0 || gestationalDays > 6) {
+    throw new Error("Informe os dias da idade gestacional entre 0 e 6.");
+  }
+
+  const now = todayIso();
+  const actorUserId = Number(input.actorUserId || 1);
+  const snapshot = resolvePregnancySnapshot({
+    dum: null,
+    gestationalWeeks,
+    gestationalDays,
+    gestationalBaseDate: now,
+    gestationalBaseSource: "idade_gestacional_informada"
+  }, now);
+  const payload = getGestationalStoragePayload(snapshot, now);
+
+  await updatePatientRecord(patientId, buildPatientUpdatePayload(patient, { ...payload, updatedAt: now }));
+  await rebuildPatientExamScheduleCore(patientId, snapshot);
+  await updatePatientStage(patientId, "contato_pendente", now);
+  await insertMovementRecord({
+    patientId,
+    fromStage: patient.stage,
+    toStage: "contato_pendente",
+    actionType: "edicao_base_gestacional",
+    description: "Base gestacional ajustada manualmente pela equipe.",
+    metadataJson: JSON.stringify({ gestationalWeeks, gestationalDays }),
+    createdByUserId: actorUserId,
+    createdAt: now
+  });
+
+  return getPatientDetailsCore(patientId);
+}
+
+export async function discardGestationalBaseEstimateCore(patientId, actorUserId = 1) {
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+
+  const now = todayIso();
+  await updatePatientRecord(patientId, buildPatientUpdatePayload(patient, {
+    dum: null,
+    dpp: null,
+    currentGestationalWeeks: null,
+    currentGestationalDays: null,
+    gestationalBaseDate: null,
+    gestationalBaseSource: "revisao_manual",
+    gestationalBaseConfidence: "insuficiente",
+    gestationalBaseIsEstimated: 1,
+    gestationalReviewRequired: 1,
+    updatedAt: now
+  }));
+  await updatePatientStage(patientId, "revisao_base_gestacional", now);
+  await insertMovementRecord({
+    patientId,
+    fromStage: patient.stage,
+    toStage: "revisao_base_gestacional",
+    actionType: "descarte_estimativa_gestacional",
+    description: "Estimativa da base gestacional descartada. Paciente mantida em revisao manual.",
+    metadataJson: JSON.stringify({ previousSource: patient.gestationalBaseSource || null }),
+    createdByUserId: actorUserId,
+    createdAt: now
+  });
+
+  return getPatientDetailsCore(patientId);
+}
+
+export async function deletePatientCore(patientId) {
+  if (isSqliteMode()) {
+    return deletePatientLegacy(patientId);
+  }
+
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  await runtime.query("DELETE FROM patients WHERE id = $1", [patientId]);
+  return {
+    success: true,
+    deletedPatient: {
+      id: patient.id,
+      name: patient.name,
+      phone: patient.phone
+    }
+  };
+}
+
+export async function deletePatientsByCreatedRangeCore(input = {}) {
+  if (isSqliteMode()) {
+    return deletePatientsByCreatedRangeLegacy(input);
+  }
+
+  const range = resolvePatientCleanupRange(input);
+  const actorUserId = input.actorUserId ? Number(input.actorUserId) : null;
+  const runtime = await getDatabaseRuntime();
+  const patientRowsResult = range.dateFrom && range.dateTo
+    ? await runtime.query(`
+        SELECT id, name
+        FROM patients
+        WHERE created_at >= $1 AND created_at <= $2
+        ORDER BY created_at, id
+      `, [range.dateFrom, range.dateTo])
+    : await runtime.query(`
+        SELECT id, name
+        FROM patients
+        ORDER BY created_at, id
+      `);
+
+  const patientRows = patientRowsResult.rows;
+  if (!patientRows.length) {
+    return {
+      success: true,
+      range,
+      deleted: { patients: 0, exams: 0, messages: 0, movements: 0, messageLogs: 0 }
+    };
+  }
+
+  const patientIds = patientRows.map((patient) => patient.id);
+  const deletedCounts = await runtime.query(`
+    SELECT
+      (SELECT COUNT(*)::int FROM exames_paciente WHERE patient_id = ANY($1::int[])) AS exams,
+      (SELECT COUNT(*)::int FROM mensagens WHERE patient_id = ANY($1::int[])) AS messages,
+      (SELECT COUNT(*)::int FROM historico_de_movimentacoes WHERE patient_id = ANY($1::int[])) AS movements,
+      (SELECT COUNT(*)::int FROM message_delivery_logs WHERE patient_id = ANY($1::int[])) AS "messageLogs"
+  `, [patientIds]);
+
+  const deleted = {
+    patients: patientRows.length,
+    exams: Number(deletedCounts.rows[0]?.exams || 0),
+    messages: Number(deletedCounts.rows[0]?.messages || 0),
+    movements: Number(deletedCounts.rows[0]?.movements || 0),
+    messageLogs: Number(deletedCounts.rows[0]?.messageLogs || 0)
+  };
+
+  await runtime.query("DELETE FROM patients WHERE id = ANY($1::int[])", [patientIds]);
+
+  if (actorUserId) {
+    recordAuditEvent({
+      actorUserId,
+      actionType: "bulk_delete_patients",
+      entityType: "patient",
+      entityId: null,
+      patientId: null,
+      description: `Limpeza administrativa de pacientes executada: ${range.label}.`,
+      details: {
+        preset: range.preset,
+        dateFrom: range.dateFrom,
+        dateTo: range.dateTo,
+        deleted,
+        samplePatients: patientRows.slice(0, 10).map((patient) => ({ id: patient.id, name: patient.name }))
+      }
+    });
+  }
+
+  return { success: true, range, deleted };
+}
+
+async function getNextUserIdCore(client) {
+  const result = await client.query("SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM users");
+  return Number(result.rows[0]?.next_id || 1);
+}
+
+async function createAutomaticExamForEligiblePatientsCore(examConfig, createdAt = todayIso()) {
+  if (examConfig.flowType !== "automatico" || !examConfig.active) {
+    return;
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const existingExamRows = await runtime.query(
+    "SELECT patient_id AS \"patientId\" FROM exames_paciente WHERE exam_model_id = $1",
+    [examConfig.id]
+  );
+  const existingExamByPatient = new Set(existingExamRows.rows.map((row) => row.patientId));
+  const patients = await listPatientsBaseRows();
+
+  for (const patient of patients) {
+    if (existingExamByPatient.has(patient.id)) {
+      continue;
+    }
+
+    const snapshot = resolvePregnancySnapshot(patient, createdAt);
+    if (!snapshot.dum) {
+      continue;
+    }
+
+    const schedule = calculateExamScheduleDates({
+      dum: snapshot.dum,
+      targetWeek: examConfig.targetWeek,
+      reminderDaysBefore1: examConfig.reminderDaysBefore1,
+      reminderDaysBefore2: examConfig.reminderDaysBefore2
+    });
+
+    await runtime.query(`
+      INSERT INTO exames_paciente (
+        patient_id,
+        exam_model_id,
+        predicted_date,
+        reminder_date_1,
+        reminder_date_2,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, 'pendente', $6, $7)
+    `, [
+      patient.id,
+      examConfig.id,
+      schedule.predictedDate,
+      schedule.reminderDate1,
+      schedule.reminderDate2,
+      createdAt,
+      createdAt
+    ]);
+  }
+}
+
+export async function createAdminUserCore(input) {
+  if (isSqliteMode()) {
+    return createAdminUser(input);
+  }
+
+  const name = String(input.name || "").trim();
+  const email = String(input.email || "").trim().toLowerCase();
+  const password = String(input.password || "");
+  const role = String(input.role || "recepcao").trim().toLowerCase();
+  const active = input.active !== false;
+
+  if (!name) throw new Error("Informe o nome do usuario.");
+  if (!email || !email.includes("@")) throw new Error("Informe um e-mail valido.");
+  if (password.length < 4) throw new Error("A senha precisa ter pelo menos 4 caracteres.");
+  if (!["admin", "recepcao", "atendimento"].includes(role)) throw new Error("Perfil de usuario invalido.");
+
+  const runtime = await getDatabaseRuntime();
+  const duplicate = await runtime.query("SELECT id FROM users WHERE email = $1 LIMIT 1", [email]);
+  if (duplicate.rows[0]) {
+    throw new Error("Ja existe um usuario com este e-mail.");
+  }
+
+  const now = todayIso();
+  await runtime.transaction(async (client) => {
+    const userId = await getNextUserIdCore(client);
+    await client.query(`
+      INSERT INTO users (id, name, email, password, role, active, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [userId, name, email, hashPassword(password), role, active, now, now]);
+  });
+
+  return (await listAdminUsersRows()).find((user) => user.email === email) ?? null;
+}
+
+export async function updateAdminUserCore(userId, input) {
+  if (isSqliteMode()) {
+    return updateAdminUser(userId, input);
+  }
+
+  const currentUser = (await listAdminUsersRows()).find((user) => user.id === userId);
+  if (!currentUser) {
+    throw new Error("Usuario nao encontrado.");
+  }
+
+  const name = String(input.name || "").trim();
+  const email = String(input.email || "").trim().toLowerCase();
+  const role = String(input.role || "recepcao").trim().toLowerCase();
+  const active = Boolean(input.active);
+  const password = String(input.password || "");
+
+  if (!name) throw new Error("Informe o nome do usuario.");
+  if (!email || !email.includes("@")) throw new Error("Informe um e-mail valido.");
+  if (!["admin", "recepcao", "atendimento"].includes(role)) throw new Error("Perfil de usuario invalido.");
+
+  const runtime = await getDatabaseRuntime();
+  const duplicate = await runtime.query("SELECT id FROM users WHERE email = $1 AND id <> $2 LIMIT 1", [email, userId]);
+  if (duplicate.rows[0]) {
+    throw new Error("Ja existe outro usuario com este e-mail.");
+  }
+
+  await runtime.query(`
+    UPDATE users
+    SET
+      name = $1,
+      email = $2,
+      password = COALESCE($3, password),
+      role = $4,
+      active = $5,
+      updated_at = $6
+    WHERE id = $7
+  `, [name, email, password ? hashPassword(password) : null, role, active, todayIso(), userId]);
+
+  return (await listAdminUsersRows()).find((user) => user.id === userId) ?? null;
+}
+
+export async function deleteAdminUserCore(userId) {
+  if (isSqliteMode()) {
+    return deleteAdminUser(userId);
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const currentUserResult = await runtime.query("SELECT id, role FROM users WHERE id = $1 LIMIT 1", [userId]);
+  const currentUser = currentUserResult.rows[0];
+  if (!currentUser) {
+    throw new Error("Usuario nao encontrado.");
+  }
+
+  const adminCountResult = await runtime.query("SELECT COUNT(*)::int AS count FROM users WHERE role = 'admin' AND active = TRUE");
+  if (currentUser.role === "admin" && Number(adminCountResult.rows[0]?.count || 0) <= 1) {
+    throw new Error("Nao e possivel excluir o ultimo administrador ativo.");
+  }
+
+  const usageResult = await runtime.query(`
+    SELECT
+      (
+        (SELECT COUNT(*) FROM patients WHERE created_by_user_id = $1) +
+        (SELECT COUNT(*) FROM mensagens WHERE created_by_user_id = $1) +
+        (SELECT COUNT(*) FROM historico_de_movimentacoes WHERE created_by_user_id = $1) +
+        (SELECT COUNT(*) FROM exames_paciente WHERE scheduled_by_user_id = $1 OR completed_by_user_id = $1)
+      )::int AS count
+  `, [userId]);
+  if (Number(usageResult.rows[0]?.count || 0) > 0) {
+    throw new Error("Este usuario ja possui historico no sistema. Desative o usuario em vez de excluir.");
+  }
+
+  await runtime.query("DELETE FROM users WHERE id = $1", [userId]);
+  return { success: true };
+}
+
+export async function createClinicUnitCore(input) {
+  if (isSqliteMode()) {
+    return createClinicUnit(input);
+  }
+
+  const name = String(input.name || "").trim();
+  const active = input.active !== false;
+  if (!name) {
+    throw new Error("Informe o nome da unidade.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const duplicate = await runtime.query("SELECT id FROM clinic_units WHERE lower(name) = lower($1) LIMIT 1", [name]);
+  if (duplicate.rows[0]) {
+    throw new Error("Ja existe uma unidade com este nome.");
+  }
+
+  const result = await runtime.query(`
+    INSERT INTO clinic_units (name, active, created_at, updated_at)
+    VALUES ($1, $2, $3, $4)
+    RETURNING id
+  `, [name, active, todayIso(), todayIso()]);
+
+  return (await listClinicUnitsRows()).find((unit) => unit.id === Number(result.rows[0]?.id)) ?? null;
+}
+
+export async function updateClinicUnitCore(unitId, input) {
+  if (isSqliteMode()) {
+    return updateClinicUnit(unitId, input);
+  }
+
+  const currentUnit = (await listClinicUnitsRows()).find((unit) => unit.id === unitId);
+  if (!currentUnit) {
+    throw new Error("Unidade nao encontrada.");
+  }
+
+  const name = String(input.name || "").trim();
+  const active = Boolean(input.active);
+  if (!name) {
+    throw new Error("Informe o nome da unidade.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const duplicate = await runtime.query("SELECT id FROM clinic_units WHERE lower(name) = lower($1) AND id <> $2 LIMIT 1", [name, unitId]);
+  if (duplicate.rows[0]) {
+    throw new Error("Ja existe outra unidade com este nome.");
+  }
+
+  const now = todayIso();
+  await runtime.transaction(async (client) => {
+    await client.query("UPDATE clinic_units SET name = $1, active = $2, updated_at = $3 WHERE id = $4", [name, active, now, unitId]);
+    await client.query("UPDATE patients SET clinic_unit = $1, updated_at = $2 WHERE clinic_unit = $3", [name, now, currentUnit.name]);
+  });
+
+  return (await listClinicUnitsRows()).find((unit) => unit.id === unitId) ?? null;
+}
+
+export async function deleteClinicUnitCore(unitId) {
+  if (isSqliteMode()) {
+    return deleteClinicUnit(unitId);
+  }
+
+  const currentUnit = (await listClinicUnitsRows()).find((unit) => unit.id === unitId);
+  if (!currentUnit) {
+    throw new Error("Unidade nao encontrada.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const now = todayIso();
+  await runtime.transaction(async (client) => {
+    await client.query("UPDATE physicians SET clinic_unit_id = NULL, updated_at = $1 WHERE clinic_unit_id = $2", [now, unitId]);
+    await client.query("UPDATE patients SET clinic_unit = NULL, updated_at = $1 WHERE clinic_unit = $2", [now, currentUnit.name]);
+    await client.query("DELETE FROM clinic_units WHERE id = $1", [unitId]);
+  });
+
+  return { success: true };
+}
+
+export async function createPhysicianCore(input) {
+  if (isSqliteMode()) {
+    return createPhysician(input);
+  }
+
+  const name = String(input.name || "").trim();
+  const clinicUnitId = input.clinicUnitId ? Number(input.clinicUnitId) : null;
+  const active = input.active !== false;
+  if (!name) {
+    throw new Error("Informe o nome do medico.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const duplicate = await runtime.query("SELECT id FROM physicians WHERE lower(name) = lower($1) LIMIT 1", [name]);
+  if (duplicate.rows[0]) {
+    throw new Error("Ja existe um medico com este nome.");
+  }
+  if (clinicUnitId) {
+    const unit = await runtime.query("SELECT id FROM clinic_units WHERE id = $1 LIMIT 1", [clinicUnitId]);
+    if (!unit.rows[0]) {
+      throw new Error("Selecione uma unidade valida para o medico.");
+    }
+  }
+
+  const result = await runtime.query(`
+    INSERT INTO physicians (name, clinic_unit_id, active, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id
+  `, [name, clinicUnitId, active, todayIso(), todayIso()]);
+
+  return (await listPhysiciansRows()).find((physician) => physician.id === Number(result.rows[0]?.id)) ?? null;
+}
+
+export async function updatePhysicianCore(physicianId, input) {
+  if (isSqliteMode()) {
+    return updatePhysician(physicianId, input);
+  }
+
+  const currentPhysician = (await listPhysiciansRows()).find((physician) => physician.id === physicianId);
+  if (!currentPhysician) {
+    throw new Error("Medico nao encontrado.");
+  }
+
+  const name = String(input.name || "").trim();
+  const clinicUnitId = input.clinicUnitId ? Number(input.clinicUnitId) : null;
+  const active = Boolean(input.active);
+  if (!name) {
+    throw new Error("Informe o nome do medico.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const duplicate = await runtime.query("SELECT id FROM physicians WHERE lower(name) = lower($1) AND id <> $2 LIMIT 1", [name, physicianId]);
+  if (duplicate.rows[0]) {
+    throw new Error("Ja existe outro medico com este nome.");
+  }
+  if (clinicUnitId) {
+    const unit = await runtime.query("SELECT id FROM clinic_units WHERE id = $1 LIMIT 1", [clinicUnitId]);
+    if (!unit.rows[0]) {
+      throw new Error("Selecione uma unidade valida para o medico.");
+    }
+  }
+
+  const now = todayIso();
+  await runtime.transaction(async (client) => {
+    await client.query(
+      "UPDATE physicians SET name = $1, clinic_unit_id = $2, active = $3, updated_at = $4 WHERE id = $5",
+      [name, clinicUnitId, active, now, physicianId]
+    );
+    await client.query("UPDATE patients SET physician_name = $1, updated_at = $2 WHERE physician_name = $3", [name, now, currentPhysician.name]);
+  });
+
+  return (await listPhysiciansRows()).find((physician) => physician.id === physicianId) ?? null;
+}
+
+export async function deletePhysicianCore(physicianId) {
+  if (isSqliteMode()) {
+    return deletePhysician(physicianId);
+  }
+
+  const currentPhysician = (await listPhysiciansRows()).find((physician) => physician.id === physicianId);
+  if (!currentPhysician) {
+    throw new Error("Medico nao encontrado.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const now = todayIso();
+  await runtime.transaction(async (client) => {
+    await client.query("UPDATE patients SET physician_name = NULL, updated_at = $1 WHERE physician_name = $2", [now, currentPhysician.name]);
+    await client.query("DELETE FROM physicians WHERE id = $1", [physicianId]);
+  });
+
+  return { success: true };
+}
+
+export async function createExamConfigCore(input) {
+  if (isSqliteMode()) {
+    return createExamConfig(input);
+  }
+
+  const code = normalizeExamCode(input.code || input.name);
+  validateExamConfigInput({ ...input, code });
+
+  const runtime = await getDatabaseRuntime();
+  const duplicate = await runtime.query("SELECT id FROM exames_modelo WHERE code = $1 LIMIT 1", [code]);
+  if (duplicate.rows[0]) {
+    throw new Error("Ja existe um exame com este codigo.");
+  }
+
+  const existingConfigs = await listExamConfigRows();
+  const sortOrder = Number(input.sortOrder || (existingConfigs.length + 1));
+  const now = todayIso();
+  const result = await runtime.query(`
+    INSERT INTO exames_modelo (
+      code, name, start_week, end_week, target_week, reminder_days_before_1, reminder_days_before_2,
+      default_message, required, flow_type, active, sort_order, created_at, updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+    RETURNING id
+  `, [
+    code,
+    String(input.name || "").trim(),
+    Number(input.startWeek),
+    Number(input.endWeek),
+    Number(input.targetWeek),
+    Number(input.reminderDaysBefore1 ?? 7),
+    Number(input.reminderDaysBefore2 ?? 2),
+    String(input.defaultMessage || "").trim(),
+    Boolean(input.required),
+    input.flowType ?? "automatico",
+    Boolean(input.active),
+    sortOrder,
+    now,
+    now
+  ]);
+
+  const examId = Number(result.rows[0]?.id);
+  await runtime.query(`
+    INSERT INTO regras_inferencia_gestacional (
+      exam_model_id, typical_start_week, typical_end_week, reference_week,
+      uncertainty_margin_weeks, allow_automatic_inference, active, created_at, updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+  `, [
+    examId,
+    Number(input.startWeek),
+    Number(input.endWeek),
+    Number(input.targetWeek),
+    input.flowType === "avulso" ? 2 : 1,
+    input.flowType !== "avulso",
+    input.flowType !== "avulso",
+    now,
+    now
+  ]);
+
+  await createAutomaticExamForEligiblePatientsCore({
+    id: examId,
+    code,
+    name: String(input.name || "").trim(),
+    startWeek: Number(input.startWeek),
+    endWeek: Number(input.endWeek),
+    targetWeek: Number(input.targetWeek),
+    reminderDaysBefore1: Number(input.reminderDaysBefore1 ?? 7),
+    reminderDaysBefore2: Number(input.reminderDaysBefore2 ?? 2),
+    defaultMessage: String(input.defaultMessage || "").trim(),
+    required: Boolean(input.required),
+    flowType: input.flowType ?? "automatico",
+    active: Boolean(input.active),
+    sortOrder
+  }, now);
+
+  return (await listExamConfigRows()).find((item) => item.id === examId) ?? null;
+}
+
+export async function updateExamConfigCore(id, input) {
+  if (isSqliteMode()) {
+    return updateExamConfig(id, input);
+  }
+
+  const currentExam = (await listExamConfigRows()).find((item) => item.id === id);
+  if (!currentExam) {
+    throw new Error("Exame nao encontrado.");
+  }
+
+  const code = normalizeExamCode(input.code || currentExam.code);
+  validateExamConfigInput({ ...currentExam, ...input, code });
+  const runtime = await getDatabaseRuntime();
+  const duplicate = await runtime.query("SELECT id FROM exames_modelo WHERE code = $1 AND id <> $2 LIMIT 1", [code, id]);
+  if (duplicate.rows[0]) {
+    throw new Error("Ja existe outro exame com este codigo.");
+  }
+
+  await runtime.query(`
+    UPDATE exames_modelo
+    SET
+      code = $1, name = $2, start_week = $3, end_week = $4, target_week = $5,
+      reminder_days_before_1 = $6, reminder_days_before_2 = $7, default_message = $8,
+      required = $9, flow_type = $10, active = $11, updated_at = $12
+    WHERE id = $13
+  `, [
+    code,
+    String(input.name ?? currentExam.name),
+    Number(input.startWeek ?? currentExam.startWeek),
+    Number(input.endWeek ?? currentExam.endWeek),
+    Number(input.targetWeek ?? currentExam.targetWeek),
+    Number(input.reminderDaysBefore1 ?? currentExam.reminderDaysBefore1 ?? 7),
+    Number(input.reminderDaysBefore2 ?? currentExam.reminderDaysBefore2 ?? 2),
+    String(input.defaultMessage ?? currentExam.defaultMessage ?? ""),
+    Boolean(input.required ?? currentExam.required),
+    input.flowType ?? currentExam.flowType ?? "automatico",
+    Boolean(input.active ?? currentExam.active),
+    todayIso(),
+    id
+  ]);
+
+  return (await listExamConfigRows()).find((item) => item.id === id) ?? null;
+}
+
+export async function deleteExamConfigCore(id) {
+  if (isSqliteMode()) {
+    return deleteExamConfig(id);
+  }
+
+  const currentExam = (await listExamConfigRows()).find((item) => item.id === id);
+  if (!currentExam) {
+    throw new Error("Exame nao encontrado.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const usage = await runtime.query("SELECT COUNT(*)::int AS count FROM exames_paciente WHERE exam_model_id = $1", [id]);
+  if (Number(usage.rows[0]?.count || 0) > 0) {
+    throw new Error("Este exame ja foi usado em pacientes e nao pode ser excluido. Se preferir, deixe-o como avulso ou inativo.");
+  }
+
+  await runtime.query("DELETE FROM exames_modelo WHERE id = $1", [id]);
+  return { success: true, deletedExam: { id: currentExam.id, name: currentExam.name } };
+}
+
+export async function updateExamInferenceRuleCore(id, input) {
+  if (isSqliteMode()) {
+    return updateExamInferenceRule(id, input);
+  }
+
+  validateExamInferenceRuleInput(input);
+  const runtime = await getDatabaseRuntime();
+  const currentRule = await runtime.query("SELECT id FROM regras_inferencia_gestacional WHERE id = $1 LIMIT 1", [id]);
+  if (!currentRule.rows[0]) {
+    throw new Error("Regra de inferencia nao encontrada.");
+  }
+
+  await runtime.query(`
+    UPDATE regras_inferencia_gestacional
+    SET
+      typical_start_week = $1,
+      typical_end_week = $2,
+      reference_week = $3,
+      uncertainty_margin_weeks = $4,
+      allow_automatic_inference = $5,
+      active = $6,
+      updated_at = $7
+    WHERE id = $8
+  `, [
+    Number(input.typicalStartWeek),
+    Number(input.typicalEndWeek),
+    Number(input.referenceWeek),
+    Number(input.uncertaintyMarginWeeks),
+    Boolean(input.allowAutomaticInference),
+    Boolean(input.active),
+    todayIso(),
+    id
+  ]);
+
+  return (await listExamInferenceRuleRows()).find((item) => item.id === id) ?? null;
+}
+
+export async function updateMessageTemplateCore(templateId, input) {
+  if (isSqliteMode()) {
+    return updateMessageTemplate(templateId, input);
+  }
+
+  const currentTemplate = (await listMessageTemplateRows()).find((template) => template.id === templateId);
+  if (!currentTemplate) {
+    throw new Error("Template nao encontrado.");
+  }
+
+  const name = String(input.name || "").trim();
+  const content = String(input.content || "").trim();
+  const language = String(input.language || "pt_BR").trim();
+  const active = input.active !== false;
+  if (!name) throw new Error("Informe o nome do template.");
+  if (!content) throw new Error("Informe o conteudo do template.");
+  if (!language) throw new Error("Informe o idioma do template.");
+
+  const runtime = await getDatabaseRuntime();
+  await runtime.query(`
+    UPDATE message_templates
+    SET name = $1, language = $2, content = $3, active = $4, updated_at = $5
+    WHERE id = $6
+  `, [name, language, content, active, todayIso(), templateId]);
+
+  return (await listMessageTemplateRows()).find((template) => template.id === templateId) ?? null;
+}
+
+export async function createKanbanColumnCore(input) {
+  if (isSqliteMode()) {
+    return createKanbanColumn(input);
+  }
+
+  const title = String(input.title || "").trim();
+  if (!title) {
+    throw new Error("Informe o nome da coluna.");
+  }
+
+  const baseId = slugifyKanbanTitle(title);
+  if (!baseId) {
+    throw new Error("Nao foi possivel gerar o identificador da coluna.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  let id = baseId;
+  let suffix = 2;
+  while (true) {
+    const existing = await runtime.query("SELECT id FROM kanban_columns WHERE id = $1 LIMIT 1", [id]);
+    if (!existing.rows[0]) break;
+    id = `${baseId}_${suffix}`;
+    suffix += 1;
+  }
+
+  const sortOrderResult = await runtime.query("SELECT COALESCE(MAX(sort_order), 0) AS value FROM kanban_columns");
+  const now = todayIso();
+  await runtime.query(`
+    INSERT INTO kanban_columns (id, title, description, sort_order, is_system, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, FALSE, $5, $6)
+  `, [id, title, "Coluna personalizada", Number(sortOrderResult.rows[0]?.value || 0) + 1, now, now]);
+
+  return getKanbanDataCore();
+}
+
+export async function updateKanbanColumnCore(columnId, input) {
+  if (isSqliteMode()) {
+    return updateKanbanColumn(columnId, input);
+  }
+
+  const currentColumn = (await listKanbanColumnsRows()).find((column) => String(column.id) === String(columnId));
+  if (!currentColumn) {
+    throw new Error("Coluna nao encontrada.");
+  }
+
+  const title = String(input.title || "").trim();
+  if (!title) {
+    throw new Error("Informe o nome da coluna.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  await runtime.query("UPDATE kanban_columns SET title = $1, updated_at = $2 WHERE id = $3", [title, todayIso(), columnId]);
+  return getKanbanDataCore();
+}
+
+export async function deleteKanbanColumnCore(columnId) {
+  if (isSqliteMode()) {
+    return deleteKanbanColumn(columnId);
+  }
+
+  const currentColumn = (await listKanbanColumnsRows()).find((column) => String(column.id) === String(columnId));
+  if (!currentColumn) {
+    throw new Error("Coluna nao encontrada.");
+  }
+  if (currentColumn.isSystem) {
+    throw new Error("As colunas padrao do pipeline nao podem ser excluidas.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const patientCount = await runtime.query("SELECT COUNT(*)::int AS count FROM patients WHERE stage = $1", [columnId]);
+  if (Number(patientCount.rows[0]?.count || 0) > 0) {
+    throw new Error("Esvazie a coluna antes de exclui-la.");
+  }
+
+  await runtime.query("DELETE FROM kanban_columns WHERE id = $1", [columnId]);
+  return getKanbanDataCore();
+}
+
+export async function applyExamProtocolPresetCore(presetId) {
+  if (isSqliteMode()) {
+    return applyExamProtocolPreset(presetId);
+  }
+
+  const preset = listExamProtocolPresets().find((item) => item.id === presetId);
+  if (!preset) {
+    throw new Error("Protocolo sugerido nao encontrado.");
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const examConfigs = await listExamConfigRows();
+  const now = todayIso();
+
+  await runtime.transaction(async (client) => {
+    for (const examConfig of examConfigs) {
+      const override = preset.overrides?.[examConfig.code] ?? {};
+      await client.query(`
+        UPDATE exames_modelo
+        SET
+          start_week = $1,
+          end_week = $2,
+          target_week = $3,
+          reminder_days_before_1 = $4,
+          reminder_days_before_2 = $5,
+          updated_at = $6
+        WHERE id = $7
+      `, [
+        override.startWeek ?? examConfig.startWeek,
+        override.endWeek ?? examConfig.endWeek,
+        override.targetWeek ?? examConfig.targetWeek,
+        override.reminderDaysBefore1 ?? examConfig.reminderDaysBefore1,
+        override.reminderDaysBefore2 ?? examConfig.reminderDaysBefore2,
+        now,
+        examConfig.id
+      ]);
+    }
+  });
+
+  return {
+    preset,
+    examConfigs: (await listExamConfigRows()).map((item) => ({
+      ...item,
+      active: Boolean(item.active),
+      required: Boolean(item.required)
+    }))
   };
 }

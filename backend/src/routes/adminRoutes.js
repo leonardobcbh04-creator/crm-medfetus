@@ -1,23 +1,23 @@
 import { Router } from "express";
 import { asyncRoute, handleRouteError } from "../http/routeUtils.js";
 import {
-  createExamConfig,
-  createAdminUser,
-  createClinicUnit,
-  createPhysician,
-  deletePatientsByCreatedRange,
-  deleteAdminUser,
-  deleteClinicUnit,
-  deleteExamConfig,
-  deletePhysician,
-  updateExamInferenceRule,
-  updateMessageTemplate,
-  updateAdminUser,
-  updateClinicUnit,
-  updateExamConfig,
-  updatePhysician
-} from "../services/clinicService.js";
-import { getAdminPanelDataCore } from "../services/coreMigrationService.js";
+  createAdminUserCore,
+  createClinicUnitCore,
+  createExamConfigCore,
+  createPhysicianCore,
+  deleteAdminUserCore,
+  deleteClinicUnitCore,
+  deleteExamConfigCore,
+  deletePatientsByCreatedRangeCore,
+  deletePhysicianCore,
+  getAdminPanelDataCore,
+  updateAdminUserCore,
+  updateClinicUnitCore,
+  updateExamConfigCore,
+  updateExamInferenceRuleCore,
+  updateMessageTemplateCore,
+  updatePhysicianCore
+} from "../services/coreMigrationService.js";
 import { runMariaGertrudesOperationalTest } from "../services/operationalTestService.js";
 import { getMessagingRuntimeConfig } from "../services/messaging/messagingService.js";
 
@@ -62,131 +62,131 @@ adminRoutes.get("/", asyncRoute(async (_request, response) => {
   }
 }, "Nao foi possivel carregar a area administrativa."));
 
-adminRoutes.post("/users", (request, response) => {
+adminRoutes.post("/users", asyncRoute(async (request, response) => {
   try {
-    const user = createAdminUser(request.body);
+    const user = await createAdminUserCore(request.body);
     response.status(201).json({ user });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel criar o usuario.");
   }
-});
+}, "Nao foi possivel criar o usuario."));
 
-adminRoutes.put("/users/:id", (request, response) => {
+adminRoutes.put("/users/:id", asyncRoute(async (request, response) => {
   try {
-    const user = updateAdminUser(Number(request.params.id), request.body);
+    const user = await updateAdminUserCore(Number(request.params.id), request.body);
     response.json({ user });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel atualizar o usuario.");
   }
-});
+}, "Nao foi possivel atualizar o usuario."));
 
-adminRoutes.delete("/users/:id", (request, response) => {
+adminRoutes.delete("/users/:id", asyncRoute(async (request, response) => {
   try {
-    const result = deleteAdminUser(Number(request.params.id));
+    const result = await deleteAdminUserCore(Number(request.params.id));
     response.json(result);
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel excluir o usuario.");
   }
-});
+}, "Nao foi possivel excluir o usuario."));
 
-adminRoutes.post("/units", (request, response) => {
+adminRoutes.post("/units", asyncRoute(async (request, response) => {
   try {
-    const unit = createClinicUnit(request.body);
+    const unit = await createClinicUnitCore(request.body);
     response.status(201).json({ unit });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel criar a unidade.");
   }
-});
+}, "Nao foi possivel criar a unidade."));
 
-adminRoutes.put("/units/:id", (request, response) => {
+adminRoutes.put("/units/:id", asyncRoute(async (request, response) => {
   try {
-    const unit = updateClinicUnit(Number(request.params.id), request.body);
+    const unit = await updateClinicUnitCore(Number(request.params.id), request.body);
     response.json({ unit });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel atualizar a unidade.");
   }
-});
+}, "Nao foi possivel atualizar a unidade."));
 
-adminRoutes.delete("/units/:id", (request, response) => {
+adminRoutes.delete("/units/:id", asyncRoute(async (request, response) => {
   try {
-    const result = deleteClinicUnit(Number(request.params.id));
+    const result = await deleteClinicUnitCore(Number(request.params.id));
     response.json(result);
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel excluir a unidade.");
   }
-});
+}, "Nao foi possivel excluir a unidade."));
 
-adminRoutes.post("/physicians", (request, response) => {
+adminRoutes.post("/physicians", asyncRoute(async (request, response) => {
   try {
-    const physician = createPhysician(request.body);
+    const physician = await createPhysicianCore(request.body);
     response.status(201).json({ physician });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel criar o medico.");
   }
-});
+}, "Nao foi possivel criar o medico."));
 
-adminRoutes.put("/physicians/:id", (request, response) => {
+adminRoutes.put("/physicians/:id", asyncRoute(async (request, response) => {
   try {
-    const physician = updatePhysician(Number(request.params.id), request.body);
+    const physician = await updatePhysicianCore(Number(request.params.id), request.body);
     response.json({ physician });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel atualizar o medico.");
   }
-});
+}, "Nao foi possivel atualizar o medico."));
 
-adminRoutes.delete("/physicians/:id", (request, response) => {
+adminRoutes.delete("/physicians/:id", asyncRoute(async (request, response) => {
   try {
-    const result = deletePhysician(Number(request.params.id));
+    const result = await deletePhysicianCore(Number(request.params.id));
     response.json(result);
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel excluir o medico.");
   }
-});
+}, "Nao foi possivel excluir o medico."));
 
-adminRoutes.put("/exams/:id", (request, response) => {
+adminRoutes.put("/exams/:id", asyncRoute(async (request, response) => {
   try {
-    const examConfig = updateExamConfig(Number(request.params.id), request.body);
+    const examConfig = await updateExamConfigCore(Number(request.params.id), request.body);
     response.json({ examConfig });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel atualizar o exame.");
   }
-});
+}, "Nao foi possivel atualizar o exame."));
 
-adminRoutes.post("/exams", (request, response) => {
+adminRoutes.post("/exams", asyncRoute(async (request, response) => {
   try {
-    const examConfig = createExamConfig(request.body);
+    const examConfig = await createExamConfigCore(request.body);
     response.status(201).json({ examConfig });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel criar o exame.");
   }
-});
+}, "Nao foi possivel criar o exame."));
 
-adminRoutes.delete("/exams/:id", (request, response) => {
+adminRoutes.delete("/exams/:id", asyncRoute(async (request, response) => {
   try {
-    const result = deleteExamConfig(Number(request.params.id));
+    const result = await deleteExamConfigCore(Number(request.params.id));
     response.json(result);
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel excluir o exame.");
   }
-});
+}, "Nao foi possivel excluir o exame."));
 
-adminRoutes.put("/exam-inference-rules/:id", (request, response) => {
+adminRoutes.put("/exam-inference-rules/:id", asyncRoute(async (request, response) => {
   try {
-    const rule = updateExamInferenceRule(Number(request.params.id), request.body);
+    const rule = await updateExamInferenceRuleCore(Number(request.params.id), request.body);
     response.json({ rule });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel atualizar a regra de inferencia.");
   }
-});
+}, "Nao foi possivel atualizar a regra de inferencia."));
 
-adminRoutes.put("/message-templates/:id", (request, response) => {
+adminRoutes.put("/message-templates/:id", asyncRoute(async (request, response) => {
   try {
-    const template = updateMessageTemplate(Number(request.params.id), request.body);
+    const template = await updateMessageTemplateCore(Number(request.params.id), request.body);
     response.json({ template });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel atualizar o template.");
   }
-});
+}, "Nao foi possivel atualizar o template."));
 
 adminRoutes.post("/system-tests/maria-gertrudes", (_request, response) => {
   try {
@@ -197,9 +197,9 @@ adminRoutes.post("/system-tests/maria-gertrudes", (_request, response) => {
   }
 });
 
-adminRoutes.post("/patients/cleanup", (request, response) => {
+adminRoutes.post("/patients/cleanup", asyncRoute(async (request, response) => {
   try {
-    const result = deletePatientsByCreatedRange({
+    const result = await deletePatientsByCreatedRangeCore({
       ...request.body,
       actorUserId: request.authUser?.id ?? null
     });
@@ -207,4 +207,4 @@ adminRoutes.post("/patients/cleanup", (request, response) => {
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel limpar os pacientes nessa faixa.");
   }
-});
+}, "Nao foi possivel limpar os pacientes nessa faixa."));

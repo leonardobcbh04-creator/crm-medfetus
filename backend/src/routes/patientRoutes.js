@@ -1,15 +1,13 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import {
-  confirmGestationalBaseEstimate,
-  deletePatient,
-  discardGestationalBaseEstimate,
-  editGestationalBaseManually,
-  listGestationalBaseReviews,
-} from "../services/clinicService.js";
-import {
+  confirmGestationalBaseEstimateCore,
   createPatientCore,
+  deletePatientCore,
+  discardGestationalBaseEstimateCore,
+  editGestationalBaseManuallyCore,
   getPatientDetailsCore,
+  listGestationalBaseReviewsCore,
   listPatientsCore,
   updatePatientCore,
   updatePatientExamStatusCore
@@ -33,13 +31,15 @@ patientRoutes.get("/manual-review/gestational-base", (request, response) => {
     entityType: "patient_review_queue",
     description: "Fila de revisao manual da base gestacional visualizada."
   });
-  response.json({ items: listGestationalBaseReviews() });
+  Promise.resolve(listGestationalBaseReviewsCore())
+    .then((items) => response.json({ items }))
+    .catch((error) => response.status(500).send(error instanceof Error ? error.message : "Nao foi possivel carregar a fila de revisao."));
 });
 
-patientRoutes.post("/:id/gestational-base/confirm", (request, response) => {
+patientRoutes.post("/:id/gestational-base/confirm", async (request, response) => {
   try {
     const patientId = Number(request.params.id);
-    const patient = confirmGestationalBaseEstimate(patientId, request.authUser?.id || 1);
+    const patient = await confirmGestationalBaseEstimateCore(patientId, request.authUser?.id || 1);
     recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "confirmacao_base_gestacional",
@@ -54,10 +54,10 @@ patientRoutes.post("/:id/gestational-base/confirm", (request, response) => {
   }
 });
 
-patientRoutes.patch("/:id/gestational-base/manual", (request, response) => {
+patientRoutes.patch("/:id/gestational-base/manual", async (request, response) => {
   try {
     const patientId = Number(request.params.id);
-    const patient = editGestationalBaseManually(patientId, {
+    const patient = await editGestationalBaseManuallyCore(patientId, {
       ...request.body,
       actorUserId: request.authUser?.id || 1
     });
@@ -79,10 +79,10 @@ patientRoutes.patch("/:id/gestational-base/manual", (request, response) => {
   }
 });
 
-patientRoutes.post("/:id/gestational-base/discard", (request, response) => {
+patientRoutes.post("/:id/gestational-base/discard", async (request, response) => {
   try {
     const patientId = Number(request.params.id);
-    const patient = discardGestationalBaseEstimate(patientId, request.authUser?.id || 1);
+    const patient = await discardGestationalBaseEstimateCore(patientId, request.authUser?.id || 1);
     recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "descarte_estimativa_gestacional",
@@ -140,10 +140,10 @@ patientRoutes.put("/:id", async (request, response) => {
   }
 });
 
-patientRoutes.delete("/:id", requireAdmin, (request, response) => {
+patientRoutes.delete("/:id", requireAdmin, async (request, response) => {
   try {
     const patientId = Number(request.params.id);
-    const result = deletePatient(patientId);
+    const result = await deletePatientCore(patientId);
     recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "exclusao_paciente",

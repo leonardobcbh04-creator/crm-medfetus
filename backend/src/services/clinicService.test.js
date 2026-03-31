@@ -12,9 +12,21 @@ import {
   updatePatientExamStatus
 } from "./clinicService.js";
 import {
+  applyExamProtocolPresetCore,
+  confirmGestationalBaseEstimateCore,
+  createAdminUserCore,
+  createClinicUnitCore,
+  createExamConfigCore,
+  createKanbanColumnCore,
+  createPhysicianCore,
+  deletePatientsByCreatedRangeCore,
+  discardGestationalBaseEstimateCore,
+  editGestationalBaseManuallyCore,
   getAdminPanelDataCore,
   getDashboardDataCore,
-  getReportsDataCore
+  getPatientDetailsCore,
+  getReportsDataCore,
+  updateExamConfigCore
 } from "./coreMigrationService.js";
 import {
   lookupFutureScheduledExamInShosp,
@@ -276,6 +288,95 @@ test("dashboard, relatorios e area administrativa carregam dados pela camada cor
   assert.ok(Array.isArray(reportsData.reports.pendingExams));
   assert.ok(reportsData.reports.pendingExams.some((exam) => exam.patientId === created.patient.id));
   assert.ok(Array.isArray(reportsData.reports.patientsByStage));
+});
+
+test("escritas migradas da camada core mantem operacao de admin, paciente, kanban e exames", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const user = await createAdminUserCore({
+    name: "Usuaria Operacional",
+    email: "operacional@clinica.com",
+    password: "123456",
+    role: "atendimento",
+    active: true
+  });
+  assert.equal(user?.email, "operacional@clinica.com");
+
+  const unit = await createClinicUnitCore({ name: "Unidade Savassi", active: true });
+  assert.equal(unit?.name, "Unidade Savassi");
+
+  const physician = await createPhysicianCore({ name: "Dra. Julia Campos", clinicUnitId: unit.id, active: true });
+  assert.equal(physician?.name, "Dra. Julia Campos");
+
+  const exam = await createExamConfigCore({
+    code: "teste_operacional_core",
+    name: "Exame Operacional Core",
+    startWeek: 12,
+    endWeek: 14,
+    targetWeek: 13,
+    reminderDaysBefore1: 7,
+    reminderDaysBefore2: 2,
+    defaultMessage: "Ola, [NOME]! Esse e um exame operacional de teste.",
+    required: true,
+    flowType: "automatico",
+    active: true
+  });
+  assert.equal(exam?.code, "teste_operacional_core");
+
+  const updatedExam = await updateExamConfigCore(exam.id, {
+    ...exam,
+    name: "Exame Operacional Core Atualizado"
+  });
+  assert.equal(updatedExam?.name, "Exame Operacional Core Atualizado");
+
+  const presetResult = await applyExamProtocolPresetCore("unica_padrao");
+  assert.ok(Array.isArray(presetResult.examConfigs));
+
+  const columns = await createKanbanColumnCore({ title: "Retorno ativo" });
+  assert.ok(columns.some((column) => column.id === "retorno_ativo"));
+
+  const created = createPatient({
+    name: "Paciente Escritas Core",
+    phone: "31970001111",
+    birthDate: "1990-10-10",
+    gestationalWeeks: 18,
+    gestationalDays: 2,
+    physicianName: "Dra. Julia Campos",
+    clinicUnit: "Unidade Savassi",
+    pregnancyType: "Unica",
+    highRisk: false,
+    notes: "Paciente criada para validar escritas migradas.",
+    actorUserId: 1
+  });
+
+  await editGestationalBaseManuallyCore(created.patient.id, {
+    gestationalWeeks: 19,
+    gestationalDays: 1,
+    actorUserId: 1
+  });
+  const afterManualEdit = await getPatientDetailsCore(created.patient.id);
+  assert.equal(afterManualEdit?.patient.gestationalWeeks, 19);
+  assert.equal(afterManualEdit?.patient.gestationalDays, 1);
+
+  await discardGestationalBaseEstimateCore(created.patient.id, 1);
+  const afterDiscard = await getPatientDetailsCore(created.patient.id);
+  assert.equal(afterDiscard?.patient.stage, "revisao_base_gestacional");
+
+  await editGestationalBaseManuallyCore(created.patient.id, {
+    gestationalWeeks: 20,
+    gestationalDays: 0,
+    actorUserId: 1
+  });
+  await confirmGestationalBaseEstimateCore(created.patient.id, 1);
+  const afterConfirm = await getPatientDetailsCore(created.patient.id);
+  assert.equal(afterConfirm?.patient.stage, "contato_pendente");
+
+  const cleanupResult = await deletePatientsByCreatedRangeCore({
+    preset: "today",
+    actorUserId: 1
+  });
+  assert.ok(cleanupResult.deleted.patients >= 1);
 });
 
 test("marcar exame posterior como realizado deixa exames anteriores como superados e sem alerta operacional ativo", { concurrency: false }, () => {
