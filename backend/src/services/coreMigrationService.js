@@ -2267,6 +2267,102 @@ async function getNextUserIdCore(client) {
   return Number(result.rows[0]?.next_id || 1);
 }
 
+async function fetchAdminUserCoreById(runtime, userId) {
+  const result = await runtime.query(`
+    SELECT
+      id,
+      name,
+      email,
+      role,
+      active,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM users
+    WHERE id = $1
+    LIMIT 1
+  `, [userId]);
+  return result.rows[0] || null;
+}
+
+async function fetchClinicUnitCoreById(runtime, unitId) {
+  const result = await runtime.query(`
+    SELECT
+      id,
+      name,
+      active,
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM clinic_units
+    WHERE id = $1
+    LIMIT 1
+  `, [unitId]);
+  return result.rows[0] || null;
+}
+
+async function fetchPhysicianCoreById(runtime, physicianId) {
+  const result = await runtime.query(`
+    SELECT
+      physicians.id,
+      physicians.name,
+      physicians.clinic_unit_id AS "clinicUnitId",
+      clinic_units.name AS "clinicUnitName",
+      physicians.active,
+      physicians.created_at AS "createdAt",
+      physicians.updated_at AS "updatedAt"
+    FROM physicians
+    LEFT JOIN clinic_units ON clinic_units.id = physicians.clinic_unit_id
+    WHERE physicians.id = $1
+    LIMIT 1
+  `, [physicianId]);
+  return result.rows[0] || null;
+}
+
+async function fetchExamConfigCoreById(runtime, examId) {
+  const result = await runtime.query(`
+    SELECT
+      id,
+      code,
+      name,
+      start_week AS "startWeek",
+      end_week AS "endWeek",
+      target_week AS "targetWeek",
+      reminder_days_before_1 AS "reminderDaysBefore1",
+      reminder_days_before_2 AS "reminderDaysBefore2",
+      default_message AS "defaultMessage",
+      required,
+      flow_type AS "flowType",
+      active,
+      sort_order AS "sortOrder"
+    FROM exames_modelo
+    WHERE id = $1
+    LIMIT 1
+  `, [examId]);
+  return result.rows[0] || null;
+}
+
+async function fetchExamInferenceRuleCoreById(runtime, ruleId) {
+  const result = await runtime.query(`
+    SELECT
+      rule.id,
+      rule.exam_model_id AS "examModelId",
+      exam.name AS "examName",
+      exam.code AS "examCode",
+      rule.typical_start_week AS "typicalStartWeek",
+      rule.typical_end_week AS "typicalEndWeek",
+      rule.reference_week AS "referenceWeek",
+      rule.uncertainty_margin_weeks AS "uncertaintyMarginWeeks",
+      rule.allow_automatic_inference AS "allowAutomaticInference",
+      rule.active,
+      rule.created_at AS "createdAt",
+      rule.updated_at AS "updatedAt"
+    FROM regras_inferencia_gestacional rule
+    INNER JOIN exames_modelo exam ON exam.id = rule.exam_model_id
+    WHERE rule.id = $1
+    LIMIT 1
+  `, [ruleId]);
+  return result.rows[0] || null;
+}
+
 async function createAutomaticExamForEligiblePatientsCore(examConfig, createdAt = todayIso()) {
   if (examConfig.flowType !== "automatico" || !examConfig.active) {
     return;
@@ -2352,7 +2448,8 @@ export async function createAdminUserCore(input) {
     `, [userId, name, email, hashPassword(password), role, active, now, now]);
   });
 
-  return (await listAdminUsersRows()).find((user) => user.email === email) ?? null;
+  const createdUser = await runtime.query("SELECT id FROM users WHERE email = $1 LIMIT 1", [email]);
+  return fetchAdminUserCoreById(runtime, Number(createdUser.rows[0]?.id));
 }
 
 export async function updateAdminUserCore(userId, input) {
@@ -2393,7 +2490,7 @@ export async function updateAdminUserCore(userId, input) {
     WHERE id = $7
   `, [name, email, password ? hashPassword(password) : null, role, active, todayIso(), userId]);
 
-  return (await listAdminUsersRows()).find((user) => user.id === userId) ?? null;
+  return fetchAdminUserCoreById(runtime, userId);
 }
 
 export async function deleteAdminUserCore(userId) {
@@ -2453,7 +2550,7 @@ export async function createClinicUnitCore(input) {
     RETURNING id
   `, [name, active, todayIso(), todayIso()]);
 
-  return (await listClinicUnitsRows()).find((unit) => unit.id === Number(result.rows[0]?.id)) ?? null;
+  return fetchClinicUnitCoreById(runtime, Number(result.rows[0]?.id));
 }
 
 export async function updateClinicUnitCore(unitId, input) {
@@ -2484,7 +2581,7 @@ export async function updateClinicUnitCore(unitId, input) {
     await client.query("UPDATE patients SET clinic_unit = $1, updated_at = $2 WHERE clinic_unit = $3", [name, now, currentUnit.name]);
   });
 
-  return (await listClinicUnitsRows()).find((unit) => unit.id === unitId) ?? null;
+  return fetchClinicUnitCoreById(runtime, unitId);
 }
 
 export async function deleteClinicUnitCore(unitId) {
@@ -2538,7 +2635,7 @@ export async function createPhysicianCore(input) {
     RETURNING id
   `, [name, clinicUnitId, active, todayIso(), todayIso()]);
 
-  return (await listPhysiciansRows()).find((physician) => physician.id === Number(result.rows[0]?.id)) ?? null;
+  return fetchPhysicianCoreById(runtime, Number(result.rows[0]?.id));
 }
 
 export async function updatePhysicianCore(physicianId, input) {
@@ -2579,7 +2676,7 @@ export async function updatePhysicianCore(physicianId, input) {
     await client.query("UPDATE patients SET physician_name = $1, updated_at = $2 WHERE physician_name = $3", [name, now, currentPhysician.name]);
   });
 
-  return (await listPhysiciansRows()).find((physician) => physician.id === physicianId) ?? null;
+  return fetchPhysicianCoreById(runtime, physicianId);
 }
 
 export async function deletePhysicianCore(physicianId) {
@@ -2678,7 +2775,7 @@ export async function createExamConfigCore(input) {
     sortOrder
   }, now);
 
-  return (await listExamConfigRows()).find((item) => item.id === examId) ?? null;
+  return fetchExamConfigCoreById(runtime, examId);
 }
 
 export async function updateExamConfigCore(id, input) {
@@ -2722,7 +2819,7 @@ export async function updateExamConfigCore(id, input) {
     id
   ]);
 
-  return (await listExamConfigRows()).find((item) => item.id === id) ?? null;
+  return fetchExamConfigCoreById(runtime, id);
 }
 
 export async function deleteExamConfigCore(id) {
@@ -2779,7 +2876,7 @@ export async function updateExamInferenceRuleCore(id, input) {
     id
   ]);
 
-  return (await listExamInferenceRuleRows()).find((item) => item.id === id) ?? null;
+  return fetchExamInferenceRuleCoreById(runtime, id);
 }
 
 export async function updateMessageTemplateCore(templateId, input) {
