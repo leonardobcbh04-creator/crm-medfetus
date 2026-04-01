@@ -101,6 +101,23 @@ function isSqliteMode() {
   return getConfiguredDatabaseKind() === "sqlite";
 }
 
+async function resolveActorUserId(preferredUserId = null) {
+  const normalizedPreferredId = Number(preferredUserId);
+  const users = await listAdminUsersRows();
+  const activeUsers = users.filter((user) => Boolean(user.active));
+
+  if (!activeUsers.length) {
+    return null;
+  }
+
+  if (!Number.isNaN(normalizedPreferredId) && activeUsers.some((user) => user.id === normalizedPreferredId)) {
+    return normalizedPreferredId;
+  }
+
+  const activeAdmin = activeUsers.find((user) => String(user.role || "").trim().toLowerCase() === "admin");
+  return activeAdmin?.id ?? activeUsers[0]?.id ?? null;
+}
+
 function sanitizePhone(phone) {
   return normalizeBrazilPhone(phone);
 }
@@ -1336,7 +1353,7 @@ export async function createPatientCore(input) {
   validatePatientInput(input, automaticExamModels.map((exam) => exam.code));
 
   const now = todayIso();
-  const actorUserId = Number(input.actorUserId || 1);
+  const actorUserId = await resolveActorUserId(input.actorUserId);
   const snapshot = resolvePregnancySnapshot({
     dum: null,
     gestationalWeeks: Number(input.gestationalWeeks),
@@ -1462,7 +1479,7 @@ export async function updatePatientExamStatusCore(patientId, examId, input) {
   const scheduledDate = input.scheduledDate || null;
   const scheduledTime = input.scheduledTime || null;
   const completedDate = completedOutsideClinic ? null : input.completedDate || null;
-  const actorUserId = Number(input.actorUserId || 1);
+  const actorUserId = await resolveActorUserId(input.actorUserId);
   const now = todayIso();
 
   if (!["agendado", "realizado", "pendente"].includes(nextStatus)) {
@@ -1890,6 +1907,7 @@ export async function createMessageCore(input) {
   }
 
   const now = todayIso();
+  const actorUserId = await resolveActorUserId(input.actorUserId);
   const patient = (await listPatientsCore()).find((item) => item.id === Number(input.patientId));
   if (!patient) {
     throw new Error("Paciente nao encontrada.");
@@ -1908,7 +1926,7 @@ export async function createMessageCore(input) {
     responseText: null,
     responseAt: null,
     channel: "whatsapp",
-    createdByUserId: 1,
+    createdByUserId: actorUserId,
     createdAt: now,
     updatedAt: now
   });
@@ -1942,7 +1960,7 @@ export async function createMessageCore(input) {
     actionType: "mensagem_enviada",
     description: "Mensagem registrada para acompanhamento da paciente.",
     metadataJson: JSON.stringify({ examModelId: input.examModelId ?? null }),
-    createdByUserId: 1,
+    createdByUserId: actorUserId,
     createdAt: now
   });
 
