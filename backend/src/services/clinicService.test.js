@@ -24,8 +24,11 @@ import {
   editGestationalBaseManuallyCore,
   getAdminPanelDataCore,
   getDashboardDataCore,
+  getMessagingOverviewCore,
   getPatientDetailsCore,
+  getRemindersCenterDataCore,
   getReportsDataCore,
+  updateReminderStatusCore,
   updateExamConfigCore
 } from "./coreMigrationService.js";
 import {
@@ -220,6 +223,38 @@ test("mensagens automaticas e central de lembretes refletem prioridade alta e or
   assert.equal(reminderItem?.messageType, "atraso");
   assert.equal(reminderItem?.messageOrigin, "timeline_atraso");
   assert.match(reminderItem?.suggestedMessage || "", /prioridade no agendamento/i);
+});
+
+test("marcar paciente como ja agendada remove da central de lembretes e da fila de mensagens", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const created = createPatient({
+    name: "Paciente Agendada Pela Central",
+    phone: "31971112222",
+    birthDate: "1991-03-10",
+    gestationalWeeks: 22,
+    gestationalDays: 0,
+    physicianName: "Dra. Helena Castro",
+    clinicUnit: "Unidade Centro",
+    pregnancyType: "Unica",
+    highRisk: false,
+    notes: "Usada para validar saida da fila de lembretes.",
+    actorUserId: 1
+  });
+
+  const remindersBefore = await getRemindersCenterDataCore();
+  const reminderItem = remindersBefore.items.find((item) => item.patientId === created.patient.id);
+  assert.ok(reminderItem?.examPatientId, "Paciente deveria entrar na fila inicial de lembretes.");
+
+  const remindersAfter = await updateReminderStatusCore(created.patient.id, reminderItem.examPatientId, "scheduled");
+  assert.equal(remindersAfter.items.some((item) => item.patientId === created.patient.id), false);
+
+  const messagingAfter = await getMessagingOverviewCore();
+  assert.equal(messagingAfter.some((item) => item.patientId === created.patient.id), false);
+
+  const patientDetails = await getPatientDetailsCore(created.patient.id);
+  assert.equal(patientDetails?.patient.stage, "agendada");
 });
 
 test("dashboard, relatorios e area administrativa carregam dados pela camada core sem quebrar os modulos visiveis", { concurrency: false }, async () => {
