@@ -16,9 +16,9 @@ import {
 
 export const shospRoutes = Router();
 
-shospRoutes.get("/status", (_request, response) => {
+shospRoutes.get("/status", asyncRoute(async (_request, response) => {
   try {
-    response.json(getShospIntegrationStatus());
+    response.json(await getShospIntegrationStatus());
   } catch (error) {
     console.error("[shosp-route] Falha ao responder status da integracao.", error);
     response.status(200).json({
@@ -67,42 +67,42 @@ shospRoutes.get("/status", (_request, response) => {
       logs: []
     });
   }
-});
+}, "Nao foi possivel carregar o status da integracao com o Shosp."));
 
-shospRoutes.put("/settings", (request, response) => {
+shospRoutes.put("/settings", asyncRoute(async (request, response) => {
   try {
-    const status = updateShospIntegrationSettings(request.body);
+    const status = await updateShospIntegrationSettings(request.body);
     response.json(status);
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel atualizar as configuracoes do Shosp.");
   }
-});
+}, "Nao foi possivel atualizar as configuracoes do Shosp."));
 
-shospRoutes.post("/test-connection", (_request, response) => {
-  response.json(testShospConnection());
-});
+shospRoutes.post("/test-connection", asyncRoute(async (_request, response) => {
+  response.json(await testShospConnection());
+}, "Nao foi possivel testar a conexao com o Shosp."));
 
 shospRoutes.post("/test-live-connection", asyncRoute(async (_request, response) => {
   response.json(await testShospLiveConnection());
 }, "Nao foi possivel testar a conexao live com o Shosp."));
 
-shospRoutes.get("/exam-mappings", (_request, response) => {
+shospRoutes.get("/exam-mappings", asyncRoute(async (_request, response) => {
   try {
-    response.json({ mappings: listShospExamMappings() });
+    response.json({ mappings: await listShospExamMappings() });
   } catch (error) {
     console.error("[shosp-route] Falha ao responder mapeamentos de exame.", error);
     response.status(200).json({ mappings: [] });
   }
-});
+}, "Nao foi possivel carregar os mapeamentos do Shosp."));
 
-shospRoutes.put("/exam-mappings/:id", (request, response) => {
+shospRoutes.put("/exam-mappings/:id", asyncRoute(async (request, response) => {
   try {
-    const mapping = updateShospExamMapping(Number(request.params.id), request.body);
+    const mapping = await updateShospExamMapping(Number(request.params.id), request.body);
     response.json({ mapping });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel atualizar o mapeamento do Shosp.");
   }
-});
+}, "Nao foi possivel atualizar o mapeamento do Shosp."));
 
 shospRoutes.post("/sync/patients", asyncRoute(async (request, response) => {
   const result = await syncShospPatients({ incremental: request.body?.incremental !== false });
