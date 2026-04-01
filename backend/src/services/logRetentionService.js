@@ -1,5 +1,5 @@
 import { LOG_RETENTION_CONFIG } from "../config.js";
-import { db } from "../db.js";
+import { getConfiguredDatabaseKind, getDatabaseRuntime } from "../database/runtime.js";
 
 let cleanupIntervalId = null;
 let running = false;
@@ -17,16 +17,25 @@ function cutoffIso(days) {
   return date.toISOString();
 }
 
-function deleteBeforeDate(tableName, columnExpression, cutoff) {
-  const statement = db.prepare(`
-    DELETE FROM ${tableName}
-    WHERE ${columnExpression} < ?
-  `);
+async function deleteBeforeDate(tableName, columnExpression, cutoff) {
+  if (getConfiguredDatabaseKind() === "sqlite") {
+    const runtime = await getDatabaseRuntime();
+    const statement = runtime.raw.prepare(`
+      DELETE FROM ${tableName}
+      WHERE ${columnExpression} < ?
+    `);
+    return statement.run(cutoff).changes;
+  }
 
-  return statement.run(cutoff).changes;
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    DELETE FROM ${tableName}
+    WHERE ${columnExpression} < $1
+  `, [cutoff]);
+  return Number(result.rowCount || 0);
 }
 
-export function runLogRetentionCleanup(trigger = "manual") {
+export async function runLogRetentionCleanup(trigger = "manual") {
   if (running) {
     return {
       ok: false,
@@ -42,10 +51,10 @@ export function runLogRetentionCleanup(trigger = "manual") {
     const syncCutoff = cutoffIso(LOG_RETENTION_CONFIG.syncLogsDays);
     const messageCutoff = cutoffIso(LOG_RETENTION_CONFIG.messageLogsDays);
 
-    const deletedAuditLogs = deleteBeforeDate("audit_logs", "created_at", auditCutoff);
-    const deletedSyncLogs = deleteBeforeDate("logs_de_sincronizacao", "COALESCE(finished_at, started_at)", syncCutoff);
-    const deletedLegacySyncLogs = deleteBeforeDate("shosp_sync_logs", "COALESCE(finished_at, started_at)", syncCutoff);
-    const deletedMessageLogs = deleteBeforeDate("message_delivery_logs", "created_at", messageCutoff);
+    const deletedAuditLogs = await deleteBeforeDate("audit_logs", "created_at", auditCutoff);
+    const deletedSyncLogs = await deleteBeforeDate("logs_de_sincronizacao", "COALESCE(finished_at, started_at)", syncCutoff);
+    const deletedLegacySyncLogs = await deleteBeforeDate("shosp_sync_logs", "COALESCE(finished_at, started_at)", syncCutoff);
+    const deletedMessageLogs = await deleteBeforeDate("message_delivery_logs", "created_at", messageCutoff);
 
     lastRunAt = timestampIso();
     lastError = null;
@@ -84,7 +93,7 @@ export function startLogRetentionWorker() {
   }
 
   cleanupIntervalId = setInterval(() => {
-    void Promise.resolve(runLogRetentionCleanup("interval"));
+    void runLogRetentionCleanup("interval");
   }, intervalMs);
 
   if (typeof cleanupIntervalId.unref === "function") {
@@ -92,7 +101,7 @@ export function startLogRetentionWorker() {
   }
 
   setTimeout(() => {
-    void Promise.resolve(runLogRetentionCleanup("startup"));
+    void runLogRetentionCleanup("startup");
   }, 1200);
 }
 

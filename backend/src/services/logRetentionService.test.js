@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { db, initializeDatabase, resetDatabase } from "../db.js";
 import { runLogRetentionCleanup } from "./logRetentionService.js";
 
-test("limpa logs antigos conforme a politica de retencao", { concurrency: false }, () => {
+test("limpa logs antigos conforme a politica de retencao", { concurrency: false }, async () => {
   resetDatabase();
   initializeDatabase();
 
@@ -85,7 +85,7 @@ test("limpa logs antigos conforme a politica de retencao", { concurrency: false 
     VALUES (1, 'teste', 'patient', 1, ?, 'Auditoria recente', NULL, ?)
   `).run(patientId, new Date().toISOString());
 
-  const result = runLogRetentionCleanup("test");
+  const result = await runLogRetentionCleanup("test");
 
   assert.equal(result.ok, true);
   assert.equal(result.deletedAuditLogs >= 1, true);

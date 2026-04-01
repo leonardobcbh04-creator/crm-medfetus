@@ -29,11 +29,16 @@ import {
   updateExamConfigCore
 } from "./coreMigrationService.js";
 import {
+  getShospIntegrationStatus,
   lookupFutureScheduledExamInShosp,
+  listShospExamMappings,
   resetShospReminderLookupCache,
-  runShospIncrementalSync
+  runShospIncrementalSync,
+  updateShospExamMapping,
+  updateShospIntegrationSettings
 } from "./shospIntegration/shospIntegrationService.js";
 import { getShospMockMetrics, resetShospMockMetrics } from "./shospIntegration/shospMockProvider.js";
+import { runMariaGertrudesOperationalTest } from "./operationalTestService.js";
 
 async function withMockFixtures(callback) {
   const previous = process.env.SHOSP_MOCK_FIXTURES;
@@ -377,6 +382,46 @@ test("escritas migradas da camada core mantem operacao de admin, paciente, kanba
     actorUserId: 1
   });
   assert.ok(cleanupResult.deleted.patients >= 1);
+});
+
+test("servicos residuais de Shosp e mensageria administrativa respondem pela camada atual sem quebrar", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const statusBefore = await getShospIntegrationStatus();
+  assert.ok(statusBefore);
+  assert.ok(["mock", "unavailable", "live"].includes(statusBefore.mode));
+
+  const updatedStatus = await updateShospIntegrationSettings({
+    useMock: true,
+    apiBaseUrl: "",
+    patientsPath: "/patients",
+    attendancesPath: "/attendances",
+    examsPath: "/exams",
+    timeoutMs: 15000
+  });
+  assert.equal(updatedStatus.settings.patientsPath, "/patients");
+
+  const mappings = await listShospExamMappings();
+  assert.ok(Array.isArray(mappings));
+  if (mappings[0]) {
+    const updatedMapping = await updateShospExamMapping(mappings[0].id, {
+      examModelId: mappings[0].examModelId,
+      active: true,
+      notes: "Mapeamento validado em teste automatizado."
+    });
+    assert.equal(updatedMapping?.id, mappings[0].id);
+  }
+});
+
+test("teste operacional completo roda pela camada core sem depender do legado", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const result = await runMariaGertrudesOperationalTest();
+  assert.equal(result.ok, true);
+  assert.ok(result.totalExams >= result.realizedCount);
+  assert.ok(Array.isArray(result.timeline));
 });
 
 test("marcar exame posterior como realizado deixa exames anteriores como superados e sem alerta operacional ativo", { concurrency: false }, () => {

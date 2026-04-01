@@ -188,14 +188,14 @@ adminRoutes.put("/message-templates/:id", asyncRoute(async (request, response) =
   }
 }, "Nao foi possivel atualizar o template."));
 
-adminRoutes.post("/system-tests/maria-gertrudes", (_request, response) => {
+adminRoutes.post("/system-tests/maria-gertrudes", asyncRoute(async (_request, response) => {
   try {
-    const result = runMariaGertrudesOperationalTest();
+    const result = await runMariaGertrudesOperationalTest();
     response.json({ result });
   } catch (error) {
     handleRouteError(response, error, "Nao foi possivel executar o teste operacional.");
   }
-});
+}, "Nao foi possivel executar o teste operacional."));
 
 adminRoutes.post("/patients/cleanup", asyncRoute(async (request, response) => {
   try {

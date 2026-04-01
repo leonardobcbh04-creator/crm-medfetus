@@ -1,23 +1,23 @@
-import { db } from "../db.js";
+import { getConfiguredDatabaseKind, getDatabaseRuntime } from "../database/runtime.js";
 import {
-  createMessage,
-  createPatient,
-  getPatientDetails,
-  listClinicUnits,
-  listPatients,
-  listPhysicians,
-  updatePatientExamStatus
-} from "./clinicService.js";
+  createMessageCore,
+  createPatientCore,
+  getPatientDetailsCore,
+  getPatientFormCatalogsCore,
+  listPatientsCore,
+  updatePatientExamStatusCore
+} from "./coreMigrationService.js";
 import { normalizeBrazilPhone } from "../utils/phone.js";
 
 const TEST_PATIENT_NAME = "Maria Gertrudes";
-const TEST_PATIENT_PHONE = "+55 31 97521-5445";
+const TEST_PATIENT_PHONE = "31 97521-5445";
 const TEST_PATIENT_PHONE_DIGITS = normalizeBrazilPhone(TEST_PATIENT_PHONE);
 const TEST_PATIENT_NOTES = "Paciente de teste criada para validacao operacional do fluxo completo.";
 
-function ensureActiveReferenceData() {
-  const unit = listClinicUnits().find((item) => item.active);
-  const physician = listPhysicians().find((item) => item.active);
+async function ensureActiveReferenceData() {
+  const catalogs = await getPatientFormCatalogsCore();
+  const unit = catalogs.units.find((item) => item.active);
+  const physician = catalogs.physicians.find((item) => item.active);
 
   if (!unit || !physician) {
     throw new Error("Nao foi possivel encontrar unidade e medico ativos para o teste operacional.");
@@ -30,55 +30,66 @@ function buildMessage(patientName, examName, predictedDateLabel) {
   return `Ola, ${patientName}. Estamos acompanhando sua gestacao e o proximo exame indicado e ${examName}. A data ideal prevista e ${predictedDateLabel}. Podemos confirmar esse agendamento com voce?`;
 }
 
-function assertStage(patientId, expectedStage, context) {
-  const patient = listPatients().find((item) => item.id === patientId);
+async function assertStage(patientId, expectedStage, context) {
+  const patient = (await listPatientsCore()).find((item) => item.id === patientId);
   if (!patient) {
     throw new Error(`Paciente nao encontrada durante a validacao: ${context}.`);
   }
 
   if (patient.stage !== expectedStage) {
-    throw new Error(
-      `Falha no teste em "${context}". Etapa esperada: ${expectedStage}. Etapa atual: ${patient.stage}.`
-    );
+    throw new Error(`Falha no teste em "${context}". Etapa esperada: ${expectedStage}. Etapa atual: ${patient.stage}.`);
   }
 
   return patient;
 }
 
-function nextPlannedExam(patientId) {
-  const details = getPatientDetails(patientId);
+async function nextPlannedExam(patientId) {
+  const details = await getPatientDetailsCore(patientId);
   return details.exams.find((exam) => exam.status !== "realizado" && exam.flowType !== "avulso") || null;
 }
 
-function cleanupPreviousTestPatients() {
-  const previousPatients = listPatients().filter(
+async function cleanupPreviousTestPatients() {
+  const previousPatients = (await listPatientsCore()).filter(
     (patient) =>
       patient.name === TEST_PATIENT_NAME &&
       normalizeBrazilPhone(patient.phone) === TEST_PATIENT_PHONE_DIGITS &&
       patient.notes === TEST_PATIENT_NOTES
   );
 
-  previousPatients.forEach((patient) => {
-    db.exec("BEGIN");
-    try {
-      db.prepare("DELETE FROM message_delivery_logs WHERE patient_id = ?").run(patient.id);
-      db.prepare("DELETE FROM mensagens WHERE patient_id = ?").run(patient.id);
-      db.prepare("DELETE FROM historico_de_movimentacoes WHERE patient_id = ?").run(patient.id);
-      db.prepare("DELETE FROM exames_paciente WHERE patient_id = ?").run(patient.id);
-      db.prepare("DELETE FROM patients WHERE id = ?").run(patient.id);
-      db.exec("COMMIT");
-    } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
-    }
-  });
+  if (!previousPatients.length) {
+    return;
+  }
+
+  if (getConfiguredDatabaseKind() === "sqlite") {
+    const runtime = await getDatabaseRuntime();
+    const db = runtime.raw;
+    previousPatients.forEach((patient) => {
+      db.exec("BEGIN");
+      try {
+        db.prepare("DELETE FROM message_delivery_logs WHERE patient_id = ?").run(patient.id);
+        db.prepare("DELETE FROM mensagens WHERE patient_id = ?").run(patient.id);
+        db.prepare("DELETE FROM historico_de_movimentacoes WHERE patient_id = ?").run(patient.id);
+        db.prepare("DELETE FROM exames_paciente WHERE patient_id = ?").run(patient.id);
+        db.prepare("DELETE FROM patients WHERE id = ?").run(patient.id);
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+      }
+    });
+    return;
+  }
+
+  const runtime = await getDatabaseRuntime();
+  const ids = previousPatients.map((patient) => patient.id);
+  await runtime.query("DELETE FROM patients WHERE id = ANY($1::int[])", [ids]);
 }
 
-export function runMariaGertrudesOperationalTest() {
-  cleanupPreviousTestPatients();
+export async function runMariaGertrudesOperationalTest() {
+  await cleanupPreviousTestPatients();
 
-  const { unit, physician } = ensureActiveReferenceData();
-  const patientDetails = createPatient({
+  const { unit, physician } = await ensureActiveReferenceData();
+  const patientDetails = await createPatientCore({
     name: TEST_PATIENT_NAME,
     phone: TEST_PATIENT_PHONE,
     birthDate: "1991-04-18",
@@ -89,29 +100,30 @@ export function runMariaGertrudesOperationalTest() {
     pregnancyType: "unica",
     highRisk: false,
     notes: TEST_PATIENT_NOTES,
-    stage: "contato_pendente"
+    stage: "contato_pendente",
+    actorUserId: 1
   });
 
   const patientId = patientDetails.patient.id;
   const timeline = [];
 
-  assertStage(patientId, "contato_pendente", "cadastro inicial");
+  await assertStage(patientId, "contato_pendente", "cadastro inicial");
 
   while (true) {
-    const exam = nextPlannedExam(patientId);
+    const exam = await nextPlannedExam(patientId);
     if (!exam) {
       break;
     }
 
-    createMessage({
+    await createMessageCore({
       patientId,
       examModelId: exam.examModelId,
       content: buildMessage(patientDetails.patient.name, exam.name, exam.predictedDateLabel)
     });
 
-    const afterMessage = assertStage(patientId, "mensagem_enviada", `mensagem enviada para ${exam.name}`);
+    const afterMessage = await assertStage(patientId, "mensagem_enviada", `mensagem enviada para ${exam.name}`);
 
-    updatePatientExamStatus(patientId, exam.id, {
+    await updatePatientExamStatusCore(patientId, exam.id, {
       status: "agendado",
       scheduledDate: exam.predictedDate,
       scheduledTime: "09:00",
@@ -119,9 +131,9 @@ export function runMariaGertrudesOperationalTest() {
       actorUserId: 1
     });
 
-    const afterSchedule = assertStage(patientId, "agendada", `agendamento do exame ${exam.name}`);
+    const afterSchedule = await assertStage(patientId, "agendada", `agendamento do exame ${exam.name}`);
 
-    updatePatientExamStatus(patientId, exam.id, {
+    await updatePatientExamStatusCore(patientId, exam.id, {
       status: "realizado",
       scheduledDate: exam.predictedDate,
       scheduledTime: "09:00",
@@ -130,7 +142,7 @@ export function runMariaGertrudesOperationalTest() {
       actorUserId: 1
     });
 
-    const afterCompletion = assertStage(patientId, "contato_pendente", `realizacao do exame ${exam.name}`);
+    const afterCompletion = await assertStage(patientId, "contato_pendente", `realizacao do exame ${exam.name}`);
 
     timeline.push({
       examName: exam.name,
@@ -141,7 +153,7 @@ export function runMariaGertrudesOperationalTest() {
     });
   }
 
-  const finalDetails = getPatientDetails(patientId);
+  const finalDetails = await getPatientDetailsCore(patientId);
   const realizedCount = finalDetails.exams.filter((exam) => exam.status === "realizado").length;
 
   return {
