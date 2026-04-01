@@ -660,6 +660,7 @@ export type OperationalTestResult = {
   finalStage: string;
   totalExams: number;
   realizedCount: number;
+  message?: string;
   timeline: Array<{
     examName: string;
     predictedDate: string;

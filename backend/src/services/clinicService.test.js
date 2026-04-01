@@ -424,6 +424,19 @@ test("teste operacional completo roda pela camada core sem depender do legado", 
   assert.ok(Array.isArray(result.timeline));
 });
 
+test("teste operacional Maria Gertrudes retorna fallback controlado quando o ambiente nao tem usuario ativo", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  db.prepare("UPDATE users SET active = 0").run();
+
+  const result = await runMariaGertrudesOperationalTest();
+  assert.equal(result.ok, false);
+  assert.equal(result.patientName, "Maria Gertrudes");
+  assert.match(result.message || "", /usuario ativo/i);
+  assert.deepEqual(result.timeline, []);
+});
+
 test("marcar exame posterior como realizado deixa exames anteriores como superados e sem alerta operacional ativo", { concurrency: false }, () => {
   resetDatabase();
   initializeDatabase();

@@ -402,7 +402,7 @@ export function AdminPage() {
     try {
       const response = await api.runMariaGertrudesOperationalTest();
       setOperationalTestResult(response.result);
-      setFeedback("Teste operacional executado com sucesso.");
+      setFeedback(response.result.ok ? "Teste operacional executado com sucesso." : response.result.message || "O teste operacional nao pode ser executado neste ambiente.");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel executar o teste operacional.");
     } finally {
@@ -2139,6 +2139,9 @@ export function AdminPage() {
 
           {operationalTestResult ? (
             <div className="stack-form">
+              {!operationalTestResult.ok ? (
+                <p className="field-hint">{operationalTestResult.message || "O teste operacional nao pode ser executado neste ambiente."}</p>
+              ) : null}
               <div className="admin-summary-strip">
                 <div className="admin-summary-pill">
                   <span className="admin-summary-label">Paciente criada</span>
