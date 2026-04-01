@@ -234,47 +234,6 @@ export function ReminderCenterPage() {
 
       {feedback ? <p className={feedback.includes("Nao foi") ? "form-error" : "form-success"}>{feedback}</p> : null}
 
-      {data.autoScheduledItems.length ? (
-        <section className="panel-card">
-          <div className="page-header">
-            <div>
-              <p className="eyebrow">Shosp</p>
-              <h3>Exames ja agendados</h3>
-              <p className="page-description">
-                Estes casos sairam automaticamente da fila de lembretes porque o Shosp ja possui agendamento futuro para o exame esperado.
-              </p>
-            </div>
-          </div>
-
-          <div className="reminder-grid">
-            {data.autoScheduledItems.map((item) => (
-              <article key={`scheduled-${item.patientId}`} className="panel-card reminder-card operational-card reminder-scheduled-card">
-                <div className="card-row">
-                  <div>
-                    <h3>{item.patientName}</h3>
-                    <p>{item.examName}</p>
-                  </div>
-                  <span className="badge badge-priority-green">Exame ja agendado</span>
-                </div>
-
-                <div className="message-metadata">
-                  <span><strong>Telefone:</strong> {formatBrazilPhone(item.phone) || "Nao informado"}</span>
-                  <span><strong>Data do agendamento:</strong> {item.scheduledDateLabel}</span>
-                  <span><strong>Horario:</strong> {item.scheduledTime || "Nao informado"}</span>
-                  <span><strong>Origem:</strong> {item.sourceLabel}</span>
-                </div>
-
-                <div className="inline-actions list-action-bar operational-action-bar">
-                  <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
-                    Ver detalhes
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <div className="reminder-grid">
         {filteredItems.length ? filteredItems.map((item) => (
           <article key={`${item.patientId}-${item.examPatientId}`} className={`panel-card reminder-card operational-card ${item.priorityLevel === "alta" ? "operational-priority-high" : ""} reminder-${item.urgencyStatus}`}>

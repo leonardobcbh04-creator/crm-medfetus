@@ -45,7 +45,7 @@ async function executeScheduledSync(trigger = "manual") {
 }
 
 export function startShospSyncWorker() {
-  if (intervalId || SHOSP_CONFIG.syncIntervalMs <= 0) {
+  if (!SHOSP_CONFIG.enabled || intervalId || SHOSP_CONFIG.syncIntervalMs <= 0) {
     return;
   }
 
@@ -75,7 +75,7 @@ export function stopShospSyncWorker() {
 
 export function getShospSyncWorkerStatus() {
   return {
-    enabled: SHOSP_CONFIG.syncIntervalMs > 0,
+    enabled: SHOSP_CONFIG.enabled && SHOSP_CONFIG.syncIntervalMs > 0,
     running,
     intervalMs: SHOSP_CONFIG.syncIntervalMs,
     lastRunAt,

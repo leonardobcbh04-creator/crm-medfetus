@@ -382,7 +382,6 @@ export function PatientDetailPage() {
           <div className="priority-badge-row">
             <span className={`badge ${priority.badgeClassName}`}>{priority.label}</span>
             <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
-            {details.patient.importedFromShosp ? <span className="badge badge-priority-blue">Importado do Shosp</span> : null}
             {details.patient.gestationalBaseIsEstimated ? <span className="badge badge-priority-blue">Base estimada</span> : null}
             {details.patient.gestationalReviewRequired ? <span className="badge badge-priority-red">Revisao manual</span> : null}
             {priority.needsImmediateAction ? <span className="badge badge-attention">Acao imediata</span> : null}
@@ -394,22 +393,10 @@ export function PatientDetailPage() {
             <span><strong>Status:</strong> {details.patient.status || "ativa"}</span>
             <span><strong>Coluna atual:</strong> {details.patient.stageTitle || details.patient.stage}</span>
             <span><strong>Base gestacional:</strong> {details.patient.gestationalBaseSourceLabel || "Nao definida"}</span>
-            {details.patient.nextExam.detectedInShosp ? (
-              <span><strong>Agenda no Shosp:</strong> {details.patient.nextExam.scheduledDateLabel || "Exame ja agendado"}</span>
-            ) : null}
             {details.patient.nextExam.overdueExam ? (
               <span className="exam-warning-text"><strong>Exame atrasado:</strong> {details.patient.nextExam.overdueExam.name}</span>
             ) : null}
           </div>
-          {details.patient.nextExam.detectedInShosp ? (
-            <div className="form-alert form-alert-success">
-              <strong>Exame ja agendado</strong>
-              <span>
-                O proximo exame esperado ja foi localizado no Shosp
-                {details.patient.nextExam.scheduledDateLabel ? ` para ${details.patient.nextExam.scheduledDateLabel}` : ""}.
-              </span>
-            </div>
-          ) : null}
         </article>
 
         <article className="panel-card">
@@ -420,7 +407,7 @@ export function PatientDetailPage() {
             <span><strong>Data de nascimento:</strong> {details.patient.birthDate || "Nao informada"}</span>
             <span><strong>Medico solicitante:</strong> {details.patient.physicianName || "Nao informado"}</span>
             <span><strong>Unidade:</strong> {details.patient.clinicUnit || "Nao informada"}</span>
-            <span><strong>Origem:</strong> {details.patient.importedFromShosp ? "Importado do Shosp" : "Cadastro local"}</span>
+            <span><strong>Origem:</strong> Cadastro local</span>
           </div>
         </article>
 
@@ -506,9 +493,6 @@ export function PatientDetailPage() {
                       </span>
                       {exam.completedOutsideClinic ? (
                         <span className="badge badge-priority-blue">Historico anterior</span>
-                      ) : null}
-                      {exam.importedFromShosp ? (
-                        <span className="badge badge-soft badge-priority-blue">Shosp</span>
                       ) : null}
                       {exam.showOperationalAlert ? (
                         <span className="badge badge-priority-red">Janela ideal passou</span>
@@ -631,8 +615,6 @@ export function PatientDetailPage() {
                     <span className={`badge badge-soft ${exam.required ? "badge-priority-red" : "badge-priority-blue"}`}>
                       {exam.required ? "Obrigatorio" : "Recomendado"}
                     </span>
-                    {exam.importedFromShosp ? <span className="badge badge-soft badge-priority-blue">Shosp</span> : null}
-                    {exam.importedFromShosp && exam.status === "agendado" ? <span className="badge badge-priority-green">Agendado no Shosp</span> : null}
                   </div>
                 </div>
                 <span><strong>Previsao:</strong> {exam.predictedDateLabel}</span>
@@ -844,8 +826,6 @@ export function PatientDetailPage() {
                       {exam.required ? "Obrigatorio" : "Recomendado"}
                     </span>
                     {exam.completedOutsideClinic ? <span className="badge badge-priority-blue">Historico anterior</span> : null}
-                    {exam.importedFromShosp ? <span className="badge badge-soft badge-priority-blue">Shosp</span> : null}
-                    {exam.importedFromShosp && exam.status === "agendado" ? <span className="badge badge-priority-green">Agendado no Shosp</span> : null}
                   </div>
                 </div>
                 <span><strong>Previsao:</strong> {exam.predictedDateLabel}</span>

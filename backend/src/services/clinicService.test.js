@@ -55,66 +55,33 @@ async function withMockFixtures(callback) {
   }
 }
 
-test("detecta agendamento futuro do Shosp na central de lembretes sem duplicar shosp_exam_id", { concurrency: false }, async () => {
-  await withMockFixtures(async () => {
-    resetDatabase();
-    initializeDatabase();
+test("com Shosp desligado a central de lembretes nao depende de agenda externa para funcionar", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
 
-    await runShospIncrementalSync({ incremental: false });
-
-    const reminderData = await getRemindersCenterData();
-    const autoScheduledPatient = reminderData.autoScheduledItems.find((item) => item.patientName === "Patricia Mourao");
-
-    assert.ok(autoScheduledPatient, "Paciente com agendamento futuro no Shosp deveria sair da fila principal.");
-    assert.equal(reminderData.items.some((item) => item.patientName === "Patricia Mourao"), false);
-
-    const shospExamRows = db.prepare(`
-      SELECT COUNT(*) AS count
-      FROM exames_paciente
-      WHERE shosp_exam_id = 'shosp-i-7010'
-    `).get();
-    assert.equal(shospExamRows.count, 1);
-
-    const patientStage = db.prepare(`
-      SELECT stage
-      FROM patients
-      WHERE name = 'Patricia Mourao'
-    `).get();
-    assert.equal(patientStage.stage, "agendada");
-
-    const movement = db.prepare(`
-      SELECT action_type AS actionType
-      FROM historico_de_movimentacoes hm
-      INNER JOIN patients p ON p.id = hm.patient_id
-      WHERE p.name = 'Patricia Mourao'
-        AND hm.action_type = 'agendamento_detectado_shosp'
-      ORDER BY hm.id DESC
-      LIMIT 1
-    `).get();
-    assert.equal(movement.actionType, "agendamento_detectado_shosp");
-  });
+  const reminderData = await getRemindersCenterData();
+  assert.ok(Array.isArray(reminderData.items));
+  assert.deepEqual(reminderData.autoScheduledItems, []);
 });
 
-test("usa cache temporario ao consultar agendamento futuro no Shosp", { concurrency: false }, async () => {
-  await withMockFixtures(async () => {
-    resetDatabase();
-    initializeDatabase();
-    resetShospReminderLookupCache();
-    resetShospMockMetrics();
+test("com Shosp desligado a consulta de agenda futura retorna null de forma controlada", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+  resetShospReminderLookupCache();
+  resetShospMockMetrics();
 
-    const firstLookup = await lookupFutureScheduledExamInShosp({
-      externalPatientId: "shosp-p-1004",
-      examCode: "morfologico_2_trimestre"
-    });
-    const secondLookup = await lookupFutureScheduledExamInShosp({
-      externalPatientId: "shosp-p-1004",
-      examCode: "morfologico_2_trimestre"
-    });
-
-    assert.equal(firstLookup?.externalExamItemId, "shosp-i-7010");
-    assert.equal(secondLookup?.externalExamItemId, "shosp-i-7010");
-    assert.equal(getShospMockMetrics().futureScheduleLookupCount, 1);
+  const firstLookup = await lookupFutureScheduledExamInShosp({
+    externalPatientId: "shosp-p-1004",
+    examCode: "morfologico_2_trimestre"
   });
+  const secondLookup = await lookupFutureScheduledExamInShosp({
+    externalPatientId: "shosp-p-1004",
+    examCode: "morfologico_2_trimestre"
+  });
+
+  assert.equal(firstLookup, null);
+  assert.equal(secondLookup, null);
+  assert.equal(getShospMockMetrics().futureScheduleLookupCount, 0);
 });
 
 test("autentica usuario e valida sessao ativa por token", { concurrency: false }, () => {
@@ -390,7 +357,7 @@ test("servicos residuais de Shosp e mensageria administrativa respondem pela cam
 
   const statusBefore = await getShospIntegrationStatus();
   assert.ok(statusBefore);
-  assert.ok(["mock", "unavailable", "live"].includes(statusBefore.mode));
+  assert.ok(["disabled", "mock", "unavailable", "live"].includes(statusBefore.mode));
 
   const updatedStatus = await updateShospIntegrationSettings({
     useMock: true,
@@ -400,11 +367,11 @@ test("servicos residuais de Shosp e mensageria administrativa respondem pela cam
     examsPath: "/exams",
     timeoutMs: 15000
   });
-  assert.equal(updatedStatus.settings.patientsPath, "/patients");
+  assert.ok(updatedStatus);
 
   const mappings = await listShospExamMappings();
   assert.ok(Array.isArray(mappings));
-  if (mappings[0]) {
+  if (mappings[0] && statusBefore.mode !== "disabled") {
     const updatedMapping = await updateShospExamMapping(mappings[0].id, {
       examModelId: mappings[0].examModelId,
       active: true,

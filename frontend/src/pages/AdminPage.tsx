@@ -20,6 +20,7 @@ import type {
 type AdminTab = "usuarios" | "cadastros" | "exames" | "mensageria" | "integracoes";
 type IntegrationSubTab = "visao" | "mapeamentos";
 type PatientCleanupPreset = "today" | "last_7_days" | "last_30_days" | "all" | "custom";
+const SHOSP_PRODUCT_VISIBLE = false;
 
 const EMPTY_ADMIN_PANEL: AdminPanelData = {
   users: [],
@@ -191,6 +192,12 @@ export function AdminPage() {
   }, []);
 
   async function refreshShospIntegrationData() {
+    if (!SHOSP_PRODUCT_VISIBLE) {
+      setShospStatus(null);
+      setShospMappings([]);
+      return { statusResponse: null, mappingsResponse: { mappings: [] } };
+    }
+
     const [statusResult, mappingsResult] = await Promise.allSettled([
       api.getShospIntegrationStatus(),
       api.getShospExamMappings()
@@ -223,16 +230,20 @@ export function AdminPage() {
   async function loadAdminData() {
     setLoading(true);
     try {
-      const [adminResult, shospStatusResult, shospMappingsResult] = await Promise.allSettled([
-        api.getAdminPanel(),
-        api.getShospIntegrationStatus(),
-        api.getShospExamMappings()
-      ]);
+      const adminResult = await api.getAdminPanel();
+      let shospStatusResult: PromiseSettledResult<ShospIntegrationStatus> = { status: "rejected", reason: new Error("hidden") };
+      let shospMappingsResult: PromiseSettledResult<{ mappings: ShospExamMapping[] }> = { status: "rejected", reason: new Error("hidden") };
 
-      const nextAdminData = adminResult.status === "fulfilled" ? adminResult.value : EMPTY_ADMIN_PANEL;
-      setAdminData(nextAdminData);
+      if (SHOSP_PRODUCT_VISIBLE) {
+        [shospStatusResult, shospMappingsResult] = await Promise.allSettled([
+          api.getShospIntegrationStatus(),
+          api.getShospExamMappings()
+        ]);
+      }
 
-      if (shospStatusResult.status === "fulfilled") {
+      setAdminData(adminResult);
+
+      if (SHOSP_PRODUCT_VISIBLE && shospStatusResult.status === "fulfilled") {
         const shospResponse = shospStatusResult.value;
         setShospStatus(shospResponse);
         setShospSettingsForm({
@@ -252,17 +263,10 @@ export function AdminPage() {
         setShospStatus(null);
       }
 
-      if (shospMappingsResult.status === "fulfilled") {
+      if (SHOSP_PRODUCT_VISIBLE && shospMappingsResult.status === "fulfilled") {
         setShospMappings(shospMappingsResult.value.mappings);
       } else {
         setShospMappings([]);
-      }
-
-      if (adminResult.status !== "fulfilled") {
-        console.error("[admin-page] Falha ao carregar /api/admin.", adminResult.reason);
-        setFeedback("A area administrativa foi carregada em modo reduzido porque parte dos dados principais nao respondeu.");
-      } else if (shospStatusResult.status !== "fulfilled" || shospMappingsResult.status !== "fulfilled") {
-        setFeedback("A area administrativa foi carregada, mas a integracao com o Shosp ainda nao respondeu neste ambiente.");
       }
     } catch (error) {
       setAdminData(EMPTY_ADMIN_PANEL);
@@ -970,13 +974,15 @@ export function AdminPage() {
           actionLabel="Abrir cadastros"
           onAction={() => setActiveTab("cadastros")}
         />
-        <QuickActionCard
-          icon="SH"
-          title="Integracao Shosp"
-          description="Acompanhe o modo mock, revise logs e dispare sincronizacoes quando precisar."
-          actionLabel="Abrir integracoes"
-          onAction={() => setActiveTab("integracoes")}
-        />
+        {SHOSP_PRODUCT_VISIBLE ? (
+          <QuickActionCard
+            icon="SH"
+            title="Integracao Shosp"
+            description="Acompanhe o modo mock, revise logs e dispare sincronizacoes quando precisar."
+            actionLabel="Abrir integracoes"
+            onAction={() => setActiveTab("integracoes")}
+          />
+        ) : null}
       </section>
 
       <div className="patient-tabs-bar admin-tabs-bar" role="tablist" aria-label="Abas da area administrativa">
@@ -1020,16 +1026,18 @@ export function AdminPage() {
           <span>Mensageria</span>
           <span className="patient-tab-count">{adminData.messageTemplates.length + adminData.messageDeliveryLogs.length}</span>
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "integracoes"}
-          className={`patient-tab-button ${activeTab === "integracoes" ? "active" : ""}`}
-          onClick={() => setActiveTab("integracoes")}
-        >
-          <span>Integracoes</span>
-          <span className="patient-tab-count">{shospStatus?.logs.length || 0}</span>
-        </button>
+        {SHOSP_PRODUCT_VISIBLE ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "integracoes"}
+            className={`patient-tab-button ${activeTab === "integracoes" ? "active" : ""}`}
+            onClick={() => setActiveTab("integracoes")}
+          >
+            <span>Integracoes</span>
+            <span className="patient-tab-count">{shospStatus?.logs.length || 0}</span>
+          </button>
+        ) : null}
       </div>
 
       {activeTab === "usuarios" ? (
@@ -1859,7 +1867,7 @@ export function AdminPage() {
       </div>
       ) : null}
 
-      {activeTab === "integracoes" ? (
+      {SHOSP_PRODUCT_VISIBLE && activeTab === "integracoes" ? (
       <div className="admin-layout integration-layout">
         {activeIntegrationTab === "visao" ? (
         <article className="panel-card stack-form">

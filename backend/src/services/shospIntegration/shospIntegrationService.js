@@ -17,6 +17,10 @@ const SHOSP_SOURCE = "shosp";
 const SHOSP_REMINDER_CACHE_TTL_MS = 5 * 60 * 1000;
 const shospFutureScheduleCache = new Map();
 
+function isShospDisabled() {
+  return !SHOSP_CONFIG.enabled;
+}
+
 function isSqliteMode() {
   return getConfiguredDatabaseKind() === "sqlite";
 }
@@ -1072,6 +1076,9 @@ async function runScopedSync({ scope, syncKey, fetcher, processor, incremental =
 }
 
 export async function getShospIntegrationStatus() {
+  if (isShospDisabled()) {
+    return buildUnavailableShospStatus("Shosp integration disabled");
+  }
   try {
     const runtimeConfig = getEffectiveShospRuntimeConfig();
     const configured = Boolean(
@@ -1131,6 +1138,9 @@ export async function getShospIntegrationStatus() {
 }
 
 export function listShospExamMappings() {
+  if (isShospDisabled()) {
+    return [];
+  }
   try {
     if (isSqliteMode()) {
       return db.prepare(`
@@ -1180,6 +1190,9 @@ export function listShospExamMappings() {
 }
 
 export async function updateShospExamMapping(mappingId, input) {
+  if (isShospDisabled()) {
+    return null;
+  }
   if (isSqliteMode()) {
     const current = db.prepare(`
     SELECT id
@@ -1257,6 +1270,9 @@ export async function updateShospExamMapping(mappingId, input) {
 }
 
 export async function updateShospIntegrationSettings(input) {
+  if (isShospDisabled()) {
+    return buildUnavailableShospStatus("Shosp integration disabled");
+  }
   if (isSqliteMode()) {
     const current = db.prepare(`
     SELECT id
@@ -1355,6 +1371,18 @@ export async function updateShospIntegrationSettings(input) {
 }
 
 export async function testShospConnection() {
+  if (isShospDisabled()) {
+    return {
+      ok: false,
+      mode: "disabled",
+      simulated: true,
+      message: "Shosp integration disabled",
+      checkedAt: todayIso(),
+      details: {
+        source: "disabled"
+      }
+    };
+  }
   const now = todayIso();
   const status = await getShospIntegrationStatus();
   const runtimeConfig = getEffectiveShospRuntimeConfig();
@@ -1411,6 +1439,18 @@ export async function testShospConnection() {
 }
 
 export async function testShospLiveConnection() {
+  if (isShospDisabled()) {
+    return {
+      ok: false,
+      mode: "disabled",
+      simulated: true,
+      message: "Shosp integration disabled",
+      checkedAt: todayIso(),
+      details: {
+        source: "disabled"
+      }
+    };
+  }
   const now = todayIso();
   const runtimeConfig = getEffectiveShospRuntimeConfig();
 
@@ -1448,6 +1488,19 @@ export async function testShospLiveConnection() {
 }
 
 export async function syncShospPatients({ incremental = true } = {}) {
+  if (isShospDisabled()) {
+    return {
+      ok: false,
+      scope: "patients",
+      mode: "disabled",
+      incremental,
+      recordsReceived: 0,
+      recordsProcessed: 0,
+      recordsCreated: 0,
+      recordsUpdated: 0,
+      errorMessage: "Shosp integration disabled"
+    };
+  }
   return runScopedSync({
     scope: "patients",
     syncKey: "patients",
@@ -1458,6 +1511,19 @@ export async function syncShospPatients({ incremental = true } = {}) {
 }
 
 export async function syncShospExamsAndAttendances({ incremental = true } = {}) {
+  if (isShospDisabled()) {
+    return {
+      ok: false,
+      scope: "attendances",
+      mode: "disabled",
+      incremental,
+      recordsReceived: 0,
+      recordsProcessed: 0,
+      recordsCreated: 0,
+      recordsUpdated: 0,
+      errorMessage: "Shosp integration disabled"
+    };
+  }
   return runScopedSync({
     scope: "attendances",
     syncKey: "attendances",
@@ -1468,6 +1534,15 @@ export async function syncShospExamsAndAttendances({ incremental = true } = {}) 
 }
 
 export async function runShospIncrementalSync({ incremental = true } = {}) {
+  if (isShospDisabled()) {
+    return {
+      ok: false,
+      mode: "disabled",
+      patients: null,
+      attendances: null,
+      errorMessage: "Shosp integration disabled"
+    };
+  }
   const patients = await syncShospPatients({ incremental });
   const attendances = await syncShospExamsAndAttendances({ incremental });
 
@@ -1480,10 +1555,22 @@ export async function runShospIncrementalSync({ incremental = true } = {}) {
 }
 
 export async function reprocessShospData() {
+  if (isShospDisabled()) {
+    return {
+      ok: false,
+      mode: "disabled",
+      patients: null,
+      attendances: null,
+      errorMessage: "Shosp integration disabled"
+    };
+  }
   return runShospIncrementalSync({ incremental: false });
 }
 
 export async function lookupFutureScheduledExamInShosp({ externalPatientId, examCode } = {}) {
+  if (isShospDisabled()) {
+    return null;
+  }
   if (!externalPatientId || !examCode) {
     return null;
   }
@@ -1525,7 +1612,9 @@ export function resetShospReminderLookupCache() {
 export function clearShospSynchronizationCache() {
   const clearedReminderEntries = shospFutureScheduleCache.size;
   shospFutureScheduleCache.clear();
-  resetShospApiRuntimeMetrics();
+  if (!isShospDisabled()) {
+    resetShospApiRuntimeMetrics();
+  }
 
   return {
     ok: true,

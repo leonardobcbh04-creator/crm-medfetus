@@ -20,6 +20,8 @@ services:
         sync: false
       - key: RUN_BACKGROUND_WORKERS_IN_API
         value: "true"
+      - key: SHOSP_ENABLED
+        value: "false"
       - key: SHOSP_USE_MOCK
         value: "true"
       - key: SHOSP_MOCK_FIXTURES
