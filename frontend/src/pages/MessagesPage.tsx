@@ -21,6 +21,10 @@ function getOperationalPriorityBadgeClass(level?: "alta" | "media" | "baixa") {
   return "badge-priority-green";
 }
 
+function safeText(value: unknown) {
+  return String(value || "");
+}
+
 export function MessagesPage() {
   const [items, setItems] = useState<MessagingItem[]>([]);
   const [drafts, setDrafts] = useState<Record<number, string>>({});
@@ -141,11 +145,11 @@ export function MessagesPage() {
   }
 
   const unitOptions = useMemo(
-    () => [...new Set(items.map((item) => item.clinicUnit).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
+    () => [...new Set(items.map((item) => item.clinicUnit).filter(Boolean))].sort((a, b) => safeText(a).localeCompare(safeText(b), "pt-BR")),
     [items]
   );
   const physicianOptions = useMemo(
-    () => [...new Set(items.map((item) => item.physicianName).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
+    () => [...new Set(items.map((item) => item.physicianName).filter(Boolean))].sort((a, b) => safeText(a).localeCompare(safeText(b), "pt-BR")),
     [items]
   );
 
@@ -155,7 +159,7 @@ export function MessagesPage() {
     return items.filter((item) => {
       const matchesSearch =
         !normalizedSearch ||
-        `${item.patientName} ${item.phone} ${item.nextExam.name}`.toLowerCase().includes(normalizedSearch);
+        `${safeText(item.patientName)} ${safeText(item.phone)} ${safeText(item.nextExam?.name)}`.toLowerCase().includes(normalizedSearch);
 
       if (!matchesSearch) {
         return false;
@@ -239,7 +243,7 @@ export function MessagesPage() {
             <select value={unitFilter} onChange={(event) => setUnitFilter(event.target.value)}>
               <option value="">Todas</option>
               {unitOptions.map((unit) => (
-                <option key={unit} value={unit || ""}>{unit}</option>
+                <option key={safeText(unit)} value={safeText(unit)}>{safeText(unit)}</option>
               ))}
             </select>
           </label>
@@ -249,7 +253,7 @@ export function MessagesPage() {
             <select value={physicianFilter} onChange={(event) => setPhysicianFilter(event.target.value)}>
               <option value="">Todos</option>
               {physicianOptions.map((physician) => (
-                <option key={physician} value={physician || ""}>{physician}</option>
+                <option key={safeText(physician)} value={safeText(physician)}>{safeText(physician)}</option>
               ))}
             </select>
           </label>

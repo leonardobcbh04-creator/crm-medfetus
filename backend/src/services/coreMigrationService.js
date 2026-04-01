@@ -503,11 +503,14 @@ function sortPatientsByPriority(patients) {
       return left.priorityScore - right.priorityScore;
     }
 
-    if (left.nextExam.date && right.nextExam.date) {
-      return left.nextExam.date.localeCompare(right.nextExam.date);
+    const leftNextExamDate = String(left?.nextExam?.date || "");
+    const rightNextExamDate = String(right?.nextExam?.date || "");
+
+    if (leftNextExamDate && rightNextExamDate) {
+      return leftNextExamDate.localeCompare(rightNextExamDate);
     }
 
-    return left.name.localeCompare(right.name, "pt-BR");
+    return String(left?.name || "").localeCompare(String(right?.name || ""), "pt-BR");
   });
 }
 
@@ -612,6 +615,10 @@ function buildDashboardBuckets(filters) {
 
 function shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters = null) {
   if (isMessagingBlockedByGestationalBase(patient) || !nextExamRow) {
+    return false;
+  }
+
+  if (patient.stage === "agendada" || nextExamRow.status === "agendado") {
     return false;
   }
 
@@ -1798,11 +1805,12 @@ export async function updateReminderStatusCore(patientId, examPatientId, action)
       updatedAt: now
     });
   } else if (normalizedAction === "scheduled") {
+    const actorUserId = await resolveActorUserId(null);
     await updatePatientExamRecord(patientId, examPatientId, {
       scheduledDate: exam.scheduledDate ?? now,
-      scheduledTime: exam.scheduledTime ?? null,
+      scheduledTime: exam.scheduledTime ?? "09:00",
       schedulingNotes: exam.schedulingNotes ?? null,
-      scheduledByUserId: exam.scheduledByUserId ?? 1,
+      scheduledByUserId: exam.scheduledByUserId ?? actorUserId,
       lastContactedAt: exam.lastContactedAt ?? null,
       reminderSnoozedUntil: exam.reminderSnoozedUntil ?? null,
       completedDate: exam.completedDate ?? null,
@@ -1851,7 +1859,7 @@ export async function getMessagingOverviewCore() {
 
   return sortPatientsByPriority(
     patients
-      .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
+      .filter((patient) => !isMessagingBlockedByGestationalBase(patient) && patient.stage !== "agendada")
       .map((patient) => {
         const nextPendingExam = findOperationalExamRow(patientExamsMap.get(patient.id) ?? [], patient);
         const latestMessage = latestMessagesMap.get(patient.id) ?? null;

@@ -755,11 +755,14 @@ function sortPatientsByPriority(patients) {
       return left.priorityScore - right.priorityScore;
     }
 
-    if (left.nextExam.date && right.nextExam.date) {
-      return left.nextExam.date.localeCompare(right.nextExam.date);
+    const leftNextExamDate = String(left?.nextExam?.date || "");
+    const rightNextExamDate = String(right?.nextExam?.date || "");
+
+    if (leftNextExamDate && rightNextExamDate) {
+      return leftNextExamDate.localeCompare(rightNextExamDate);
     }
 
-    return left.name.localeCompare(right.name, "pt-BR");
+    return String(left?.name || "").localeCompare(String(right?.name || ""), "pt-BR");
   });
 }
 
@@ -1227,7 +1230,7 @@ export function getMessagingOverview() {
 
   return sortPatientsByPriority(
     patients
-      .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
+      .filter((patient) => !isMessagingBlockedByGestationalBase(patient) && patient.stage !== "agendada")
       .map((patient) => {
       const nextPendingExam = findOperationalExamRow(patientExamsMap.get(patient.id) ?? [], patient);
       const latestMessage = latestMessages.get(patient.id) ?? null;
@@ -1287,6 +1290,10 @@ function normalizeReminderFilters(input = {}) {
 
 function shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters = null) {
   if (isMessagingBlockedByGestationalBase(patient) || !nextExamRow) {
+    return false;
+  }
+
+  if (patient.stage === "agendada" || nextExamRow.status === "agendado") {
     return false;
   }
 
@@ -1588,6 +1595,7 @@ export function updateReminderStatus(patientId, examPatientId, action) {
         SET
           status = 'agendado',
           scheduled_date = COALESCE(scheduled_date, ?),
+          scheduled_time = COALESCE(scheduled_time, '09:00'),
           scheduled_by_user_id = COALESCE(scheduled_by_user_id, 1),
           updated_at = ?
         WHERE id = ? AND patient_id = ?
