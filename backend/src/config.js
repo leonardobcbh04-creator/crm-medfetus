@@ -123,6 +123,7 @@ export const DATABASE_KIND = resolveDatabaseKind(DATABASE_URL);
 export const DB_FILE = resolveDatabaseFile();
 export const CORS_ALLOWED_ORIGINS = readAllowedOriginsEnv();
 export const RUN_BACKGROUND_WORKERS_IN_API = readBooleanEnv(process.env.RUN_BACKGROUND_WORKERS_IN_API, false);
+export const SHOSP_ENABLED = readBooleanEnv(process.env.SHOSP_ENABLED, false);
 
 export const MESSAGING_CONFIG = {
   provider: "manual_stub",
@@ -135,6 +136,7 @@ export const MESSAGING_CONFIG = {
 };
 
 export const SHOSP_CONFIG = {
+  enabled: SHOSP_ENABLED,
   mode: readBooleanEnv(process.env.SHOSP_USE_MOCK, true) ? "mock" : "live",
   baseUrl: readStringEnv(process.env.SHOSP_API_URL, process.env.SHOSP_API_BASE_URL),
   apiToken: readStringEnv(process.env.SHOSP_API_TOKEN),
@@ -146,7 +148,7 @@ export const SHOSP_CONFIG = {
   patientsPath: process.env.SHOSP_PATIENTS_PATH || "/patients",
   attendancesPath: process.env.SHOSP_ATTENDANCES_PATH || "/attendances",
   examsPath: process.env.SHOSP_EXAMS_PATH || "/exams",
-  syncIntervalMs: readNumberEnv(process.env.SHOSP_SYNC_INTERVAL, 0),
+  syncIntervalMs: SHOSP_ENABLED ? readNumberEnv(process.env.SHOSP_SYNC_INTERVAL, 0) : 0,
   retryAttempts: readNumberEnv(process.env.SHOSP_RETRY_ATTEMPTS, 3),
   retryDelayMs: readNumberEnv(process.env.SHOSP_RETRY_DELAY_MS, 1500)
 };

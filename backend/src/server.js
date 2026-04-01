@@ -1,6 +1,6 @@
 import cors from "cors";
 import express from "express";
-import { CORS_ALLOWED_ORIGINS, DATABASE_KIND, PORT, RUN_BACKGROUND_WORKERS_IN_API } from "./config.js";
+import { CORS_ALLOWED_ORIGINS, DATABASE_KIND, PORT, RUN_BACKGROUND_WORKERS_IN_API, SHOSP_ENABLED } from "./config.js";
 import { getDatabaseRuntime } from "./database/runtime.js";
 import { initializeDatabase } from "./db.js";
 import { requireAuth } from "./middleware/requireAuth.js";
@@ -60,7 +60,9 @@ app.get("/api/health", (_request, response) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/catalogs", requireAuth, catalogRoutes);
 app.use("/api/admin", requireAuth, requireAdmin, adminRoutes);
-app.use("/api/admin/integrations/shosp", requireAuth, requireAdmin, shospRoutes);
+if (SHOSP_ENABLED) {
+  app.use("/api/admin/integrations/shosp", requireAuth, requireAdmin, shospRoutes);
+}
 app.use("/api/dashboard", requireAuth, dashboardRoutes);
 app.use("/api/kanban", requireAuth, kanbanRoutes);
 app.use("/api/patients", requireAuth, patientRoutes);
@@ -69,8 +71,11 @@ app.use("/api/exam-configs", requireAuth, examRoutes);
 app.use("/api/messages", requireAuth, messageRoutes);
 app.use("/api/reminders", requireAuth, reminderRoutes);
 
-if (RUN_BACKGROUND_WORKERS_IN_API) {
+if (RUN_BACKGROUND_WORKERS_IN_API && SHOSP_ENABLED) {
   startShospSyncWorker();
+}
+
+if (RUN_BACKGROUND_WORKERS_IN_API) {
   startLogRetentionWorker();
 }
 
@@ -79,8 +84,10 @@ app.listen(PORT, "0.0.0.0", () => {
 });
 
 function shutdown() {
-  if (RUN_BACKGROUND_WORKERS_IN_API) {
+  if (RUN_BACKGROUND_WORKERS_IN_API && SHOSP_ENABLED) {
     stopShospSyncWorker();
+  }
+  if (RUN_BACKGROUND_WORKERS_IN_API) {
     stopLogRetentionWorker();
   }
   process.exit(0);

@@ -184,9 +184,6 @@ export function ClientsPage() {
                       <div className="clients-primary-cell">
                         <strong>{patient.name}</strong>
                         <div className="clients-badge-row">
-                          {patient.importedFromShosp ? (
-                            <span className="badge badge-soft badge-priority-blue clients-source-badge">Shosp</span>
-                          ) : null}
                           {patient.gestationalBaseIsEstimated ? (
                             <span className="badge badge-soft badge-priority-blue clients-status-badge">Base estimada</span>
                           ) : null}
