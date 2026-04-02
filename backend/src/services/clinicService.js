@@ -1245,7 +1245,7 @@ export function getMessagingOverview() {
       .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
       .map((patient) => {
         const nextPendingExam = findOperationalExamRow(patientExamsMap.get(patient.id) ?? [], patient);
-        if (isOperationallyScheduled(patient, nextPendingExam)) {
+        if (!shouldPatientEnterReminderQueue(patient, nextPendingExam, todayIso())) {
           return null;
         }
         const latestMessage = latestMessages.get(patient.id) ?? null;
@@ -1472,7 +1472,7 @@ export async function getRemindersCenterData(inputFilters = {}) {
 
   const reminderCandidates = sortPatientsByPriority(
     patients.filter((patient) => {
-      const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.status === "pendente");
+      const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.code === patient.nextExam.code);
       return shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters);
     })
   );
