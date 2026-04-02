@@ -12,7 +12,8 @@
     "seed:postgres-core": "node src/database/postgres/seedCoreData.js",
     "seed": "node src/resetDatabase.js",
     "clear:patients": "node src/clearPatientData.js",
-    "test": "node scripts/run-tests.mjs"
+    "test": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-core-postgres.mjs",
+    "test:legacy-sqlite": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

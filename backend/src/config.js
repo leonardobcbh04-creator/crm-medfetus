@@ -82,38 +82,15 @@ function readAllowedOriginsEnv() {
 }
 
 function resolveDatabaseKind(configuredValue) {
-  if (!configuredValue) {
-    return "sqlite";
-  }
-
   if (/^postgres(ql)?:\/\//i.test(configuredValue)) {
     return "postgres";
   }
 
-  if (configuredValue.startsWith("file:")) {
-    return "sqlite";
-  }
-
-  return "sqlite";
+  throw new Error("DATABASE_URL deve apontar para um banco PostgreSQL.");
 }
 
 function resolveDatabaseFile() {
-  const configuredValue = readStringEnv(process.env.DATABASE_URL);
-  if (resolveDatabaseKind(configuredValue) === "postgres") {
-    return "";
-  }
-
-  if (!configuredValue) {
-    return path.resolve(currentDirectory, "..", "data", "clinic.sqlite");
-  }
-
-  if (configuredValue.startsWith("file:")) {
-    return fileURLToPath(configuredValue);
-  }
-
-  return path.isAbsolute(configuredValue)
-    ? configuredValue
-    : path.resolve(currentDirectory, "..", configuredValue);
+  return "";
 }
 
 export const NODE_ENV = readStringEnv(process.env.NODE_ENV) || "development";

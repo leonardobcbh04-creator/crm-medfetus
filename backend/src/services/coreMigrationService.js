@@ -1,5 +1,5 @@
 import { KANBAN_STAGES } from "../config.js";
-import { getConfiguredDatabaseKind, getDatabaseRuntime } from "../database/runtime.js";
+import { getDatabaseRuntime } from "../database/runtime.js";
 import {
   createUserSession,
   getActiveSessionByTokenHash,
@@ -36,53 +36,7 @@ import {
   updateUserPasswordHash
 } from "../database/repositories/coreRepository.js";
 import { analyzePatientExamTimeline, calculateExamScheduleDates, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
-import {
-  authenticate as authenticateLegacy,
-  createMessage as createMessageLegacy,
-  createPatient as createPatientLegacy,
-  createAdminUser,
-  createClinicUnit,
-  createExamConfig,
-  createKanbanColumn,
-  createPhysician,
-  deletePatient as deletePatientLegacy,
-  deletePatientsByCreatedRange as deletePatientsByCreatedRangeLegacy,
-  deleteAdminUser,
-  deleteClinicUnit,
-  deleteExamConfig,
-  deleteKanbanColumn,
-  deletePhysician,
-  confirmGestationalBaseEstimate as confirmGestationalBaseEstimateLegacy,
-  discardGestationalBaseEstimate as discardGestationalBaseEstimateLegacy,
-  editGestationalBaseManually as editGestationalBaseManuallyLegacy,
-  getAuthenticatedUserByToken as getAuthenticatedUserByTokenLegacy,
-  getAdminPanelData as getAdminPanelDataLegacy,
-  getDashboardData as getDashboardDataLegacy,
-  getKanbanData as getKanbanDataLegacy,
-  getMessagingOverview as getMessagingOverviewLegacy,
-  getPatientDetails as getPatientDetailsLegacy,
-  getRemindersCenterData as getRemindersCenterDataLegacy,
-  getRemindersCount as getRemindersCountLegacy,
-  getReportsData as getReportsDataLegacy,
-  listGestationalBaseReviews as listGestationalBaseReviewsLegacy,
-  listPatients as listPatientsLegacy,
-  listExamConfigs as listExamConfigsLegacy,
-  listExamProtocolPresets,
-  getPatientFormCatalogs as getPatientFormCatalogsLegacy,
-  movePatientStage as movePatientStageLegacy,
-  updateAdminUser,
-  updateClinicUnit,
-  updateExamConfig,
-  updateExamInferenceRule,
-  updateKanbanColumn,
-  updateMessageTemplate,
-  updatePatient as updatePatientLegacy,
-  updatePatientExamStatus as updatePatientExamStatusLegacy,
-  updatePhysician,
-  updateMessageStatus as updateMessageStatusLegacy,
-  updateReminderStatus as updateReminderStatusLegacy,
-  applyExamProtocolPreset
-} from "./clinicService.js";
+import { listExamProtocolPresets } from "./clinicService.js";
 import {
   buildSessionExpiry,
   createSessionToken,
@@ -97,9 +51,6 @@ import { getMessagingRuntimeConfig } from "./messaging/messagingService.js";
 import { lookupFutureScheduledExamInShosp } from "./shospIntegration/shospIntegrationService.js";
 import { recordAuditEvent } from "./auditService.js";
 
-function isSqliteMode() {
-  return getConfiguredDatabaseKind() === "sqlite";
-}
 
 async function resolveActorUserId(preferredUserId = null) {
   const normalizedPreferredId = Number(preferredUserId);
@@ -871,9 +822,6 @@ function buildExamScheduleRows(patientId, automaticExamModels, snapshot, preserv
 }
 
 export async function authenticateCore(email, password) {
-  if (isSqliteMode()) {
-    return authenticateLegacy(email, password);
-  }
 
   const user = await getActiveUserByEmail(String(email || "").trim().toLowerCase());
   if (!user || !verifyPassword(password, user.password)) {
@@ -900,9 +848,6 @@ export async function authenticateCore(email, password) {
 }
 
 export async function getAuthenticatedUserByTokenCore(token) {
-  if (isSqliteMode()) {
-    return getAuthenticatedUserByTokenLegacy(token);
-  }
 
   const now = new Date().toISOString();
   const session = await getActiveSessionByTokenHash(hashSessionToken(token), now);
@@ -927,9 +872,6 @@ export async function getAuthenticatedUserByTokenCore(token) {
 }
 
 export async function listPatientsCore() {
-  if (isSqliteMode()) {
-    return listPatientsLegacy();
-  }
 
   const [patients, patientExamRows, latestMessageRows] = await Promise.all([
     listPatientsBaseRows(),
@@ -943,9 +885,6 @@ export async function listPatientsCore() {
 }
 
 export async function getKanbanDataCore() {
-  if (isSqliteMode()) {
-    return getKanbanDataLegacy();
-  }
 
   const [columns, patients] = await Promise.all([
     listKanbanColumnsRows(),
@@ -960,9 +899,6 @@ export async function getKanbanDataCore() {
 }
 
 export async function getDashboardDataCore(inputFilters = {}) {
-  if (isSqliteMode()) {
-    return getDashboardDataLegacy(inputFilters);
-  }
 
   const filters = normalizeDashboardFilters(inputFilters);
   const [allPatients, patientExamRows, messageRows, movementRows] = await Promise.all([
@@ -1075,9 +1011,6 @@ export async function getDashboardDataCore(inputFilters = {}) {
 }
 
 export async function getReportsDataCore(inputFilters = {}) {
-  if (isSqliteMode()) {
-    return getReportsDataLegacy(inputFilters);
-  }
 
   const filters = normalizeDashboardFilters(inputFilters);
   const [allPatients, patientExamRows, messageRows, movementRows, columns] = await Promise.all([
@@ -1249,9 +1182,6 @@ export async function getReportsDataCore(inputFilters = {}) {
 }
 
 export async function getAdminPanelDataCore() {
-  if (isSqliteMode()) {
-    return getAdminPanelDataLegacy();
-  }
 
   const [
     usersResult,
@@ -1324,9 +1254,6 @@ export async function getAdminPanelDataCore() {
 }
 
 export async function getPatientDetailsCore(patientId) {
-  if (isSqliteMode()) {
-    return getPatientDetailsLegacy(patientId);
-  }
 
   const patient = (await listPatientsCore()).find((item) => item.id === patientId);
   if (!patient) {
@@ -1364,9 +1291,6 @@ export async function getPatientDetailsCore(patientId) {
 }
 
 export async function createPatientCore(input) {
-  if (isSqliteMode()) {
-    return createPatientLegacy(input);
-  }
 
   const automaticExamModels = await listAutomaticExamModels();
   validatePatientInput(input, automaticExamModels.map((exam) => exam.code));
@@ -1429,9 +1353,6 @@ export async function createPatientCore(input) {
 }
 
 export async function updatePatientCore(patientId, input) {
-  if (isSqliteMode()) {
-    return updatePatientLegacy(patientId, input);
-  }
 
   const automaticExamModels = await listAutomaticExamModels();
   validatePatientInput(input, automaticExamModels.map((exam) => exam.code));
@@ -1484,9 +1405,6 @@ export async function updatePatientCore(patientId, input) {
 }
 
 export async function updatePatientExamStatusCore(patientId, examId, input) {
-  if (isSqliteMode()) {
-    return updatePatientExamStatusLegacy(patientId, examId, input);
-  }
 
   const exam = await getPatientExamRow(patientId, examId);
   if (!exam) {
@@ -1558,9 +1476,6 @@ export async function updatePatientExamStatusCore(patientId, examId, input) {
 }
 
 export async function movePatientStageCore(patientId, nextStage) {
-  if (isSqliteMode()) {
-    return movePatientStageLegacy(patientId, nextStage);
-  }
 
   const validStageIds = new Set((await listKanbanColumnsRows()).map((column) => column.id));
   if (!validStageIds.has(nextStage)) {
@@ -1641,9 +1556,6 @@ async function registerAutomaticShospScheduleDetectionCore({ patient, examPatien
 }
 
 export async function getRemindersCenterDataCore(inputFilters = {}) {
-  if (isSqliteMode()) {
-    return getRemindersCenterDataLegacy(inputFilters);
-  }
 
   const filters = normalizeReminderFilters(inputFilters);
   const [patients, patientExamRows] = await Promise.all([
@@ -1762,9 +1674,6 @@ export async function getRemindersCenterDataCore(inputFilters = {}) {
 }
 
 export async function getRemindersCountCore() {
-  if (isSqliteMode()) {
-    return getRemindersCountLegacy();
-  }
 
   return {
     count: (await getRemindersCenterDataCore()).items.length
@@ -1772,9 +1681,6 @@ export async function getRemindersCountCore() {
 }
 
 export async function updateReminderStatusCore(patientId, examPatientId, action) {
-  if (isSqliteMode()) {
-    return updateReminderStatusLegacy(patientId, examPatientId, action);
-  }
 
   const exam = await getPatientExamRow(patientId, examPatientId);
   if (!exam) {
@@ -1863,9 +1769,6 @@ export async function updateReminderStatusCore(patientId, examPatientId, action)
 }
 
 export async function getMessagingOverviewCore() {
-  if (isSqliteMode()) {
-    return getMessagingOverviewLegacy();
-  }
 
   const [patients, patientExamRows, latestMessages, messageRows] = await Promise.all([
     listPatientsCore(),
@@ -1934,9 +1837,6 @@ export async function getMessagingOverviewCore() {
 }
 
 export async function createMessageCore(input) {
-  if (isSqliteMode()) {
-    return createMessageLegacy(input);
-  }
 
   const now = todayIso();
   const actorUserId = await resolveActorUserId(input.actorUserId);
@@ -2000,9 +1900,6 @@ export async function createMessageCore(input) {
 }
 
 export async function updateMessageStatusCore(messageId, input) {
-  if (isSqliteMode()) {
-    return updateMessageStatusLegacy(messageId, input);
-  }
 
   const now = todayIso();
   const currentMessage = await getMessageRow(messageId);
@@ -2037,9 +1934,6 @@ export async function updateMessageStatusCore(messageId, input) {
 }
 
 export async function getPatientFormCatalogsCore() {
-  if (isSqliteMode()) {
-    return getPatientFormCatalogsLegacy();
-  }
 
   const [units, physicians] = await Promise.all([listClinicUnitsRows(), listPhysiciansRows()]);
   return {
@@ -2049,12 +1943,6 @@ export async function getPatientFormCatalogsCore() {
 }
 
 export async function listExamConfigsCore() {
-  if (isSqliteMode()) {
-    return {
-      examConfigs: listExamConfigsLegacy(),
-      presets: listExamProtocolPresets()
-    };
-  }
 
   const examConfigs = (await listExamConfigRows()).map((item) => ({
     ...item,
@@ -2221,9 +2109,6 @@ export async function discardGestationalBaseEstimateCore(patientId, actorUserId 
 }
 
 export async function deletePatientCore(patientId) {
-  if (isSqliteMode()) {
-    return deletePatientLegacy(patientId);
-  }
 
   const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
   if (!patient) {
@@ -2243,9 +2128,6 @@ export async function deletePatientCore(patientId) {
 }
 
 export async function deletePatientsByCreatedRangeCore(input = {}) {
-  if (isSqliteMode()) {
-    return deletePatientsByCreatedRangeLegacy(input);
-  }
 
   const range = resolvePatientCleanupRange(input);
   const actorUserId = input.actorUserId ? Number(input.actorUserId) : null;
@@ -2468,9 +2350,6 @@ async function createAutomaticExamForEligiblePatientsCore(examConfig, createdAt 
 }
 
 export async function createAdminUserCore(input) {
-  if (isSqliteMode()) {
-    return createAdminUser(input);
-  }
 
   const name = String(input.name || "").trim();
   const email = String(input.email || "").trim().toLowerCase();
@@ -2503,9 +2382,6 @@ export async function createAdminUserCore(input) {
 }
 
 export async function updateAdminUserCore(userId, input) {
-  if (isSqliteMode()) {
-    return updateAdminUser(userId, input);
-  }
 
   const currentUser = (await listAdminUsersRows()).find((user) => user.id === userId);
   if (!currentUser) {
@@ -2544,9 +2420,6 @@ export async function updateAdminUserCore(userId, input) {
 }
 
 export async function deleteAdminUserCore(userId) {
-  if (isSqliteMode()) {
-    return deleteAdminUser(userId);
-  }
 
   const runtime = await getDatabaseRuntime();
   const currentUserResult = await runtime.query("SELECT id, role FROM users WHERE id = $1 LIMIT 1", [userId]);
@@ -2578,9 +2451,6 @@ export async function deleteAdminUserCore(userId) {
 }
 
 export async function createClinicUnitCore(input) {
-  if (isSqliteMode()) {
-    return createClinicUnit(input);
-  }
 
   const name = String(input.name || "").trim();
   const active = input.active !== false;
@@ -2604,9 +2474,6 @@ export async function createClinicUnitCore(input) {
 }
 
 export async function updateClinicUnitCore(unitId, input) {
-  if (isSqliteMode()) {
-    return updateClinicUnit(unitId, input);
-  }
 
   const currentUnit = (await listClinicUnitsRows()).find((unit) => unit.id === unitId);
   if (!currentUnit) {
@@ -2635,9 +2502,6 @@ export async function updateClinicUnitCore(unitId, input) {
 }
 
 export async function deleteClinicUnitCore(unitId) {
-  if (isSqliteMode()) {
-    return deleteClinicUnit(unitId);
-  }
 
   const currentUnit = (await listClinicUnitsRows()).find((unit) => unit.id === unitId);
   if (!currentUnit) {
@@ -2656,9 +2520,6 @@ export async function deleteClinicUnitCore(unitId) {
 }
 
 export async function createPhysicianCore(input) {
-  if (isSqliteMode()) {
-    return createPhysician(input);
-  }
 
   const name = String(input.name || "").trim();
   const clinicUnitId = input.clinicUnitId ? Number(input.clinicUnitId) : null;
@@ -2689,9 +2550,6 @@ export async function createPhysicianCore(input) {
 }
 
 export async function updatePhysicianCore(physicianId, input) {
-  if (isSqliteMode()) {
-    return updatePhysician(physicianId, input);
-  }
 
   const currentPhysician = (await listPhysiciansRows()).find((physician) => physician.id === physicianId);
   if (!currentPhysician) {
@@ -2730,9 +2588,6 @@ export async function updatePhysicianCore(physicianId, input) {
 }
 
 export async function deletePhysicianCore(physicianId) {
-  if (isSqliteMode()) {
-    return deletePhysician(physicianId);
-  }
 
   const currentPhysician = (await listPhysiciansRows()).find((physician) => physician.id === physicianId);
   if (!currentPhysician) {
@@ -2750,9 +2605,6 @@ export async function deletePhysicianCore(physicianId) {
 }
 
 export async function createExamConfigCore(input) {
-  if (isSqliteMode()) {
-    return createExamConfig(input);
-  }
 
   const code = normalizeExamCode(input.code || input.name);
   validateExamConfigInput({ ...input, code });
@@ -2829,9 +2681,6 @@ export async function createExamConfigCore(input) {
 }
 
 export async function updateExamConfigCore(id, input) {
-  if (isSqliteMode()) {
-    return updateExamConfig(id, input);
-  }
 
   const currentExam = (await listExamConfigRows()).find((item) => item.id === id);
   if (!currentExam) {
@@ -2873,9 +2722,6 @@ export async function updateExamConfigCore(id, input) {
 }
 
 export async function deleteExamConfigCore(id) {
-  if (isSqliteMode()) {
-    return deleteExamConfig(id);
-  }
 
   const currentExam = (await listExamConfigRows()).find((item) => item.id === id);
   if (!currentExam) {
@@ -2893,9 +2739,6 @@ export async function deleteExamConfigCore(id) {
 }
 
 export async function updateExamInferenceRuleCore(id, input) {
-  if (isSqliteMode()) {
-    return updateExamInferenceRule(id, input);
-  }
 
   validateExamInferenceRuleInput(input);
   const runtime = await getDatabaseRuntime();
@@ -2930,9 +2773,6 @@ export async function updateExamInferenceRuleCore(id, input) {
 }
 
 export async function updateMessageTemplateCore(templateId, input) {
-  if (isSqliteMode()) {
-    return updateMessageTemplate(templateId, input);
-  }
 
   const currentTemplate = (await listMessageTemplateRows()).find((template) => template.id === templateId);
   if (!currentTemplate) {
@@ -2958,9 +2798,6 @@ export async function updateMessageTemplateCore(templateId, input) {
 }
 
 export async function createKanbanColumnCore(input) {
-  if (isSqliteMode()) {
-    return createKanbanColumn(input);
-  }
 
   const title = String(input.title || "").trim();
   if (!title) {
@@ -2993,9 +2830,6 @@ export async function createKanbanColumnCore(input) {
 }
 
 export async function updateKanbanColumnCore(columnId, input) {
-  if (isSqliteMode()) {
-    return updateKanbanColumn(columnId, input);
-  }
 
   const currentColumn = (await listKanbanColumnsRows()).find((column) => String(column.id) === String(columnId));
   if (!currentColumn) {
@@ -3013,9 +2847,6 @@ export async function updateKanbanColumnCore(columnId, input) {
 }
 
 export async function deleteKanbanColumnCore(columnId) {
-  if (isSqliteMode()) {
-    return deleteKanbanColumn(columnId);
-  }
 
   const currentColumn = (await listKanbanColumnsRows()).find((column) => String(column.id) === String(columnId));
   if (!currentColumn) {
@@ -3036,9 +2867,6 @@ export async function deleteKanbanColumnCore(columnId) {
 }
 
 export async function applyExamProtocolPresetCore(presetId) {
-  if (isSqliteMode()) {
-    return applyExamProtocolPreset(presetId);
-  }
 
   const preset = listExamProtocolPresets().find((item) => item.id === presetId);
   if (!preset) {
