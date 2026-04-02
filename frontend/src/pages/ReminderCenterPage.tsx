@@ -78,8 +78,18 @@ export function ReminderCenterPage() {
     setFeedback("");
 
     try {
-      const response = await api.updateReminder(patientId, examPatientId, action);
-      setData(response);
+      await api.updateReminder(patientId, examPatientId, action);
+      if (action === "scheduled") {
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                items: current.items.filter((item) => !(item.patientId === patientId && item.examPatientId === examPatientId))
+              }
+            : current
+        );
+      }
+      await loadReminders(filters);
       setFeedback(
         action === "contacted"
           ? "Paciente marcada como contatada."

@@ -1172,6 +1172,18 @@ function buildReminderLabel(examRow) {
   return "Dentro da janela ideal";
 }
 
+function isOperationallyScheduled(patient, nextExamRow) {
+  if (patient?.stage === "agendada") {
+    return true;
+  }
+
+  if (!nextExamRow) {
+    return false;
+  }
+
+  return nextExamRow.status === "agendado" || Boolean(nextExamRow.scheduledDate);
+}
+
 function getOperationalMessagePriority(deadlineStatus) {
   if (deadlineStatus === DEADLINE_STATUS.OVERDUE) {
     return { level: "alta", label: "Alta prioridade", score: 0 };
@@ -1230,53 +1242,57 @@ export function getMessagingOverview() {
 
   return sortPatientsByPriority(
     patients
-      .filter((patient) => !isMessagingBlockedByGestationalBase(patient) && patient.stage !== "agendada")
+      .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
       .map((patient) => {
-      const nextPendingExam = findOperationalExamRow(patientExamsMap.get(patient.id) ?? [], patient);
-      const latestMessage = latestMessages.get(patient.id) ?? null;
-      const messagePriority = getOperationalMessagePriority(patient.nextExam.deadlineStatus);
-      const messageType = getOperationalMessageType(patient.nextExam.deadlineStatus);
-      const suggestedMessage = buildOperationalSuggestedMessage(
-        nextPendingExam?.defaultMessage,
-        patient,
-        nextPendingExam,
-        `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com seu acompanhamento?`,
-        patient.nextExam.deadlineStatus
-      );
-      const gestationalMessagingAlert = buildGestationalMessagingAlert(patient);
+        const nextPendingExam = findOperationalExamRow(patientExamsMap.get(patient.id) ?? [], patient);
+        if (isOperationallyScheduled(patient, nextPendingExam)) {
+          return null;
+        }
+        const latestMessage = latestMessages.get(patient.id) ?? null;
+        const messagePriority = getOperationalMessagePriority(patient.nextExam.deadlineStatus);
+        const messageType = getOperationalMessageType(patient.nextExam.deadlineStatus);
+        const suggestedMessage = buildOperationalSuggestedMessage(
+          nextPendingExam?.defaultMessage,
+          patient,
+          nextPendingExam,
+          `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com seu acompanhamento?`,
+          patient.nextExam.deadlineStatus
+        );
+        const gestationalMessagingAlert = buildGestationalMessagingAlert(patient);
 
-      return {
-        patientId: patient.id,
-        patientName: patient.name,
-        phone: patient.phone,
-        physicianName: patient.physicianName,
-        clinicUnit: patient.clinicUnit,
-        stage: patient.stage,
-        gestationalAgeLabel: patient.gestationalAgeLabel,
-        nextExam: patient.nextExam,
-        priorityScore: messagePriority.score,
-        priorityLevel: messagePriority.level,
-        priorityLabel: messagePriority.label,
-        messageType: messageType.type,
-        messageTypeLabel: messageType.label,
-        messageOrigin: messageType.origin,
-        messageOriginLabel: messageType.originLabel,
-        suggestedMessage,
-        reminderLabel: nextPendingExam ? buildReminderLabel(nextPendingExam) : "Sem mensagem pendente",
-        examPatientId: nextPendingExam?.id ?? null,
-        examModelId: nextPendingExam?.examModelId ?? null,
-        whatsappUrl: `https://wa.me/${toWhatsAppPhone(patient.phone)}?text=${encodeURIComponent(suggestedMessage)}`,
-        latestMessage,
-        messageHistory: messageHistoryByPatient.get(patient.id) ?? [],
-        gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
-        gestationalBaseConfidenceLabel: patient.gestationalBaseConfidenceLabel || "Nao avaliada",
-        gestationalBaseIsEstimated: Boolean(patient.gestationalBaseIsEstimated),
-        gestationalReviewRequired: Boolean(patient.gestationalReviewRequired),
-        gestationalBaseExplanation: patient.gestationalBaseExplanation || null,
-        gestationalMessagingAlertLevel: gestationalMessagingAlert.level,
-        gestationalMessagingAlertMessage: gestationalMessagingAlert.message
-      };
-    })
+        return {
+          patientId: patient.id,
+          patientName: patient.name,
+          phone: patient.phone,
+          physicianName: patient.physicianName,
+          clinicUnit: patient.clinicUnit,
+          stage: patient.stage,
+          gestationalAgeLabel: patient.gestationalAgeLabel,
+          nextExam: patient.nextExam,
+          priorityScore: messagePriority.score,
+          priorityLevel: messagePriority.level,
+          priorityLabel: messagePriority.label,
+          messageType: messageType.type,
+          messageTypeLabel: messageType.label,
+          messageOrigin: messageType.origin,
+          messageOriginLabel: messageType.originLabel,
+          suggestedMessage,
+          reminderLabel: nextPendingExam ? buildReminderLabel(nextPendingExam) : "Sem mensagem pendente",
+          examPatientId: nextPendingExam?.id ?? null,
+          examModelId: nextPendingExam?.examModelId ?? null,
+          whatsappUrl: `https://wa.me/${toWhatsAppPhone(patient.phone)}?text=${encodeURIComponent(suggestedMessage)}`,
+          latestMessage,
+          messageHistory: messageHistoryByPatient.get(patient.id) ?? [],
+          gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
+          gestationalBaseConfidenceLabel: patient.gestationalBaseConfidenceLabel || "Nao avaliada",
+          gestationalBaseIsEstimated: Boolean(patient.gestationalBaseIsEstimated),
+          gestationalReviewRequired: Boolean(patient.gestationalReviewRequired),
+          gestationalBaseExplanation: patient.gestationalBaseExplanation || null,
+          gestationalMessagingAlertLevel: gestationalMessagingAlert.level,
+          gestationalMessagingAlertMessage: gestationalMessagingAlert.message
+        };
+      })
+      .filter(Boolean)
   );
 }
 
@@ -1293,7 +1309,7 @@ function shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters = 
     return false;
   }
 
-  if (patient.stage === "agendada" || nextExamRow.status === "agendado") {
+  if (isOperationallyScheduled(patient, nextExamRow)) {
     return false;
   }
 
@@ -1483,50 +1499,53 @@ export async function getRemindersCenterData(inputFilters = {}) {
     };
   }));
 
-  const items = detectionResults.filter((result) => !result.shospSchedule?.scheduledDate).map(({ patient, nextExamRow }) => {
-    const messagePriority = getOperationalMessagePriority(patient.nextExam.deadlineStatus);
-    const messageType = getOperationalMessageType(patient.nextExam.deadlineStatus);
-    const suggestedMessage = buildOperationalSuggestedMessage(
-      nextExamRow?.defaultMessage,
-      patient,
-      nextExamRow,
-      `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com o agendamento do seu exame?`,
-      patient.nextExam.deadlineStatus
-    );
-    const gestationalMessagingAlert = buildGestationalMessagingAlert(patient);
+  const items = detectionResults
+    .filter((result) => !result.shospSchedule?.scheduledDate)
+    .filter(({ patient, nextExamRow }) => !isOperationallyScheduled(patient, nextExamRow))
+    .map(({ patient, nextExamRow }) => {
+      const messagePriority = getOperationalMessagePriority(patient.nextExam.deadlineStatus);
+      const messageType = getOperationalMessageType(patient.nextExam.deadlineStatus);
+      const suggestedMessage = buildOperationalSuggestedMessage(
+        nextExamRow?.defaultMessage,
+        patient,
+        nextExamRow,
+        `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com o agendamento do seu exame?`,
+        patient.nextExam.deadlineStatus
+      );
+      const gestationalMessagingAlert = buildGestationalMessagingAlert(patient);
 
-    return {
-      patientId: patient.id,
-      patientName: patient.name,
-      phone: patient.phone,
-      gestationalAgeLabel: patient.gestationalAgeLabel,
-      physicianName: patient.physicianName || null,
-      clinicUnit: patient.clinicUnit || null,
-      examPatientId: nextExamRow?.id ?? null,
-      examCode: patient.nextExam.code || null,
-      examName: patient.nextExam.name,
-      idealWindowStartDate: nextExamRow?.idealWindowStartDate || null,
-      idealWindowStartDateLabel: nextExamRow?.idealWindowStartDate ? formatDatePtBr(nextExamRow.idealWindowStartDate) : null,
-      urgencyStatus: patient.nextExam.deadlineStatus || "dentro_do_prazo",
-      urgencyLabel: patient.nextExam.deadlineStatusLabel || patient.nextExam.alertLabel,
-      priorityScore: messagePriority.score,
-      priorityLevel: messagePriority.level,
-      priorityLabel: messagePriority.label,
-      messageType: messageType.type,
-      messageTypeLabel: messageType.label,
-      messageOrigin: messageType.origin,
-      messageOriginLabel: messageType.originLabel,
-      suggestedMessage,
-      gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
-      gestationalBaseConfidenceLabel: patient.gestationalBaseConfidenceLabel || "Nao avaliada",
-      gestationalBaseIsEstimated: Boolean(patient.gestationalBaseIsEstimated),
-      gestationalReviewRequired: Boolean(patient.gestationalReviewRequired),
-      gestationalBaseExplanation: patient.gestationalBaseExplanation || null,
-      gestationalMessagingAlertLevel: gestationalMessagingAlert.level,
-      gestationalMessagingAlertMessage: gestationalMessagingAlert.message,
-      whatsappUrl: `https://wa.me/${toWhatsAppPhone(patient.phone)}?text=${encodeURIComponent(suggestedMessage)}`
-    };
-  });
+      return {
+        patientId: patient.id,
+        patientName: patient.name,
+        phone: patient.phone,
+        gestationalAgeLabel: patient.gestationalAgeLabel,
+        physicianName: patient.physicianName || null,
+        clinicUnit: patient.clinicUnit || null,
+        examPatientId: nextExamRow?.id ?? null,
+        examCode: patient.nextExam.code || null,
+        examName: patient.nextExam.name,
+        idealWindowStartDate: nextExamRow?.idealWindowStartDate || null,
+        idealWindowStartDateLabel: nextExamRow?.idealWindowStartDate ? formatDatePtBr(nextExamRow.idealWindowStartDate) : null,
+        urgencyStatus: patient.nextExam.deadlineStatus || "dentro_do_prazo",
+        urgencyLabel: patient.nextExam.deadlineStatusLabel || patient.nextExam.alertLabel,
+        priorityScore: messagePriority.score,
+        priorityLevel: messagePriority.level,
+        priorityLabel: messagePriority.label,
+        messageType: messageType.type,
+        messageTypeLabel: messageType.label,
+        messageOrigin: messageType.origin,
+        messageOriginLabel: messageType.originLabel,
+        suggestedMessage,
+        gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
+        gestationalBaseConfidenceLabel: patient.gestationalBaseConfidenceLabel || "Nao avaliada",
+        gestationalBaseIsEstimated: Boolean(patient.gestationalBaseIsEstimated),
+        gestationalReviewRequired: Boolean(patient.gestationalReviewRequired),
+        gestationalBaseExplanation: patient.gestationalBaseExplanation || null,
+        gestationalMessagingAlertLevel: gestationalMessagingAlert.level,
+        gestationalMessagingAlertMessage: gestationalMessagingAlert.message,
+        whatsappUrl: `https://wa.me/${toWhatsAppPhone(patient.phone)}?text=${encodeURIComponent(suggestedMessage)}`
+      };
+    });
 
   const autoScheduledItems = detectionResults
     .filter((result) => Boolean(result.shospSchedule?.scheduledDate))

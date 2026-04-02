@@ -972,6 +972,7 @@ textarea:focus {
 .messages-grid {
   grid-template-columns: repeat(2, minmax(320px, 1fr));
   align-items: stretch;
+  grid-auto-rows: 1fr;
 }
 
 .operational-card {
@@ -1007,6 +1008,7 @@ textarea:focus {
   flex-direction: column;
   gap: 16px;
   min-height: 100%;
+  box-sizing: border-box;
 }
 
 .patient-summary-card {
@@ -1984,6 +1986,7 @@ textarea:focus {
   background: white;
   padding: 16px;
   margin-top: auto;
+  min-height: 140px;
 }
 
 .message-history-list {
