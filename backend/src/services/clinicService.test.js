@@ -257,6 +257,35 @@ test("marcar paciente como ja agendada remove da central de lembretes e da fila 
   assert.equal(patientDetails?.patient.stage, "agendada");
 });
 
+test("marcar paciente como contatada remove da central de lembretes e da fila de mensagens no dia atual", { concurrency: false }, async () => {
+  resetDatabase();
+  initializeDatabase();
+
+  const created = createPatient({
+    name: "Paciente Contatada Pela Central",
+    phone: "31974443333",
+    birthDate: "1990-07-12",
+    gestationalWeeks: 22,
+    gestationalDays: 0,
+    physicianName: "Dra. Helena Castro",
+    clinicUnit: "Unidade Centro",
+    pregnancyType: "Unica",
+    highRisk: false,
+    notes: "Usada para validar saida da fila ao marcar contatada.",
+    actorUserId: 1
+  });
+
+  const remindersBefore = await getRemindersCenterDataCore();
+  const reminderItem = remindersBefore.items.find((item) => item.patientId === created.patient.id);
+  assert.ok(reminderItem?.examPatientId, "Paciente deveria entrar na fila inicial de lembretes.");
+
+  const remindersAfter = await updateReminderStatusCore(created.patient.id, reminderItem.examPatientId, "contacted");
+  assert.equal(remindersAfter.items.some((item) => item.patientId === created.patient.id), false);
+
+  const messagingAfter = await getMessagingOverviewCore();
+  assert.equal(messagingAfter.some((item) => item.patientId === created.patient.id), false);
+});
+
 test("dashboard, relatorios e area administrativa carregam dados pela camada core sem quebrar os modulos visiveis", { concurrency: false }, async () => {
   resetDatabase();
   initializeDatabase();

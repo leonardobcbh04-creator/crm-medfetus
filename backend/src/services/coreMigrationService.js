@@ -1882,7 +1882,7 @@ export async function getMessagingOverviewCore() {
       .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
       .map((patient) => {
         const nextPendingExam = findOperationalExamRow(patientExamsMap.get(patient.id) ?? [], patient);
-        if (isOperationallyScheduled(patient, nextPendingExam)) {
+        if (!shouldPatientEnterReminderQueue(patient, nextPendingExam, todayIso())) {
           return null;
         }
         const latestMessage = latestMessagesMap.get(patient.id) ?? null;
