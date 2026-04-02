@@ -25,6 +25,10 @@ function safeText(value: unknown) {
   return String(value || "");
 }
 
+function isOperationallyScheduled(item: MessagingItem) {
+  return item.stage === "agendada" || item.nextExam?.status === "agendado" || Boolean(item.nextExam?.scheduledDate);
+}
+
 export function MessagesPage() {
   const [items, setItems] = useState<MessagingItem[]>([]);
   const [drafts, setDrafts] = useState<Record<number, string>>({});
@@ -46,9 +50,10 @@ export function MessagesPage() {
     setLoading(true);
     try {
       const response = await api.getMessagingItems();
-      setItems(response.items);
+      const visibleItems = response.items.filter((item) => !isOperationallyScheduled(item));
+      setItems(visibleItems);
       setDrafts((current) => ({
-        ...response.items.reduce<Record<number, string>>((accumulator, item) => {
+        ...visibleItems.reduce<Record<number, string>>((accumulator, item) => {
           accumulator[item.patientId] = current[item.patientId] ?? item.suggestedMessage;
           return accumulator;
         }, {})
@@ -105,6 +110,9 @@ export function MessagesPage() {
 
     try {
       await api.updateReminder(item.patientId, item.examPatientId, action);
+      if (action === "scheduled") {
+        setItems((current) => current.filter((currentItem) => currentItem.patientId !== item.patientId));
+      }
       await loadMessagingItems();
       setFeedback(
         action === "contacted"
