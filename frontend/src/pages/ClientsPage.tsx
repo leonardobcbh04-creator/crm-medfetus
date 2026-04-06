@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../services/api";
 import { getStoredUser } from "../services/auth";
 import type { Patient } from "../types";
+import { getPatientPriorityMeta, type PriorityFilter } from "../utils/patientPriority";
 import { formatBrazilPhone } from "../utils/phone";
 
 export function ClientsPage() {
@@ -16,6 +17,8 @@ export function ClientsPage() {
   const [highRiskFilter, setHighRiskFilter] = useState<"todas" | "alto_risco" | "habitual">("todas");
   const [unitFilter, setUnitFilter] = useState("");
   const [physicianFilter, setPhysicianFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("todas");
+  const [statusFilter, setStatusFilter] = useState("");
   const storedUser = getStoredUser();
   const isAdmin = storedUser?.role === "admin";
 
@@ -82,8 +85,18 @@ export function ClientsPage() {
 
       const matchesUnit = !unitFilter || patient.clinicUnit === unitFilter;
       const matchesPhysician = !physicianFilter || patient.physicianName === physicianFilter;
+      const matchesPriority =
+        priorityFilter === "todas" || getPatientPriorityMeta(patient).color === priorityFilter;
+      const matchesStatus = !statusFilter || patient.stage === statusFilter;
 
-      return matchesSearch && matchesHighRisk && matchesUnit && matchesPhysician;
+      return (
+        matchesSearch &&
+        matchesHighRisk &&
+        matchesUnit &&
+        matchesPhysician &&
+        matchesPriority &&
+        matchesStatus
+      );
     });
 
     return [...matchingPatients].sort((left, right) => {
@@ -101,7 +114,7 @@ export function ClientsPage() {
 
       return left.name.localeCompare(right.name, "pt-BR");
     });
-  }, [patients, search, sortBy, highRiskFilter, unitFilter, physicianFilter]);
+  }, [patients, physicianFilter, priorityFilter, search, sortBy, statusFilter, unitFilter, highRiskFilter]);
 
   const unitOptions = useMemo(
     () => [...new Set(patients.map((patient) => patient.clinicUnit).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
@@ -112,6 +125,16 @@ export function ClientsPage() {
     () => [...new Set(patients.map((patient) => patient.physicianName).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
     [patients]
   );
+
+  const statusOptions = useMemo(() => {
+    const stages = new Map<string, string>();
+    patients.forEach((patient) => {
+      if (patient.stage) {
+        stages.set(patient.stage, patient.stageTitle ?? patient.stage);
+      }
+    });
+    return [...stages.entries()].sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
+  }, [patients]);
 
   if (loading) {
     return <p className="loading-text">Carregando clientes...</p>;
@@ -157,6 +180,19 @@ export function ClientsPage() {
           <option value="">Todos os medicos</option>
           {physicianOptions.map((physician) => (
             <option key={String(physician)} value={String(physician)}>{String(physician)}</option>
+          ))}
+        </select>
+        <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as PriorityFilter)}>
+          <option value="todas">Todas as prioridades</option>
+          <option value="vermelho">Vermelho</option>
+          <option value="laranja">Laranja</option>
+          <option value="amarelo">Amarelo</option>
+          <option value="verde">Verde</option>
+        </select>
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="">Todas as etapas</option>
+          {statusOptions.map(([stage, label]) => (
+            <option key={stage} value={stage}>{label}</option>
           ))}
         </select>
         <select value={sortBy} onChange={(event) => setSortBy(event.target.value as "name" | "dpp")}>
