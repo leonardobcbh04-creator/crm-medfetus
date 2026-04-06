@@ -181,9 +181,9 @@ export function DashboardPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">Visao geral</p>
-          <h2>Dashboard da clinica</h2>
+          <h2>Painel da clinica</h2>
           <p className="page-description">
-            Indicadores operacionais com dados reais do banco para contato, agendamento e exames realizados.
+            Indicadores operacionais para acompanhar contato, agendamento e exames realizados.
           </p>
         </div>
       </div>
@@ -257,12 +257,12 @@ export function DashboardPage() {
           to="/lembretes"
         />
         <StatCard
-          label="Revisao manual"
+          label="Revisao da base"
           value={dashboard.summary.gestationalBaseManualReview}
-          description="Bases gestacionais bloqueadas para contato"
+          description="Pacientes que precisam revisar a base gestacional"
           to="/revisao-base-gestacional"
         />
-        <StatCard label="Atrasadas" value={dashboard.summary.overduePatients} description="Pacientes com exame fora do prazo" />
+        <StatCard label="Em atraso" value={dashboard.summary.overduePatients} description="Pacientes com exame fora do prazo" />
         <StatCard label="Agendadas na semana" value={dashboard.summary.scheduledThisWeek} description="Pacientes com exame marcado ate 7 dias" />
         <StatCard label="Conversao" value={dashboard.summary.conversionRate} description="Contato convertido em agendamento" />
         <StatCard label="Mensagens enviadas" value={dashboard.summary.totalMessagesSent} description="Mensagens no periodo filtrado" />
@@ -301,7 +301,7 @@ export function DashboardPage() {
               <div key={exam.name} className="priority-item">
                 <div>
                   <strong>{exam.name}</strong>
-                  <p>Pendencias no protocolo atual</p>
+                  <p>Pendencias no acompanhamento atual</p>
                 </div>
                 <span className="badge badge-priority-orange">{exam.total}</span>
               </div>

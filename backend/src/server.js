@@ -1,4 +1,3 @@
-import cors from "cors";
 import express from "express";
 import { CORS_ALLOWED_ORIGINS, DATABASE_KIND, PORT, RUN_BACKGROUND_WORKERS_IN_API, SHOSP_ENABLED } from "./config.js";
 import { getDatabaseRuntime } from "./database/runtime.js";
@@ -34,23 +33,30 @@ const allowedOrigins = [
   ...CORS_ALLOWED_ORIGINS
 ].filter((origin, index, list) => Boolean(origin) && list.indexOf(origin) === index);
 
-const corsOptions = {
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
+const allowedOriginSet = new Set(allowedOrigins);
+const allowedMethods = "GET,POST,PUT,PATCH,DELETE,OPTIONS";
+const allowedHeaders = "Content-Type, Authorization";
 
-    callback(new Error("Not allowed by CORS"));
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 204
-};
+app.use((request, response, next) => {
+  const origin = request.headers.origin;
 
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+  if (origin && allowedOriginSet.has(origin)) {
+    response.header("Access-Control-Allow-Origin", origin);
+    response.header("Vary", "Origin");
+    response.header("Access-Control-Allow-Methods", allowedMethods);
+    response.header("Access-Control-Allow-Headers", allowedHeaders);
+  } else if (origin) {
+    console.warn(`[cors] Origin bloqueada: ${origin}`);
+  }
+
+  if (request.method === "OPTIONS") {
+    response.sendStatus(204);
+    return;
+  }
+
+  next();
+});
+
 app.use(express.json());
 
 app.get("/api/health", (_request, response) => {

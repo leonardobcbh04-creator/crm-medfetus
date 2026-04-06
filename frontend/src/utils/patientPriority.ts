@@ -40,8 +40,8 @@ export function getPatientPriorityMeta(patient: Patient): PriorityMeta {
   if (status === "aproximando") {
     return {
       color: "amarelo",
-      label: "Janela se aproximando",
-      badgeText: "Proximo do prazo",
+      label: "Janela proxima",
+      badgeText: "Janela proxima",
       cardClassName: "patient-card-yellow",
       badgeClassName: "badge-priority-yellow",
       needsImmediateAction: false

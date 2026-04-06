@@ -890,11 +890,11 @@ export function AdminPage() {
   }
 
   if (loading && !adminData) {
-    return <p className="loading-text">Carregando area administrativa...</p>;
+    return <p className="loading-text">Carregando administracao...</p>;
   }
 
   if (!adminData) {
-    return <p className="loading-text">Nao foi possivel carregar a area administrativa.</p>;
+    return <p className="loading-text">Nao foi possivel carregar a administracao.</p>;
   }
 
   const normalizedUserSearch = searchUsers.trim().toLowerCase();
@@ -943,7 +943,7 @@ export function AdminPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">Administracao</p>
-          <h2>Area administrativa</h2>
+          <h2>Administracao da clinica</h2>
           <p className="page-description">
             Gerencie usuarios, unidades, medicos e os exames padrao do protocolo em uma tela simples.
           </p>

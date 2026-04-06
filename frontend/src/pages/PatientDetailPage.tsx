@@ -52,7 +52,7 @@ function getTimelineActionMeta(exam: PatientDetails["exams"][number]) {
   if (exam.timelineStatus === "historico_anterior_confirmado") {
     return {
       label: "OK",
-      text: "Historico anterior confirmado",
+      text: "Historico previo confirmado",
       className: "timeline-icon-done"
     };
   }
@@ -70,7 +70,7 @@ function getTimelineActionMeta(exam: PatientDetails["exams"][number]) {
   }
 
   if (exam.showOperationalAlert) {
-    return { label: "!", text: "Exame atrasado", className: "timeline-icon-alert" };
+    return { label: "!", text: "Exame em atraso", className: "timeline-icon-alert" };
   }
 
   if (exam.timelineStatus === "superado") {
@@ -82,7 +82,7 @@ function getTimelineActionMeta(exam: PatientDetails["exams"][number]) {
 
 function getTimelinePrimaryBadge(exam: PatientDetails["exams"][number]) {
   if (exam.timelineStatus === "historico_anterior_confirmado") {
-    return { label: "Historico anterior confirmado", className: "badge-priority-blue" };
+    return { label: "Historico previo confirmado", className: "badge-priority-blue" };
   }
 
   if (exam.timelineStatus === "realizado") {
@@ -331,7 +331,7 @@ export function PatientDetailPage() {
           <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar agendamento</button>
           <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Marcar exame realizado</button>
           <a href={whatsappUrl} target="_blank" rel="noreferrer" className="whatsapp-link">Abrir WhatsApp</a>
-          <Link to="/kanban" className="secondary-button">Voltar ao Pipeline</Link>
+          <Link to="/kanban" className="secondary-button">Voltar ao fluxo</Link>
         </div>
       </div>
 
@@ -383,8 +383,8 @@ export function PatientDetailPage() {
             <span className={`badge ${priority.badgeClassName}`}>{priority.label}</span>
             <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
             {details.patient.gestationalBaseIsEstimated ? <span className="badge badge-priority-blue">Base estimada</span> : null}
-            {details.patient.gestationalReviewRequired ? <span className="badge badge-priority-red">Revisao manual</span> : null}
-            {priority.needsImmediateAction ? <span className="badge badge-attention">Acao imediata</span> : null}
+            {details.patient.gestationalReviewRequired ? <span className="badge badge-priority-red">Revisao da base</span> : null}
+            {priority.needsImmediateAction ? <span className="badge badge-attention">Prioridade imediata</span> : null}
           </div>
           <div className="message-metadata">
             <span><strong>Proximo exame:</strong> {details.patient.nextExam.name}</span>
@@ -394,7 +394,7 @@ export function PatientDetailPage() {
             <span><strong>Coluna atual:</strong> {details.patient.stageTitle || details.patient.stage}</span>
             <span><strong>Base gestacional:</strong> {details.patient.gestationalBaseSourceLabel || "Nao definida"}</span>
             {details.patient.nextExam.overdueExam ? (
-              <span className="exam-warning-text"><strong>Exame atrasado:</strong> {details.patient.nextExam.overdueExam.name}</span>
+              <span className="exam-warning-text"><strong>Exame em atraso:</strong> {details.patient.nextExam.overdueExam.name}</span>
             ) : null}
           </div>
         </article>
@@ -415,7 +415,7 @@ export function PatientDetailPage() {
           <p className="muted-label">Dados gestacionais</p>
           <div className="priority-badge-row">
             {details.patient.gestationalBaseIsEstimated ? <span className="badge badge-priority-blue">Estimativa operacional</span> : null}
-            {details.patient.gestationalReviewRequired ? <span className="badge badge-priority-red">Revisao manual necessaria</span> : null}
+            {details.patient.gestationalReviewRequired ? <span className="badge badge-priority-red">Revisao da base necessaria</span> : null}
           </div>
           <div className="message-metadata">
             <span><strong>Idade gestacional informada:</strong> {details.patient.gestationalAgeLabel}</span>
@@ -495,7 +495,7 @@ export function PatientDetailPage() {
                         <span className="badge badge-priority-blue">Historico anterior</span>
                       ) : null}
                       {exam.showOperationalAlert ? (
-                        <span className="badge badge-priority-red">Janela ideal passou</span>
+                        <span className="badge badge-priority-red">Janela encerrada</span>
                       ) : null}
                     </div>
                   </div>

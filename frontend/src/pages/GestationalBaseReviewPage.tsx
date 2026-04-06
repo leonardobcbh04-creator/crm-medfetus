@@ -81,13 +81,13 @@ export function GestationalBaseReviewPage() {
     <section className="page-section">
       <div className="page-header">
         <div>
-          <p className="eyebrow">Revisao manual</p>
-          <h2>Revisao manual da base gestacional</h2>
+          <p className="eyebrow">Revisao da base</p>
+          <h2>Revisao da base gestacional</h2>
           <p className="page-description">
             Pacientes sem base gestacional segura para seguir automaticamente no fluxo.
           </p>
         </div>
-        <Link to="/kanban" className="secondary-button">Voltar ao Pipeline</Link>
+        <Link to="/kanban" className="secondary-button">Voltar ao fluxo</Link>
       </div>
 
       {feedback ? <div className="form-alert form-alert-success"><span>{feedback}</span></div> : null}

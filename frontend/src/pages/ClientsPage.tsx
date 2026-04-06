@@ -188,7 +188,7 @@ export function ClientsPage() {
                             <span className="badge badge-soft badge-priority-blue clients-status-badge">Base estimada</span>
                           ) : null}
                           {patient.gestationalReviewRequired ? (
-                            <span className="badge badge-soft badge-priority-red clients-status-badge">Revisao manual</span>
+                            <span className="badge badge-soft badge-priority-red clients-status-badge">Revisao da base</span>
                           ) : null}
                         </div>
                       </div>
