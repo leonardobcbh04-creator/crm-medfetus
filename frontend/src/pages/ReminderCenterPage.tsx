@@ -92,10 +92,10 @@ export function ReminderCenterPage() {
       await loadReminders(filters);
       setFeedback(
         action === "contacted"
-          ? "Paciente marcada como contatada."
+          ? "Contato registrado com sucesso."
           : action === "snooze"
             ? "Lembrete adiado para o proximo dia."
-            : "Paciente marcada como ja agendada."
+            : "Agendamento registrado com sucesso."
       );
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar o lembrete.");
@@ -152,10 +152,10 @@ export function ReminderCenterPage() {
     <section className="page-section">
       <div className="page-header">
         <div>
-          <p className="eyebrow">Operacao</p>
+          <p className="eyebrow">Atendimento</p>
           <h2>Central de lembretes</h2>
           <p className="page-description">
-            Lista automatica das pacientes que precisam de contato hoje, em ordem de urgencia.
+            Pacientes que precisam de contato hoje, organizadas por prioridade.
           </p>
         </div>
       </div>
@@ -262,11 +262,11 @@ export function ReminderCenterPage() {
 
             <div className="message-metadata">
               <span><strong>Telefone:</strong> {formatBrazilPhone(item.phone) || "Nao informado"}</span>
-              <span><strong>Exame pendente:</strong> {item.examName}</span>
+              <span><strong>Exame previsto:</strong> {item.examName}</span>
               <span><strong>Inicio da janela ideal:</strong> {item.idealWindowStartDateLabel || "Nao definido"}</span>
-              <span><strong>Origem da mensagem:</strong> {item.messageOriginLabel || "Timeline operacional"}</span>
-              <span><strong>Base do proximo exame:</strong> {item.gestationalBaseSourceLabel}</span>
-              <span><strong>Confianca:</strong> {item.gestationalBaseConfidenceLabel}</span>
+              <span><strong>Motivo do contato:</strong> {item.messageOriginLabel || "Acompanhamento da jornada"}</span>
+              <span><strong>Base do calculo:</strong> {item.gestationalBaseSourceLabel}</span>
+              <span><strong>Confiabilidade:</strong> {item.gestationalBaseConfidenceLabel}</span>
               <span><strong>Medico:</strong> {item.physicianName || "Nao informado"}</span>
               <span><strong>Unidade:</strong> {item.clinicUnit || "Nao informada"}</span>
             </div>
@@ -301,7 +301,7 @@ export function ReminderCenterPage() {
                 disabled={actingKey === `${item.patientId}-${item.examPatientId}-contacted`}
                 onClick={() => void handleAction(item.patientId, item.examPatientId, "contacted")}
               >
-                {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Marcar como contatada"}
+                {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Registrar contato"}
               </button>
               <button
                 className="secondary-button"
@@ -317,14 +317,14 @@ export function ReminderCenterPage() {
                 disabled={actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
                 onClick={() => void handleAction(item.patientId, item.examPatientId, "scheduled")}
               >
-                {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Marcar como ja agendada"}
+                {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Registrar agendamento"}
               </button>
               <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
                 Ver detalhes
               </Link>
             </div>
           </article>
-        )) : <p className="empty-state">Nenhuma paciente precisa de contato hoje com os filtros atuais.</p>}
+        )) : <p className="empty-state">Nenhuma paciente precisa de contato com os filtros atuais.</p>}
       </div>
     </section>
   );

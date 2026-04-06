@@ -224,7 +224,7 @@ export function KanbanBoard({ columns, onMove, onRenameColumn, onDeleteColumn, o
                             <span className="badge badge-soft badge-priority-blue kanban-status-badge">Base estimada</span>
                           ) : null}
                           {patient.gestationalReviewRequired ? (
-                            <span className="badge badge-soft badge-priority-red kanban-status-badge">Revisao manual</span>
+                            <span className="badge badge-soft badge-priority-red kanban-status-badge">Revisao da base</span>
                           ) : null}
                         </div>
                         <h3>{patient.name}</h3>

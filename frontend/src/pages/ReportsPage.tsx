@@ -237,7 +237,7 @@ export function ReportsPage() {
           <p className="eyebrow">Operacao</p>
           <h2>Relatorios</h2>
           <p className="page-description">
-            Acompanhe indicadores operacionais e exporte os dados em CSV para validacao e analise da clinica.
+            Acompanhe os principais indicadores da operacao e exporte os dados em CSV quando precisar.
           </p>
         </div>
         <button type="button" className="secondary-button" onClick={handleExportAll}>
@@ -374,7 +374,7 @@ export function ReportsPage() {
 
         <ReportTable
           title="Exames atrasados"
-          description="Exames fora da janela ideal e que precisam de atencao imediata."
+          description="Exames fora da janela ideal que precisam de acompanhamento prioritario."
           headers={["Paciente", "Exame", "Previsao", "Unidade", "Medico"]}
           rows={reports.reports.overdueExams.map((row) => [
             row.patientName,
@@ -400,7 +400,7 @@ export function ReportsPage() {
 
         <ReportTable
           title="Contatos realizados"
-          description="Mensagens enviadas e contatos operacionais dentro do periodo filtrado."
+          description="Mensagens enviadas e contatos registrados no periodo filtrado."
           headers={["Paciente", "Tipo", "Status", "Data", "Usuario", "Unidade", "Medico"]}
           rows={reports.reports.contactsMade.map((row) => [
             row.patientName,

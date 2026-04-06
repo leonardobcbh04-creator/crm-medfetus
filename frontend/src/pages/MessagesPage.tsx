@@ -116,10 +116,10 @@ export function MessagesPage() {
       await loadMessagingItems();
       setFeedback(
         action === "contacted"
-          ? `Paciente ${item.patientName} marcada como contatada.`
+          ? `Contato registrado para ${item.patientName}.`
           : action === "snooze"
             ? `Lembrete de ${item.patientName} adiado para o proximo dia.`
-            : `Paciente ${item.patientName} marcada como ja agendada.`
+            : `Agendamento registrado para ${item.patientName}.`
       );
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a fila operacional.");
@@ -206,9 +206,9 @@ export function MessagesPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">Comunicacao</p>
-          <h2>Mensagens automaticas por paciente</h2>
+          <h2>Mensagens automaticas</h2>
           <p className="page-description">
-            Filtre os acompanhamentos, revise a mensagem sugerida e mantenha o historico completo de cada paciente.
+            Revise a mensagem sugerida e conduza os contatos do dia com mais agilidade.
           </p>
         </div>
       </div>
@@ -270,7 +270,7 @@ export function MessagesPage() {
         <div className="message-filter-bar">
           <button className={filter === "todos" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("todos")}>Todos</button>
           <button className={filter === "hoje" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("hoje")}>Hoje</button>
-          <button className={filter === "atrasadas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("atrasadas")}>Atrasadas</button>
+          <button className={filter === "atrasadas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("atrasadas")}>Em atraso</button>
           <button className={filter === "respondidas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("respondidas")}>Respondidas</button>
           <button className={filter === "sem_resposta" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("sem_resposta")}>Sem resposta</button>
         </div>
@@ -313,22 +313,22 @@ export function MessagesPage() {
 
               <div className="priority-badge-row">
                 <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
-                <span className={`badge badge-soft ${getOperationalPriorityBadgeClass(item.priorityLevel)}`}>{item.priorityLabel || "Prioridade operacional"}</span>
+                <span className={`badge badge-soft ${getOperationalPriorityBadgeClass(item.priorityLevel)}`}>{item.priorityLabel || "Prioridade do contato"}</span>
                 <span className={`badge badge-soft ${priority.badgeClassName}`}>{item.reminderLabel}</span>
-                <span className="badge badge-soft badge-priority-blue">{item.messageTypeLabel || "Mensagem operacional"}</span>
-                {priority.needsImmediateAction ? <span className="badge badge-attention">Acao imediata</span> : null}
+                <span className="badge badge-soft badge-priority-blue">{item.messageTypeLabel || "Mensagem sugerida"}</span>
+                {priority.needsImmediateAction ? <span className="badge badge-attention">Prioridade imediata</span> : null}
               </div>
 
               <div className="message-metadata">
                 <span><strong>Proximo exame:</strong> {item.nextExam.name}</span>
                 <span><strong>Previsao:</strong> {item.nextExam.dateLabel}</span>
-                <span><strong>Origem da mensagem:</strong> {item.messageOriginLabel || "Timeline operacional"}</span>
-                <span><strong>Base do proximo exame:</strong> {item.gestationalBaseSourceLabel}</span>
-                <span><strong>Confianca:</strong> {item.gestationalBaseConfidenceLabel}</span>
+                <span><strong>Motivo da mensagem:</strong> {item.messageOriginLabel || "Acompanhamento da jornada"}</span>
+                <span><strong>Base do calculo:</strong> {item.gestationalBaseSourceLabel}</span>
+                <span><strong>Confiabilidade:</strong> {item.gestationalBaseConfidenceLabel}</span>
                 <span><strong>Medico:</strong> {item.physicianName || "Nao informado"}</span>
                 <span><strong>Unidade:</strong> {item.clinicUnit || "Nao informada"}</span>
                 {item.nextExam.overdueExam ? (
-                  <span className="exam-warning-text"><strong>Exame atrasado:</strong> {item.nextExam.overdueExam.name}</span>
+                  <span className="exam-warning-text"><strong>Exame em atraso:</strong> {item.nextExam.overdueExam.name}</span>
                 ) : null}
               </div>
 
@@ -376,7 +376,7 @@ export function MessagesPage() {
                   disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-contacted`}
                   onClick={() => void handleReminderAction(item, "contacted")}
                 >
-                  {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Marcar como contatada"}
+                  {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Registrar contato"}
                 </button>
                 <button
                   className="secondary-button"
@@ -392,13 +392,13 @@ export function MessagesPage() {
                   disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
                   onClick={() => void handleReminderAction(item, "scheduled")}
                 >
-                  {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Marcar como ja agendada"}
+                  {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Registrar agendamento"}
                 </button>
                 <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "respondida")}>
-                  Marcar respondida
+                  Registrar resposta
                 </button>
                 <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "sem_resposta")}>
-                  Marcar sem resposta
+                  Registrar sem resposta
                 </button>
                 <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
                   Ver detalhes
@@ -406,13 +406,13 @@ export function MessagesPage() {
               </div>
 
               <div className="message-history-box">
-                <p className="muted-label">Historico completo</p>
+                <p className="muted-label">Historico de mensagens</p>
                 {item.messageHistory.length ? (
                   <div className="message-history-list">
                     {item.messageHistory.map((history) => (
                       <div key={history.id} className="message-history-item">
                         <span><strong>Envio:</strong> {history.deliveryStatus}</span>
-                        <span><strong>Resposta:</strong> {history.responseStatus}</span>
+                        <span><strong>Retorno:</strong> {history.responseStatus}</span>
                         <span><strong>Data:</strong> {history.sentAt || "Nao registrada"}</span>
                         <p>{history.content}</p>
                       </div>

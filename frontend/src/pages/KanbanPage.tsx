@@ -26,7 +26,7 @@ export function KanbanPage() {
   }
 
   async function handleCreateColumn() {
-    const title = window.prompt("Digite o nome da nova coluna do Pipeline:");
+    const title = window.prompt("Digite o nome da nova etapa do fluxo:");
     if (!title?.trim()) {
       return;
     }
@@ -35,7 +35,7 @@ export function KanbanPage() {
       const response = await api.createKanbanColumn(title.trim());
       setColumns(response.columns);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Nao foi possivel criar a coluna.");
+      window.alert(error instanceof Error ? error.message : "Nao foi possivel criar a etapa.");
     }
   }
 
@@ -44,7 +44,7 @@ export function KanbanPage() {
       const response = await api.updateKanbanColumn(columnId, title);
       setColumns(response.columns);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Nao foi possivel atualizar a coluna.");
+      window.alert(error instanceof Error ? error.message : "Nao foi possivel atualizar a etapa.");
     }
   }
 
@@ -53,7 +53,7 @@ export function KanbanPage() {
       const response = await api.deleteKanbanColumn(column.id);
       setColumns(response.columns);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Nao foi possivel excluir a coluna.");
+      window.alert(error instanceof Error ? error.message : "Nao foi possivel excluir a etapa.");
     }
   }
 
@@ -141,13 +141,13 @@ export function KanbanPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">Operacao</p>
-          <h2>Pipeline</h2>
+          <h2>Fluxo de atendimento</h2>
           <p className="page-description">
-            Arraste pacientes entre as colunas, priorize os casos mais urgentes e acompanhe o proximo exame em tempo real.
+            Organize o atendimento por etapa, priorize os casos mais sensiveis e acompanhe o proximo exame em tempo real.
           </p>
         </div>
         <button type="button" className="secondary-button" onClick={() => void handleCreateColumn()}>
-          Adicionar coluna
+          Adicionar etapa
         </button>
       </div>
 
@@ -205,7 +205,7 @@ export function KanbanPage() {
         </span>
         <span className="kanban-legend-item kanban-legend-yellow">
           <strong>Amarelo</strong>
-          <span>Janela se aproximando</span>
+          <span>Janela proxima</span>
         </span>
         <span className="kanban-legend-item kanban-legend-orange">
           <strong>Laranja</strong>
@@ -213,7 +213,7 @@ export function KanbanPage() {
         </span>
         <span className="kanban-legend-item kanban-legend-red">
           <strong>Vermelho</strong>
-          <span>Exame atrasado</span>
+          <span>Exame em atraso</span>
         </span>
       </div>
 
@@ -222,7 +222,7 @@ export function KanbanPage() {
       ) : null}
 
       {loading ? (
-        <p className="loading-text">Carregando kanban...</p>
+        <p className="loading-text">Carregando fluxo de atendimento...</p>
       ) : (
         <KanbanBoard
           columns={filteredColumns}

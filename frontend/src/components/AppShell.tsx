@@ -12,11 +12,11 @@ export function AppShell() {
     { to: "/dashboard", label: "Dashboard" },
     { to: "/relatorios", label: "Relatorios" },
     { to: "/clientes", label: "Clientes" },
-    { to: "/revisao-base-gestacional", label: "Revisao manual da base gestacional" },
+    { to: "/revisao-base-gestacional", label: "Revisao da base gestacional" },
     { to: "/lembretes", label: "Central de lembretes", badgeKey: "reminders" },
-    { to: "/kanban", label: "Pipeline" },
+    { to: "/kanban", label: "Fluxo de atendimento" },
     { to: "/pacientes/novo", label: "Cadastrar paciente" },
-    ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Area administrativa" }] : []),
+    ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Administracao" }] : []),
     { to: "/mensagens", label: "Mensagens automaticas" }
   ];
 
