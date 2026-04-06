@@ -1,5 +1,5 @@
 import { LOG_RETENTION_CONFIG } from "../config.js";
-import { getConfiguredDatabaseKind, getDatabaseRuntime } from "../database/runtime.js";
+import { getDatabaseRuntime } from "../database/runtime.js";
 
 let cleanupIntervalId = null;
 let running = false;
@@ -18,15 +18,6 @@ function cutoffIso(days) {
 }
 
 async function deleteBeforeDate(tableName, columnExpression, cutoff) {
-  if (getConfiguredDatabaseKind() === "sqlite") {
-    const runtime = await getDatabaseRuntime();
-    const statement = runtime.raw.prepare(`
-      DELETE FROM ${tableName}
-      WHERE ${columnExpression} < ?
-    `);
-    return statement.run(cutoff).changes;
-  }
-
   const runtime = await getDatabaseRuntime();
   const result = await runtime.query(`
     DELETE FROM ${tableName}

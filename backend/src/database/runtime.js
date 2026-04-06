@@ -1,4 +1,4 @@
-import { DATABASE_KIND, DATABASE_URL, DB_FILE } from "../config.js";
+import { DATABASE_KIND, DATABASE_URL } from "../config.js";
 import { createPostgresRuntime } from "./postgres/postgresRuntime.js";
 
 let runtimePromise = null;
@@ -9,10 +9,6 @@ export function getConfiguredDatabaseKind() {
 
 export function isPostgresConfigured() {
   return DATABASE_KIND === "postgres";
-}
-
-export function getSqliteFilePath() {
-  return DB_FILE;
 }
 
 export async function getDatabaseRuntime() {

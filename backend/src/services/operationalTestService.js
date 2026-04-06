@@ -1,4 +1,4 @@
-import { getConfiguredDatabaseKind, getDatabaseRuntime } from "../database/runtime.js";
+import { getDatabaseRuntime } from "../database/runtime.js";
 import { listAdminUsersRows } from "../database/repositories/coreRepository.js";
 import {
   createMessageCore,
@@ -71,26 +71,6 @@ async function cleanupPreviousTestPatients() {
   );
 
   if (!previousPatients.length) {
-    return;
-  }
-
-  if (getConfiguredDatabaseKind() === "sqlite") {
-    const runtime = await getDatabaseRuntime();
-    const db = runtime.raw;
-    previousPatients.forEach((patient) => {
-      db.exec("BEGIN");
-      try {
-        db.prepare("DELETE FROM message_delivery_logs WHERE patient_id = ?").run(patient.id);
-        db.prepare("DELETE FROM mensagens WHERE patient_id = ?").run(patient.id);
-        db.prepare("DELETE FROM historico_de_movimentacoes WHERE patient_id = ?").run(patient.id);
-        db.prepare("DELETE FROM exames_paciente WHERE patient_id = ?").run(patient.id);
-        db.prepare("DELETE FROM patients WHERE id = ?").run(patient.id);
-        db.exec("COMMIT");
-      } catch (error) {
-        db.exec("ROLLBACK");
-        throw error;
-      }
-    });
     return;
   }
 

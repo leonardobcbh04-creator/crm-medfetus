@@ -1,5 +1,5 @@
 import { SHOSP_CONFIG } from "../../config.js";
-import { db } from "../../db.js";
+import { getDatabaseRuntime } from "../../database/runtime.js";
 
 const shospApiRuntimeMetrics = {
   totalRequests: 0,
@@ -12,20 +12,23 @@ const shospApiRuntimeMetrics = {
   lastErrorMessage: null
 };
 
-function getPersistedConfig() {
-  const row = db.prepare(`
+async function getPersistedConfig() {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
     SELECT
-      use_mock AS useMock,
-      api_base_url AS apiBaseUrl,
-      api_token AS apiToken,
-      api_key AS apiKey,
+      use_mock AS "useMock",
+      api_base_url AS "apiBaseUrl",
+      api_token AS "apiToken",
+      api_key AS "apiKey",
       username,
       password,
-      company_id AS companyId,
-      settings_json AS settingsJson
+      company_id AS "companyId",
+      settings_json AS "settingsJson"
     FROM configuracoes_de_integracao
     WHERE integration_key = 'shosp'
-  `).get();
+    LIMIT 1
+  `);
+  const row = result.rows[0];
 
   if (!row) {
     return null;
@@ -81,8 +84,8 @@ export function resetShospApiRuntimeMetrics() {
   shospApiRuntimeMetrics.lastErrorMessage = null;
 }
 
-export function getEffectiveShospRuntimeConfig() {
-  const persisted = getPersistedConfig();
+export async function getEffectiveShospRuntimeConfig() {
+  const persisted = await getPersistedConfig();
   const persistedSettings = persisted?.settings || {};
   const mode = envValue(process.env.SHOSP_USE_MOCK)
     ? SHOSP_CONFIG.mode
@@ -135,7 +138,7 @@ function buildAuthenticationHeaders(runtimeConfig) {
 }
 
 async function fetchJson(path, { updatedSince } = {}, extraQuery = {}) {
-  const runtimeConfig = getEffectiveShospRuntimeConfig();
+  const runtimeConfig = await getEffectiveShospRuntimeConfig();
   if (!runtimeConfig.baseUrl) {
     throw new Error("SHOSP_API_URL nao configurada.");
   }
@@ -240,7 +243,7 @@ function normalizeCollectionPayload(payload) {
 export function createShospApiClient() {
   return {
     async authenticate() {
-      const runtimeConfig = getEffectiveShospRuntimeConfig();
+      const runtimeConfig = await getEffectiveShospRuntimeConfig();
       const headers = buildAuthenticationHeaders(runtimeConfig);
       return {
         ok: Boolean(runtimeConfig.baseUrl && (headers.Authorization || headers["x-api-key"] || headers["x-shosp-username"])),
@@ -249,15 +252,17 @@ export function createShospApiClient() {
       };
     },
     async fetchPatients({ updatedSince } = {}) {
-      const payload = await fetchJson(getEffectiveShospRuntimeConfig().patientsPath, { updatedSince });
+      const runtimeConfig = await getEffectiveShospRuntimeConfig();
+      const payload = await fetchJson(runtimeConfig.patientsPath, { updatedSince });
       return normalizeCollectionPayload(payload);
     },
     async fetchAttendancesAndExams({ updatedSince } = {}) {
-      const payload = await fetchJson(getEffectiveShospRuntimeConfig().attendancesPath, { updatedSince });
+      const runtimeConfig = await getEffectiveShospRuntimeConfig();
+      const payload = await fetchJson(runtimeConfig.attendancesPath, { updatedSince });
       return normalizeCollectionPayload(payload);
     },
     async fetchFutureScheduledExamForPatient({ externalPatientId, examCode } = {}) {
-      const runtimeConfig = getEffectiveShospRuntimeConfig();
+      const runtimeConfig = await getEffectiveShospRuntimeConfig();
       const payload = await fetchJson(runtimeConfig.attendancesPath, {
         updatedSince: null
       }, {

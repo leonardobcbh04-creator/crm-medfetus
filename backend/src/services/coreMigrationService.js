@@ -36,7 +36,7 @@ import {
   updateUserPasswordHash
 } from "../database/repositories/coreRepository.js";
 import { analyzePatientExamTimeline, calculateExamScheduleDates, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
-import { listExamProtocolPresets } from "./clinicService.js";
+import { listExamProtocolPresets } from "./examProtocolPresets.js";
 import {
   buildSessionExpiry,
   createSessionToken,

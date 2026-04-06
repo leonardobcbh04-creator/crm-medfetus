@@ -1,5 +1,4 @@
-import { db } from "../../db.js";
-import { getConfiguredDatabaseKind } from "../../database/runtime.js";
+import { getDatabaseRuntime } from "../../database/runtime.js";
 import { MESSAGING_CONFIG } from "../../config.js";
 import {
   getMessageTemplateByCode,
@@ -23,44 +22,6 @@ function createDeliveryLog({
   respondedAt = null
 }) {
   const now = todayIso();
-  if (getConfiguredDatabaseKind() === "sqlite") {
-    db.prepare(`
-      INSERT INTO message_delivery_logs (
-        message_id,
-        patient_id,
-        template_id,
-        provider,
-        status,
-        external_message_id,
-        request_payload,
-        response_payload,
-        error_message,
-        sent_at,
-        delivered_at,
-        responded_at,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      messageId,
-      patientId,
-      templateId,
-      provider,
-      status,
-      externalMessageId,
-      requestPayload ? JSON.stringify(requestPayload) : null,
-      responsePayload ? JSON.stringify(responsePayload) : null,
-      errorMessage,
-      sentAt,
-      deliveredAt,
-      respondedAt,
-      now,
-      now
-    );
-    return;
-  }
-
   return insertMessageDeliveryLog({
     messageId,
     patientId,
@@ -91,26 +52,6 @@ export function getMessagingRuntimeConfig() {
 }
 
 export function listMessageTemplates() {
-  if (getConfiguredDatabaseKind() === "sqlite") {
-    return db.prepare(`
-      SELECT
-        id,
-        code,
-        name,
-        channel,
-        language,
-        content,
-        active,
-        created_at AS createdAt,
-        updated_at AS updatedAt
-      FROM message_templates
-      ORDER BY name COLLATE NOCASE
-    `).all().map((template) => ({
-      ...template,
-      active: Boolean(template.active)
-    }));
-  }
-
   return listMessageTemplateRows().then((rows) => rows.map((template) => ({
     ...template,
     active: Boolean(template.active)
