@@ -86,22 +86,38 @@ export async function seedPostgresCoreData() {
     await alignSequence(client, "users");
     await alignSequence(client, "clinic_units");
 
+    const clinicUnitRows = await client.query(`
+      SELECT id, name
+      FROM clinic_units
+    `);
+    const clinicUnitIdByName = new Map(
+      clinicUnitRows.rows.map((row) => [String(row.name), Number(row.id)])
+    );
+    const clinicUnitNameBySeedId = new Map(
+      clinicUnits.map((unit) => [Number(unit.id), String(unit.name)])
+    );
+
     for (const physician of physicians) {
+      const clinicUnitName = clinicUnitNameBySeedId.get(Number(physician.clinicUnitId));
+      const clinicUnitId = clinicUnitName ? clinicUnitIdByName.get(clinicUnitName) ?? null : null;
+
       await client.query(`
         INSERT INTO physicians (
-          id,
           name,
           clinic_unit_id,
           active,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (name) DO NOTHING
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (name) DO UPDATE
+        SET
+          clinic_unit_id = EXCLUDED.clinic_unit_id,
+          active = EXCLUDED.active,
+          updated_at = EXCLUDED.updated_at
       `, [
-        physician.id,
         physician.name,
-        physician.clinicUnitId || null,
+        clinicUnitId,
         Boolean(physician.active),
         now,
         now
