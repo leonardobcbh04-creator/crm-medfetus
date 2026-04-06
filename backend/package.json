@@ -10,10 +10,9 @@
     "start:shosp-worker": "node src/shospWorker.js",
     "migrate:postgres": "node src/database/postgres/migrate.js",
     "seed:postgres-core": "node src/database/postgres/seedCoreData.js",
-    "seed": "node src/resetDatabase.js",
+    "seed": "npm run migrate:postgres && npm run seed:postgres-core",
     "clear:patients": "node src/clearPatientData.js",
-    "test": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-core-postgres.mjs",
-    "test:legacy-sqlite": "node scripts/run-tests.mjs"
+    "test": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-core-postgres.mjs"
   },
   "dependencies": {
     "cors": "^2.8.5",

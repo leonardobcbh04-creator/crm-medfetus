@@ -89,15 +89,10 @@ function resolveDatabaseKind(configuredValue) {
   throw new Error("DATABASE_URL deve apontar para um banco PostgreSQL.");
 }
 
-function resolveDatabaseFile() {
-  return "";
-}
-
 export const NODE_ENV = readStringEnv(process.env.NODE_ENV) || "development";
 export const PORT = readNumberEnv(process.env.PORT, 10000);
 export const DATABASE_URL = readStringEnv(process.env.DATABASE_URL);
 export const DATABASE_KIND = resolveDatabaseKind(DATABASE_URL);
-export const DB_FILE = resolveDatabaseFile();
 export const CORS_ALLOWED_ORIGINS = readAllowedOriginsEnv();
 export const RUN_BACKGROUND_WORKERS_IN_API = readBooleanEnv(process.env.RUN_BACKGROUND_WORKERS_IN_API, false);
 export const SHOSP_ENABLED = readBooleanEnv(process.env.SHOSP_ENABLED, false);

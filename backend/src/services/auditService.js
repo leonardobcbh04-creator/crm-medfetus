@@ -1,5 +1,4 @@
-import { db } from "../db.js";
-import { getConfiguredDatabaseKind, getDatabaseRuntime } from "../database/runtime.js";
+import { getDatabaseRuntime } from "../database/runtime.js";
 
 function maskPhone(value) {
   const digits = String(value || "").replace(/\D/g, "");
@@ -37,32 +36,6 @@ export function recordAuditEvent({
 }) {
   const createdAt = new Date().toISOString();
   const detailsJson = details ? JSON.stringify(sanitizeDetails(details)) : null;
-
-  if (getConfiguredDatabaseKind() === "sqlite") {
-    db.prepare(`
-      INSERT INTO audit_logs (
-        actor_user_id,
-        action_type,
-        entity_type,
-        entity_id,
-        patient_id,
-        description,
-        details_json,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      actorUserId,
-      actionType,
-      entityType,
-      entityId,
-      patientId,
-      description,
-      detailsJson,
-      createdAt
-    );
-    return;
-  }
 
   void (async () => {
     const runtime = await getDatabaseRuntime();
