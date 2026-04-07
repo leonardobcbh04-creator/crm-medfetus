@@ -33,6 +33,7 @@ export function MessagesPage() {
   const [items, setItems] = useState<MessagingItem[]>([]);
   const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [feedback, setFeedback] = useState("");
+  const [feedbackType, setFeedbackType] = useState<"success" | "error">("success");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterValue>("todos");
   const [search, setSearch] = useState("");
@@ -59,6 +60,7 @@ export function MessagesPage() {
         }, {})
       }));
     } catch (error) {
+      setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a fila de mensagens.");
     } finally {
       setLoading(false);
@@ -75,8 +77,10 @@ export function MessagesPage() {
       });
 
       syncPatientMessage(item.patientId, response.message);
+      setFeedbackType("success");
       setFeedback(`Mensagem registrada para ${item.patientName}.`);
     } catch (error) {
+      setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel registrar a mensagem.");
     }
   }
@@ -93,8 +97,10 @@ export function MessagesPage() {
       });
 
       syncPatientMessage(item.patientId, response.message);
+      setFeedbackType("success");
       setFeedback(`Status da mensagem atualizado para ${item.patientName}.`);
     } catch (error) {
+      setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a mensagem.");
     }
   }
@@ -102,6 +108,13 @@ export function MessagesPage() {
   async function handleReminderAction(item: MessagingItem, action: "contacted" | "snooze" | "scheduled") {
     if (!item.examPatientId) {
       return;
+    }
+
+    if (action === "scheduled") {
+      const confirmed = window.confirm("Confirmar que esta paciente ja esta com exame agendado? Ela saira da lista operacional.");
+      if (!confirmed) {
+        return;
+      }
     }
 
     const key = `${item.patientId}-${item.examPatientId}-${action}`;
@@ -114,6 +127,7 @@ export function MessagesPage() {
         setItems((current) => current.filter((currentItem) => currentItem.patientId !== item.patientId));
       }
       await loadMessagingItems();
+      setFeedbackType("success");
       setFeedback(
         action === "contacted"
           ? `Contato registrado para ${item.patientName}.`
@@ -122,6 +136,7 @@ export function MessagesPage() {
             : `Agendamento registrado para ${item.patientName}.`
       );
     } catch (error) {
+      setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a fila operacional.");
     } finally {
       setActingKey(null);
@@ -132,8 +147,10 @@ export function MessagesPage() {
     const content = drafts[item.patientId] || item.suggestedMessage;
     try {
       await navigator.clipboard.writeText(content);
+      setFeedbackType("success");
       setFeedback(`Mensagem de ${item.patientName} copiada.`);
     } catch {
+      setFeedbackType("error");
       setFeedback("Nao foi possivel copiar a mensagem.");
     }
   }
@@ -276,7 +293,12 @@ export function MessagesPage() {
         </div>
       </article>
 
-      {feedback ? <p className={feedback.includes("Nao foi") || feedback.includes("baixa confianca") ? "form-error" : "form-success"}>{feedback}</p> : null}
+      {feedback ? (
+        <div className={feedbackType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
+          <strong>{feedbackType === "error" ? "Atencao" : "Sucesso"}</strong>
+          <span>{feedback}</span>
+        </div>
+      ) : null}
 
       <div className="messages-grid">
         {filteredItems.length ? filteredItems.map((item) => {
@@ -424,7 +446,29 @@ export function MessagesPage() {
               </div>
             </article>
           );
-        }) : <p className="empty-state">Nenhuma paciente encontrada com os filtros atuais.</p>}
+        }) : (
+          <div className="stack-form">
+            <p className="empty-state">
+              Nenhuma paciente encontrada com os filtros atuais.
+            </p>
+            {(search || filter !== "todos" || priorityFilter !== "todas" || messageTypeFilter !== "todos" || unitFilter || physicianFilter) ? (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setFilter("todos");
+                  setPriorityFilter("todas");
+                  setMessageTypeFilter("todos");
+                  setUnitFilter("");
+                  setPhysicianFilter("");
+                }}
+              >
+                Limpar filtros e revisar lista completa
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
     </section>
   );

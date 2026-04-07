@@ -257,9 +257,26 @@ export function ClientsPage() {
           <div className="clients-empty-state">
             <p className="empty-state">
               {patients.length
-                ? "Nenhum cliente encontrado com essa busca."
+                ? "Nenhum cliente encontrado com os filtros atuais."
                 : "Nenhum cliente cadastrado ainda."}
             </p>
+            {patients.length ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setSearch("");
+                  setHighRiskFilter("todas");
+                  setUnitFilter("");
+                  setPhysicianFilter("");
+                  setPriorityFilter("todas");
+                  setStatusFilter("");
+                  setSortBy("name");
+                }}
+              >
+                Limpar filtros
+              </button>
+            ) : null}
             {!patients.length ? (
               <Link to="/pacientes/novo" className="secondary-button">
                 Cadastrar paciente
