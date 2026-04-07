@@ -128,13 +128,8 @@ export function KanbanPage() {
         if (!matchesPriority) {
           return false;
         }
-
-        if (!normalizedSearch) {
-          return true;
-        }
-
         const haystack = `${patient.name} ${patient.phone} ${patient.nextExam.name}`.toLowerCase();
-        const matchesSearch = haystack.includes(normalizedSearch);
+        const matchesSearch = !normalizedSearch || haystack.includes(normalizedSearch);
         const matchesUnit = !unitFilter || patient.clinicUnit === unitFilter;
         const matchesPhysician = !physicianFilter || patient.physicianName === physicianFilter;
         const matchesStage = !stageFilter || column.id === stageFilter;
@@ -216,25 +211,41 @@ export function KanbanPage() {
             Vermelho
           </button>
         </div>
-        <select value={unitFilter} onChange={(event) => setUnitFilter(event.target.value)}>
-          <option value="">Todas as unidades</option>
-          {unitOptions.map((unit) => (
-            <option key={String(unit)} value={String(unit)}>{String(unit)}</option>
-          ))}
-        </select>
-        <select value={physicianFilter} onChange={(event) => setPhysicianFilter(event.target.value)}>
-          <option value="">Todos os medicos</option>
-          {physicianOptions.map((physician) => (
-            <option key={String(physician)} value={String(physician)}>{String(physician)}</option>
-          ))}
-        </select>
-        <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
-          <option value="">Todas as etapas</option>
-          {columns.map((column) => (
-            <option key={column.id} value={column.id}>{column.title}</option>
-          ))}
-        </select>
       </div>
+
+      <article className="panel-card operational-filter-panel">
+        <div className="operational-filter-grid operational-filter-grid-three">
+          <label className="field inline-field">
+            <span>Unidade</span>
+            <select value={unitFilter} onChange={(event) => setUnitFilter(event.target.value)}>
+              <option value="">Todas as unidades</option>
+              {unitOptions.map((unit) => (
+                <option key={String(unit)} value={String(unit)}>{String(unit)}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field inline-field">
+            <span>Medico</span>
+            <select value={physicianFilter} onChange={(event) => setPhysicianFilter(event.target.value)}>
+              <option value="">Todos os medicos</option>
+              {physicianOptions.map((physician) => (
+                <option key={String(physician)} value={String(physician)}>{String(physician)}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field inline-field">
+            <span>Status operacional</span>
+            <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
+              <option value="">Todas as etapas</option>
+              {columns.map((column) => (
+                <option key={column.id} value={column.id}>{column.title}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </article>
 
       <div className="kanban-legend">
         <span className="kanban-legend-item kanban-legend-green">
