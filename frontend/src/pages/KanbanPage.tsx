@@ -13,6 +13,7 @@ export function KanbanPage() {
   const [physicianFilter, setPhysicianFilter] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [feedbackType, setFeedbackType] = useState<"success" | "error">("success");
 
   useEffect(() => {
     loadKanban();
@@ -109,9 +110,11 @@ export function KanbanPage() {
         patientId: patient.id,
         content
       });
+      setFeedbackType("success");
       setFeedback(`Mensagem registrada para ${patient.name}.`);
       await loadKanban();
     } catch (error) {
+      setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel registrar a mensagem.");
     }
   }
@@ -267,11 +270,35 @@ export function KanbanPage() {
       </div>
 
       {feedback ? (
-        <p className={feedback.includes("Nao foi") ? "form-error" : "form-success"}>{feedback}</p>
+        <div className={feedbackType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
+          <strong>{feedbackType === "error" ? "Atencao" : "Sucesso"}</strong>
+          <span>{feedback}</span>
+        </div>
       ) : null}
 
       {loading ? (
         <p className="loading-text">Carregando fluxo de atendimento...</p>
+      ) : filteredColumns.every((column) => column.patients.length === 0) ? (
+        <div className="stack-form">
+          <p className="empty-state">
+            Nenhuma paciente encontrada com os filtros atuais no fluxo de atendimento.
+          </p>
+          {(search || priorityFilter !== "todas" || unitFilter || physicianFilter || stageFilter) ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                setSearch("");
+                setPriorityFilter("todas");
+                setUnitFilter("");
+                setPhysicianFilter("");
+                setStageFilter("");
+              }}
+            >
+              Limpar filtros e revisar fluxo completo
+            </button>
+          ) : null}
+        </div>
       ) : (
         <KanbanBoard
           columns={filteredColumns}

@@ -152,6 +152,7 @@ export function PatientFormPage() {
   const [patientDetails, setPatientDetails] = useState<PatientDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -192,6 +193,7 @@ export function PatientFormPage() {
         }
       } catch (error) {
         if (isMounted) {
+          setMessageType("error");
           setMessage(error instanceof Error ? error.message : "Nao foi possivel carregar o formulario.");
         }
       } finally {
@@ -309,21 +311,25 @@ export function PatientFormPage() {
     event.preventDefault();
 
     if (!formData.name.trim() || !formData.phone.trim() || !formData.birthDate || !formData.gestationalWeeks.trim()) {
+      setMessageType("error");
       setMessage("Preencha os campos obrigatorios para salvar a paciente.");
       return;
     }
 
     if (Number(formData.gestationalDays) < 0 || Number(formData.gestationalDays) > 6) {
+      setMessageType("error");
       setMessage("Informe os dias da idade gestacional entre 0 e 6.");
       return;
     }
 
     if (!formData.physicianName.trim() || !formData.clinicUnit.trim() || !formData.pregnancyType.trim()) {
+      setMessageType("error");
       setMessage("Medico solicitante, unidade e tipo de gestacao sao obrigatorios.");
       return;
     }
 
     if (!formData.notes.trim()) {
+      setMessageType("error");
       setMessage("Preencha as observacoes da paciente.");
       return;
     }
@@ -352,9 +358,11 @@ export function PatientFormPage() {
         ? await api.updatePatient(Number(id), payload)
         : await api.createPatient(payload);
 
+      setMessageType("success");
       setMessage(isEditing ? "Paciente atualizada com sucesso." : "Paciente cadastrada com sucesso.");
       navigate(`/pacientes/${response.patient.patient.id}`);
     } catch (error) {
+      setMessageType("error");
       setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar a paciente.");
     } finally {
       setIsSaving(false);
@@ -576,7 +584,12 @@ export function PatientFormPage() {
             />
           </label>
 
-          {message ? <p className={message.includes("sucesso") ? "form-success" : "form-error"}>{message}</p> : null}
+          {message ? (
+            <div className={messageType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
+              <strong>{messageType === "error" ? "Atencao" : "Sucesso"}</strong>
+              <span>{message}</span>
+            </div>
+          ) : null}
 
           <button className="primary-button" type="submit" disabled={isSaving}>
             {isSaving ? "Salvando..." : isEditing ? "Salvar alteracoes" : "Salvar paciente"}

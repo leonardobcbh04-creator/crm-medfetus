@@ -150,6 +150,20 @@ function getIntegrationSeverity(status?: string | null, message?: string | null)
   };
 }
 
+function getFeedbackTone(message: string) {
+  const normalized = String(message || "").toLowerCase();
+  if (
+    normalized.includes("nao foi") ||
+    normalized.includes("erro") ||
+    normalized.includes("incompleta") ||
+    normalized.includes("nao respondeu") ||
+    normalized.includes("alerta")
+  ) {
+    return "error";
+  }
+  return "success";
+}
+
 export function AdminPage() {
   const [adminData, setAdminData] = useState<AdminPanelData | null>(null);
   const [shospStatus, setShospStatus] = useState<ShospIntegrationStatus | null>(null);
@@ -950,7 +964,12 @@ export function AdminPage() {
         </div>
       </div>
 
-      {feedback ? <p className={feedback.includes("sucesso") ? "form-success" : "form-error"}>{feedback}</p> : null}
+      {feedback ? (
+        <div className={getFeedbackTone(feedback) === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
+          <strong>{getFeedbackTone(feedback) === "error" ? "Atencao" : "Sucesso"}</strong>
+          <span>{feedback}</span>
+        </div>
+      ) : null}
 
       <section className="admin-quick-grid">
         <QuickActionCard

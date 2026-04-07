@@ -43,6 +43,7 @@ export function ReminderCenterPage() {
   const [filters, setFilters] = useState<ReminderFilters>(DEFAULT_FILTERS);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState("");
+  const [feedbackType, setFeedbackType] = useState<"success" | "error">("success");
   const [actingKey, setActingKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilterValue>("todas");
@@ -58,6 +59,7 @@ export function ReminderCenterPage() {
       const response = await api.getReminders(nextFilters);
       setData(response);
     } catch (error) {
+      setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a central de lembretes.");
     } finally {
       setLoading(false);
@@ -71,6 +73,13 @@ export function ReminderCenterPage() {
   async function handleAction(patientId: number, examPatientId: number | null, action: "contacted" | "snooze" | "scheduled") {
     if (!examPatientId) {
       return;
+    }
+
+    if (action === "scheduled") {
+      const confirmed = window.confirm("Confirmar que este exame ja esta agendado? Ele saira da fila ativa.");
+      if (!confirmed) {
+        return;
+      }
     }
 
     const key = `${patientId}-${examPatientId}-${action}`;
@@ -90,6 +99,7 @@ export function ReminderCenterPage() {
         );
       }
       await loadReminders(filters);
+      setFeedbackType("success");
       setFeedback(
         action === "contacted"
           ? "Contato registrado com sucesso."
@@ -98,6 +108,7 @@ export function ReminderCenterPage() {
             : "Agendamento registrado com sucesso."
       );
     } catch (error) {
+      setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar o lembrete.");
     } finally {
       setActingKey(null);
@@ -107,8 +118,10 @@ export function ReminderCenterPage() {
   async function handleCopyMessage(message: string, patientName: string) {
     try {
       await navigator.clipboard.writeText(message);
+      setFeedbackType("success");
       setFeedback(`Mensagem de ${patientName} copiada.`);
     } catch {
+      setFeedbackType("error");
       setFeedback("Nao foi possivel copiar a mensagem.");
     }
   }
@@ -242,7 +255,12 @@ export function ReminderCenterPage() {
         </div>
       </article>
 
-      {feedback ? <p className={feedback.includes("Nao foi") ? "form-error" : "form-success"}>{feedback}</p> : null}
+      {feedback ? (
+        <div className={feedbackType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
+          <strong>{feedbackType === "error" ? "Atencao" : "Sucesso"}</strong>
+          <span>{feedback}</span>
+        </div>
+      ) : null}
 
       <div className="reminder-grid">
         {filteredItems.length ? filteredItems.map((item) => (
@@ -324,7 +342,28 @@ export function ReminderCenterPage() {
               </Link>
             </div>
           </article>
-        )) : <p className="empty-state">Nenhuma paciente precisa de contato com os filtros atuais.</p>}
+        )) : (
+          <div className="stack-form">
+            <p className="empty-state">
+              Nenhuma paciente precisa de contato com os filtros atuais.
+            </p>
+            {(search || priorityFilter !== "todas" || messageTypeFilter !== "todos" || filters.clinicUnit || filters.physicianName || filters.examCode) ? (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  setFilters(DEFAULT_FILTERS);
+                  setSearch("");
+                  setPriorityFilter("todas");
+                  setMessageTypeFilter("todos");
+                  void loadReminders(DEFAULT_FILTERS);
+                }}
+              >
+                Limpar filtros e revisar fila completa
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
     </section>
   );
