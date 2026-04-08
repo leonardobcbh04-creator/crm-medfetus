@@ -133,6 +133,20 @@ export type MessageDeliveryLog = {
   createdAt: string;
 };
 
+export type AuditLogRecord = {
+  id: number;
+  actorUserId: number | null;
+  actorUserName: string | null;
+  actionType: string;
+  entityType: string;
+  entityId: number | null;
+  patientId: number | null;
+  patientName?: string | null;
+  description: string;
+  details: Record<string, unknown> | null;
+  createdAt: string;
+};
+
 export type MessagingConfig = {
   provider: string;
   channel: string;
@@ -152,6 +166,7 @@ export type AdminPanelData = {
   examInferenceRules: ExamInferenceRule[];
   messageTemplates: MessageTemplate[];
   messageDeliveryLogs: MessageDeliveryLog[];
+  recentAuditLogs: AuditLogRecord[];
   messagingConfig: MessagingConfig;
 };
 
@@ -407,6 +422,7 @@ export type PatientDetails = {
   exams: PatientExamRecord[];
   messages: MessageRecord[];
   movements: MovementRecord[];
+  auditLogs: AuditLogRecord[];
 };
 
 export type GestationalBaseReviewItem = {

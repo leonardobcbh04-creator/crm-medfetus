@@ -25,7 +25,7 @@ patientRoutes.get("/", async (_request, response) => {
 });
 
 patientRoutes.get("/manual-review/gestational-base", (request, response) => {
-  recordAuditEvent({
+  void recordAuditEvent({
     actorUserId: request.authUser?.id || null,
     actionType: "visualizacao_fila_revisao_gestacional",
     entityType: "patient_review_queue",
@@ -40,7 +40,7 @@ patientRoutes.post("/:id/gestational-base/confirm", async (request, response) =>
   try {
     const patientId = Number(request.params.id);
     const patient = await confirmGestationalBaseEstimateCore(patientId, request.authUser?.id || 1);
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "confirmacao_base_gestacional",
       entityType: "patient",
@@ -61,7 +61,7 @@ patientRoutes.patch("/:id/gestational-base/manual", async (request, response) =>
       ...request.body,
       actorUserId: request.authUser?.id || 1
     });
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "edicao_base_gestacional",
       entityType: "patient",
@@ -83,7 +83,7 @@ patientRoutes.post("/:id/gestational-base/discard", async (request, response) =>
   try {
     const patientId = Number(request.params.id);
     const patient = await discardGestationalBaseEstimateCore(patientId, request.authUser?.id || 1);
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "descarte_estimativa_gestacional",
       entityType: "patient",
@@ -103,7 +103,7 @@ patientRoutes.post("/", async (request, response) => {
       ...request.body,
       actorUserId: request.authUser?.id || 1
     });
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "cadastro_paciente",
       entityType: "patient",
@@ -125,7 +125,7 @@ patientRoutes.put("/:id", async (request, response) => {
       ...request.body,
       actorUserId: request.authUser?.id || 1
     });
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "edicao_paciente",
       entityType: "patient",
@@ -144,7 +144,7 @@ patientRoutes.delete("/:id", requireAdmin, async (request, response) => {
   try {
     const patientId = Number(request.params.id);
     const result = await deletePatientCore(patientId);
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "exclusao_paciente",
       entityType: "patient",
@@ -173,7 +173,7 @@ patientRoutes.patch("/:id/exams/:examId", async (request, response) => {
         actorUserId: request.authUser?.id || 1
       }
     );
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "edicao_exame_paciente",
       entityType: "patient_exam",
@@ -197,7 +197,7 @@ patientRoutes.get("/:id", async (request, response) => {
       return;
     }
 
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "visualizacao_paciente",
       entityType: "patient",

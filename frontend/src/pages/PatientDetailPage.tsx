@@ -291,7 +291,7 @@ export function PatientDetailPage() {
     const rightDate = right.predictedDate || "";
     return leftDate.localeCompare(rightDate);
   });
-  const historyItemsCount = details.messages.length + details.movements.length;
+  const historyItemsCount = details.messages.length + details.movements.length + details.auditLogs.length;
   const overdueCode = details.patient.nextExam.overdueExam?.code;
   const nextCode = details.patient.nextExam.code;
   const currentTimelineExamId = overdueCode
@@ -871,6 +871,20 @@ export function PatientDetailPage() {
                 <p>{movement.description}</p>
               </div>
             )) : <p className="empty-state">Nenhum historico registrado.</p>}
+          </div>
+        </article>
+
+        <article className="panel-card">
+          <p className="muted-label">Auditoria da paciente</p>
+          <div className="message-history-list">
+            {details.auditLogs.length ? details.auditLogs.map((log) => (
+              <div key={log.id} className="message-history-item">
+                <span><strong>Acao:</strong> {log.description}</span>
+                <span><strong>Usuario:</strong> {log.actorUserName || "Nao identificado"}</span>
+                <span><strong>Data:</strong> {log.createdAt}</span>
+                <span><strong>Tipo:</strong> {log.actionType}</span>
+              </div>
+            )) : <p className="empty-state">Nenhuma acao auditada nesta paciente ate o momento.</p>}
           </div>
         </article>
 

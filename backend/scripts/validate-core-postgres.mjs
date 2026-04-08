@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import { closeDatabaseRuntime } from "../src/database/runtime.js";
+import { recordAuditEvent } from "../src/services/auditService.js";
 import {
   authenticateCore,
   createPatientCore,
@@ -29,6 +30,7 @@ try {
   assert.ok(Array.isArray(adminPanel.users) && adminPanel.users.length >= 1, "Painel admin sem usuarios.");
   assert.ok(Array.isArray(adminPanel.units) && adminPanel.units.length >= 1, "Painel admin sem unidades.");
   assert.ok(Array.isArray(adminPanel.physicians) && adminPanel.physicians.length >= 1, "Painel admin sem medicos.");
+  assert.ok(Array.isArray(adminPanel.recentAuditLogs), "Painel admin sem auditoria recente.");
 
   const created = await createPatientCore({
     name: "Paciente Validacao Core Postgres",
@@ -49,6 +51,22 @@ try {
 
   const patientDetails = await getPatientDetailsCore(createdPatientId);
   assert.equal(patientDetails?.patient?.id, createdPatientId, "Detalhes da paciente nao retornaram corretamente.");
+  assert.ok(Array.isArray(patientDetails?.auditLogs), "Detalhes da paciente vieram sem auditoria.");
+
+  await recordAuditEvent({
+    actorUserId: auth.user.id,
+    actionType: "teste_auditoria_validacao",
+    entityType: "patient",
+    entityId: createdPatientId,
+    patientId: createdPatientId,
+    description: "Evento de auditoria criado pela validacao automatica."
+  });
+
+  const patientDetailsWithAudit = await getPatientDetailsCore(createdPatientId);
+  assert.ok(
+    patientDetailsWithAudit.auditLogs.some((log) => log.actionType === "teste_auditoria_validacao"),
+    "Evento de auditoria nao apareceu nos detalhes da paciente."
+  );
 
   const remindersBefore = await getRemindersCenterDataCore();
   const reminderItem = remindersBefore.items.find((item) => item.patientId === createdPatientId);

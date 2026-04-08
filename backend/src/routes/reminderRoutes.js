@@ -6,7 +6,7 @@ import { recordAuditEvent } from "../services/auditService.js";
 export const reminderRoutes = Router();
 
 reminderRoutes.get("/", asyncRoute(async (request, response) => {
-  recordAuditEvent({
+  await recordAuditEvent({
     actorUserId: request.authUser?.id || null,
     actionType: "visualizacao_central_lembretes",
     entityType: "reminder_queue",
@@ -27,7 +27,7 @@ reminderRoutes.patch("/:patientId/exams/:examPatientId", asyncRoute(async (reque
       Number(request.params.examPatientId),
       request.body.action
     );
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "acao_central_lembretes",
       entityType: "patient_exam",

@@ -4,6 +4,7 @@ import {
   createUserSession,
   getActiveSessionByTokenHash,
   getActiveUserByEmail,
+  listAuditRowsByPatient,
   getPatientExamRow,
   getMessageRow,
   getMessageTemplateByCode,
@@ -27,6 +28,7 @@ import {
   listPatientExamRows,
   listPatientsBaseRows,
   listPhysiciansRows,
+  listRecentAuditLogRows,
   replacePatientExams,
   touchSessionLastSeen,
   updateMessageRecord,
@@ -71,6 +73,18 @@ async function resolveActorUserId(preferredUserId = null) {
 
 function sanitizePhone(phone) {
   return normalizeBrazilPhone(phone);
+}
+
+function parseJsonOrNull(value) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
 }
 
 function fillMessageVariables(template, variables) {
@@ -1190,7 +1204,8 @@ export async function getAdminPanelDataCore() {
     examConfigsResult,
     examInferenceRulesResult,
     messageTemplatesResult,
-    messageDeliveryLogsResult
+    messageDeliveryLogsResult,
+    recentAuditLogsResult
   ] = await Promise.allSettled([
     listAdminUsersRows(),
     listClinicUnitsRows(),
@@ -1198,7 +1213,8 @@ export async function getAdminPanelDataCore() {
     listExamConfigsCore(),
     listExamInferenceRuleRows(),
     listMessageTemplateRows(),
-    listMessageDeliveryLogRows()
+    listMessageDeliveryLogRows(),
+    listRecentAuditLogRows(40)
   ]);
 
   if (usersResult.status === "rejected") {
@@ -1222,6 +1238,9 @@ export async function getAdminPanelDataCore() {
   if (messageDeliveryLogsResult.status === "rejected") {
     console.error("[admin] Falha ao carregar logs de mensageria.", messageDeliveryLogsResult.reason);
   }
+  if (recentAuditLogsResult.status === "rejected") {
+    console.error("[admin] Falha ao carregar auditoria recente.", recentAuditLogsResult.reason);
+  }
 
   const users = usersResult.status === "fulfilled" ? usersResult.value : [];
   const units = unitsResult.status === "fulfilled" ? unitsResult.value : [];
@@ -1232,6 +1251,7 @@ export async function getAdminPanelDataCore() {
   const examInferenceRules = examInferenceRulesResult.status === "fulfilled" ? examInferenceRulesResult.value : [];
   const messageTemplates = messageTemplatesResult.status === "fulfilled" ? messageTemplatesResult.value : [];
   const messageDeliveryLogs = messageDeliveryLogsResult.status === "fulfilled" ? messageDeliveryLogsResult.value : [];
+  const recentAuditLogs = recentAuditLogsResult.status === "fulfilled" ? recentAuditLogsResult.value : [];
 
   return {
     users: users.map((user) => ({
@@ -1249,6 +1269,10 @@ export async function getAdminPanelDataCore() {
     })),
     messageTemplates: messageTemplates.map((template) => ({ ...template, active: Boolean(template.active) })),
     messageDeliveryLogs,
+    recentAuditLogs: recentAuditLogs.map((log) => ({
+      ...log,
+      details: parseJsonOrNull(log.detailsJson)
+    })),
     messagingConfig: getMessagingRuntimeConfig()
   };
 }
@@ -1260,10 +1284,11 @@ export async function getPatientDetailsCore(patientId) {
     return null;
   }
 
-  const [allExamRows, messages, movements] = await Promise.all([
+  const [allExamRows, messages, movements, auditLogs] = await Promise.all([
     listPatientExamRows(),
     listMessageHistoryRowsByPatient(patientId),
-    listMovementRowsByPatient(patientId)
+    listMovementRowsByPatient(patientId),
+    listAuditRowsByPatient(patientId, 50)
   ]);
   const patientExams = buildPatientExamsMap(allExamRows).get(patientId) ?? [];
   const exams = analyzePatientExamTimeline(patientExams.map((exam) => ({
@@ -1285,7 +1310,11 @@ export async function getPatientDetailsCore(patientId) {
     messages,
     movements: movements.map((movement) => ({
       ...movement,
-      metadata: movement.metadataJson ? JSON.parse(movement.metadataJson) : null
+      metadata: parseJsonOrNull(movement.metadataJson)
+    })),
+    auditLogs: auditLogs.map((log) => ({
+      ...log,
+      details: parseJsonOrNull(log.detailsJson)
     }))
   };
 }

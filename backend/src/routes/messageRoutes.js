@@ -6,7 +6,7 @@ import { recordAuditEvent } from "../services/auditService.js";
 export const messageRoutes = Router();
 
 messageRoutes.get("/", asyncRoute(async (request, response) => {
-  recordAuditEvent({
+  await recordAuditEvent({
     actorUserId: request.authUser?.id || null,
     actionType: "visualizacao_mensagens",
     entityType: "messaging_queue",
@@ -18,7 +18,7 @@ messageRoutes.get("/", asyncRoute(async (request, response) => {
 messageRoutes.post("/", asyncRoute(async (request, response) => {
   try {
     const message = await createMessageCore(request.body);
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "registro_mensagem",
       entityType: "message",
@@ -35,7 +35,7 @@ messageRoutes.post("/", asyncRoute(async (request, response) => {
 messageRoutes.patch("/:id", asyncRoute(async (request, response) => {
   try {
     const message = await updateMessageStatusCore(Number(request.params.id), request.body);
-    recordAuditEvent({
+    await recordAuditEvent({
       actorUserId: request.authUser?.id || null,
       actionType: "atualizacao_mensagem",
       entityType: "message",

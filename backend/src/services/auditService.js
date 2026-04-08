@@ -25,7 +25,7 @@ function sanitizeDetails(details) {
   );
 }
 
-export function recordAuditEvent({
+export async function recordAuditEvent({
   actorUserId = null,
   actionType,
   entityType,
@@ -37,7 +37,7 @@ export function recordAuditEvent({
   const createdAt = new Date().toISOString();
   const detailsJson = details ? JSON.stringify(sanitizeDetails(details)) : null;
 
-  void (async () => {
+  try {
     const runtime = await getDatabaseRuntime();
     await runtime.query(`
       INSERT INTO audit_logs (
@@ -61,7 +61,7 @@ export function recordAuditEvent({
       detailsJson,
       createdAt
     ]);
-  })().catch((error) => {
+  } catch (error) {
     console.error(error instanceof Error ? error.message : "Falha ao registrar auditoria.");
-  });
+  }
 }

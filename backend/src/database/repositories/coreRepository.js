@@ -332,6 +332,53 @@ export async function listMovementRows() {
   return result.rows;
 }
 
+export async function listAuditRowsByPatient(patientId, limit = 50) {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      audit_logs.id,
+      audit_logs.actor_user_id AS "actorUserId",
+      users.name AS "actorUserName",
+      audit_logs.action_type AS "actionType",
+      audit_logs.entity_type AS "entityType",
+      audit_logs.entity_id AS "entityId",
+      audit_logs.patient_id AS "patientId",
+      audit_logs.description,
+      audit_logs.details_json AS "detailsJson",
+      audit_logs.created_at AS "createdAt"
+    FROM audit_logs
+    LEFT JOIN users ON users.id = audit_logs.actor_user_id
+    WHERE audit_logs.patient_id = $1
+    ORDER BY audit_logs.created_at DESC, audit_logs.id DESC
+    LIMIT $2
+  `, [patientId, limit]);
+  return result.rows;
+}
+
+export async function listRecentAuditLogRows(limit = 30) {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      audit_logs.id,
+      audit_logs.actor_user_id AS "actorUserId",
+      users.name AS "actorUserName",
+      audit_logs.action_type AS "actionType",
+      audit_logs.entity_type AS "entityType",
+      audit_logs.entity_id AS "entityId",
+      audit_logs.patient_id AS "patientId",
+      patients.name AS "patientName",
+      audit_logs.description,
+      audit_logs.details_json AS "detailsJson",
+      audit_logs.created_at AS "createdAt"
+    FROM audit_logs
+    LEFT JOIN users ON users.id = audit_logs.actor_user_id
+    LEFT JOIN patients ON patients.id = audit_logs.patient_id
+    ORDER BY audit_logs.created_at DESC, audit_logs.id DESC
+    LIMIT $1
+  `, [limit]);
+  return result.rows;
+}
+
 export async function listAdminUsersRows() {
   const runtime = await getDatabaseRuntime();
   const result = await runtime.query(`

@@ -30,6 +30,7 @@ const EMPTY_ADMIN_PANEL: AdminPanelData = {
   examInferenceRules: [],
   messageTemplates: [],
   messageDeliveryLogs: [],
+  recentAuditLogs: [],
   messagingConfig: {
     provider: "manual_stub",
     channel: "whatsapp",
@@ -970,6 +971,33 @@ export function AdminPage() {
           <span>{feedback}</span>
         </div>
       ) : null}
+
+      <article className="panel-card stack-form">
+        <SectionHeader
+          eyebrow="Auditoria"
+          title="Atividade recente da equipe"
+          description="Ultimas acoes importantes registradas no sistema."
+        />
+        <div className="list-grid">
+          {adminData.recentAuditLogs.length ? adminData.recentAuditLogs.slice(0, 8).map((log) => (
+            <div key={log.id} className="admin-row-card stack-form admin-log-card">
+              <div className="card-row admin-entity-head">
+                <div>
+                  <strong>{log.description}</strong>
+                  <p className="admin-user-subtitle">
+                    {log.patientName ? `${log.patientName} • ` : ""}{log.actorUserName || "Usuario nao identificado"}
+                  </p>
+                </div>
+                <span className="badge badge-soft badge-priority-blue">{log.actionType}</span>
+              </div>
+              <div className="message-metadata">
+                <span><strong>Data:</strong> {formatDateTimeLabel(log.createdAt)}</span>
+                <span><strong>Entidade:</strong> {log.entityType}</span>
+              </div>
+            </div>
+          )) : <p className="empty-state">Nenhuma acao auditada recentemente.</p>}
+        </div>
+      </article>
 
       <section className="admin-quick-grid">
         <QuickActionCard
