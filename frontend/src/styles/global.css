@@ -1470,6 +1470,34 @@ textarea:focus {
   gap: 10px;
 }
 
+.admin-activity-panel {
+  gap: 16px;
+  border-color: rgba(139, 184, 213, 0.42);
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.99), rgba(255, 255, 255, 0.98));
+}
+
+.admin-activity-panel-head {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.admin-activity-summary {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.admin-activity-list {
+  gap: 12px;
+}
+
+.admin-log-card {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(219, 228, 239, 0.92);
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .integration-panel-tertiary .admin-log-card .message-metadata {
   gap: 8px 14px;
 }
