@@ -972,13 +972,25 @@ export function AdminPage() {
         </div>
       ) : null}
 
-      <article className="panel-card stack-form">
-        <SectionHeader
-          eyebrow="Auditoria"
-          title="Atividade recente da equipe"
-          description="Ultimas acoes importantes registradas no sistema."
-        />
-        <div className="list-grid">
+      <article className="panel-card stack-form admin-activity-panel" id="admin-activity-recent">
+        <div className="card-row admin-activity-panel-head">
+          <div className="stack-form">
+            <SectionHeader
+              eyebrow="Auditoria"
+              title="Atividade recente da equipe"
+              description="Acompanhe as ultimas acoes registradas pela equipe sem sair da area administrativa."
+            />
+            <p className="admin-activity-summary">
+              {adminData.recentAuditLogs.length
+                ? `${Math.min(adminData.recentAuditLogs.length, 8)} atividade(s) recente(s) exibida(s) abaixo.`
+                : "Nenhuma atividade administrativa foi registrada ainda neste ambiente."}
+            </p>
+          </div>
+          <span className="badge badge-soft badge-priority-blue">
+            {adminData.recentAuditLogs.length} registro{adminData.recentAuditLogs.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="list-grid admin-activity-list">
           {adminData.recentAuditLogs.length ? adminData.recentAuditLogs.slice(0, 8).map((log) => (
             <div key={log.id} className="admin-row-card stack-form admin-log-card">
               <div className="card-row admin-entity-head">
@@ -995,7 +1007,14 @@ export function AdminPage() {
                 <span><strong>Entidade:</strong> {log.entityType}</span>
               </div>
             </div>
-          )) : <p className="empty-state">Nenhuma acao auditada recentemente.</p>}
+          )) : (
+            <div className="empty-state-card">
+              <strong>Sem atividade recente por enquanto</strong>
+              <p className="field-hint">
+                Assim que a equipe cadastrar pacientes, registrar contatos ou fizer ajustes administrativos, esse bloco vai mostrar os eventos mais recentes.
+              </p>
+            </div>
+          )}
         </div>
       </article>
 
