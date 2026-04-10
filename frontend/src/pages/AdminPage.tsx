@@ -17,7 +17,7 @@ import type {
   ShospSyncResult
 } from "../types";
 
-type AdminTab = "usuarios" | "cadastros" | "exames" | "mensageria" | "integracoes";
+type AdminTab = "usuarios" | "cadastros" | "exames" | "mensageria" | "auditoria" | "integracoes";
 type IntegrationSubTab = "visao" | "mapeamentos";
 type PatientCleanupPreset = "today" | "last_7_days" | "last_30_days" | "all" | "custom";
 const SHOSP_PRODUCT_VISIBLE = false;
@@ -976,6 +976,7 @@ export function AdminPage() {
         </div>
       ) : null}
 
+      {false ? (
       <article className="panel-card stack-form admin-activity-panel" id="admin-activity-recent">
         <div className="card-row admin-activity-panel-head">
           <div className="stack-form">
@@ -985,16 +986,16 @@ export function AdminPage() {
               description="Um resumo rapido das movimentacoes mais recentes da equipe."
             />
             <p className="admin-activity-summary">
-              {adminData.recentAuditLogs.length
-                ? `${Math.min(visibleRecentAuditLogs.length, adminData.recentAuditLogs.length)} de ${adminData.recentAuditLogs.length} registro(s) recente(s) visiveis.`
+              {adminData!.recentAuditLogs.length
+                ? `${Math.min(visibleRecentAuditLogs.length, adminData!.recentAuditLogs.length)} de ${adminData!.recentAuditLogs.length} registro(s) recente(s) visiveis.`
                 : "Nenhuma atividade administrativa foi registrada ainda neste ambiente."}
             </p>
           </div>
           <div className="admin-activity-actions">
             <span className="badge badge-soft badge-priority-blue">
-              {adminData.recentAuditLogs.length} registro{adminData.recentAuditLogs.length === 1 ? "" : "s"}
+              {adminData!.recentAuditLogs.length} registro{adminData!.recentAuditLogs.length === 1 ? "" : "s"}
             </span>
-            {adminData.recentAuditLogs.length > 5 ? (
+            {adminData!.recentAuditLogs.length > 5 ? (
               <button
                 type="button"
                 className="ghost-button admin-activity-toggle"
@@ -1006,7 +1007,7 @@ export function AdminPage() {
           </div>
         </div>
         <div className="list-grid admin-activity-list">
-          {adminData.recentAuditLogs.length ? visibleRecentAuditLogs.map((log) => (
+          {adminData!.recentAuditLogs.length ? visibleRecentAuditLogs.map((log) => (
             <div key={log.id} className="admin-row-card stack-form admin-log-card">
               <div className="card-row admin-entity-head">
                 <div>
@@ -1032,6 +1033,7 @@ export function AdminPage() {
           )}
         </div>
       </article>
+      ) : null}
 
       <section className="admin-quick-grid">
         <QuickActionCard
@@ -1107,6 +1109,16 @@ export function AdminPage() {
           <span>Mensageria</span>
           <span className="patient-tab-count">{adminData.messageTemplates.length + adminData.messageDeliveryLogs.length}</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "auditoria"}
+          className={`patient-tab-button ${activeTab === "auditoria" ? "active" : ""}`}
+          onClick={() => setActiveTab("auditoria")}
+        >
+          <span>Atividade da equipe</span>
+          <span className="patient-tab-count">{adminData.recentAuditLogs.length}</span>
+        </button>
         {SHOSP_PRODUCT_VISIBLE ? (
           <button
             type="button"
@@ -1120,6 +1132,65 @@ export function AdminPage() {
           </button>
         ) : null}
       </div>
+
+      {activeTab === "auditoria" ? (
+      <article className="panel-card stack-form admin-activity-panel" id="admin-activity-recent">
+        <div className="card-row admin-activity-panel-head">
+          <div className="stack-form">
+            <SectionHeader
+              eyebrow="Auditoria"
+              title="Atividade recente da equipe"
+              description="Um resumo rapido das movimentacoes mais recentes da equipe."
+            />
+            <p className="admin-activity-summary">
+              {adminData.recentAuditLogs.length
+                ? `${Math.min(visibleRecentAuditLogs.length, adminData.recentAuditLogs.length)} de ${adminData.recentAuditLogs.length} registro(s) recente(s) visiveis.`
+                : "Nenhuma atividade administrativa foi registrada ainda neste ambiente."}
+            </p>
+          </div>
+          <div className="admin-activity-actions">
+            <span className="badge badge-soft badge-priority-blue">
+              {adminData.recentAuditLogs.length} registro{adminData.recentAuditLogs.length === 1 ? "" : "s"}
+            </span>
+            {adminData.recentAuditLogs.length > 5 ? (
+              <button
+                type="button"
+                className="ghost-button admin-activity-toggle"
+                onClick={() => setShowAllRecentActivity((current) => !current)}
+              >
+                {showAllRecentActivity ? "Mostrar menos" : "Ver mais"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="list-grid admin-activity-list">
+          {adminData.recentAuditLogs.length ? visibleRecentAuditLogs.map((log) => (
+            <div key={log.id} className="admin-row-card stack-form admin-log-card">
+              <div className="card-row admin-entity-head">
+                <div>
+                  <strong>{log.description}</strong>
+                  <p className="admin-user-subtitle">
+                    {log.patientName ? `${log.patientName} â€¢ ` : ""}{log.actorUserName || "Usuario nao identificado"}
+                  </p>
+                </div>
+                <span className="badge badge-soft badge-priority-blue admin-activity-badge">{log.actionType}</span>
+              </div>
+              <div className="message-metadata admin-activity-meta">
+                <span>{formatDateTimeLabel(log.createdAt)}</span>
+                <span>{log.entityType}</span>
+              </div>
+            </div>
+          )) : (
+            <div className="empty-state-card">
+              <strong>Sem atividade recente por enquanto</strong>
+              <p className="field-hint">
+                Assim que a equipe cadastrar pacientes, registrar contatos ou fizer ajustes administrativos, esse bloco vai mostrar os eventos mais recentes.
+              </p>
+            </div>
+          )}
+        </div>
+      </article>
+      ) : null}
 
       {activeTab === "usuarios" ? (
       <>
