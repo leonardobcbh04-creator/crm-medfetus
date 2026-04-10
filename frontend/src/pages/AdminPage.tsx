@@ -17,7 +17,7 @@ import type {
   ShospSyncResult
 } from "../types";
 
-type AdminTab = "usuarios" | "cadastros" | "exames" | "mensageria" | "auditoria" | "integracoes";
+type AdminTab = "usuarios" | "cadastros" | "exames" | "auditoria" | "integracoes";
 type IntegrationSubTab = "visao" | "mapeamentos";
 type PatientCleanupPreset = "today" | "last_7_days" | "last_30_days" | "all" | "custom";
 const SHOSP_PRODUCT_VISIBLE = false;
@@ -1886,134 +1886,6 @@ export function AdminPage() {
           ))}
         </div>
       </article>
-      </div>
-      ) : null}
-
-      {false && activeTab === "mensageria" ? (
-      <div className="detail-layout admin-layout">
-        <article className="panel-card stack-form integration-hero-card">
-          <SectionHeader
-            eyebrow="Mensageria"
-            title="Configuracao futura de integracao"
-            description="Arquitetura preparada para integrar WhatsApp Business API no futuro, sem envio real ativo agora."
-          />
-
-          <div className="admin-summary-strip">
-            <div className="admin-summary-pill">
-              <span className="admin-summary-label">Provider atual</span>
-              <strong>{adminData!.messagingConfig.provider}</strong>
-            </div>
-            <div className="admin-summary-pill">
-              <span className="admin-summary-label">Modo de envio</span>
-              <strong>{adminData!.messagingConfig.dryRun ? "Preparado sem envio real" : "Ativo"}</strong>
-            </div>
-            <div className="admin-summary-pill">
-              <span className="admin-summary-label">API externa pronta</span>
-              <strong>{adminData!.messagingConfig.isExternalProviderConfigured ? "Configurada" : "Ainda nao configurada"}</strong>
-            </div>
-          </div>
-
-          <div className="message-metadata">
-            <span><strong>Canal:</strong> {adminData!.messagingConfig.channel}</span>
-            <span><strong>Templates habilitados:</strong> {adminData!.messagingConfig.templatesEnabled ? "Sim" : "Nao"}</span>
-            <span><strong>Base URL externa:</strong> {adminData!.messagingConfig.externalApiBaseUrl || "Nao configurada"}</span>
-            <span><strong>Phone Number ID:</strong> {adminData!.messagingConfig.externalPhoneNumberId || "Nao configurado"}</span>
-          </div>
-        </article>
-
-        <article className="panel-card stack-form integration-hero-card">
-          <SectionHeader
-            eyebrow="Templates"
-            title="Templates cadastrados"
-            description="Modelos salvos para futura integracao com provider externo."
-          />
-
-          <div className="list-grid">
-            {adminData!.messageTemplates.map((template) => (
-              <form key={template.id} className="admin-row-card stack-form admin-entity-card" onSubmit={(event) => handleUpdateMessageTemplate(event, template)}>
-                <div className="card-row admin-entity-head">
-                  <div className="admin-user-title-block">
-                    <div className="admin-user-avatar admin-entity-avatar" aria-hidden="true">TM</div>
-                    <div>
-                      <strong>{template.name}</strong>
-                      <p className="admin-user-subtitle">Codigo: {template.code}</p>
-                    </div>
-                  </div>
-                  <div className="priority-badge-row">
-                    <span className="badge badge-priority-green">{template.channel}</span>
-                    <span className={`badge badge-soft ${template.active ? "badge-priority-green" : "badge-priority-red"}`}>
-                      {template.active ? "Ativo" : "Inativo"}
-                    </span>
-                  </div>
-                </div>
-                <label>
-                  Nome do template
-                  <input name="name" defaultValue={template.name} />
-                </label>
-                <div className="two-columns">
-                  <label>
-                    Idioma
-                    <input name="language" defaultValue={template.language} />
-                  </label>
-                  <label className="checkbox-row checkbox-row-compact">
-                    <input name="active" type="checkbox" defaultChecked={template.active} />
-                    Template ativo
-                  </label>
-                </div>
-                <label>
-                  Conteudo
-                  <textarea name="content" rows={4} defaultValue={template.content} />
-                </label>
-                <button className="secondary-button" type="submit" disabled={savingKey === `template-${template.id}`}>
-                  {savingKey === `template-${template.id}` ? "Salvando..." : "Salvar template"}
-                </button>
-              </form>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel-card stack-form integration-hero-card">
-          <SectionHeader
-            eyebrow="Logs"
-            title="Logs recentes de envio"
-            description="Historico tecnico das mensagens registradas, pronto para receber integracao real no futuro."
-          />
-
-          <div className="list-grid">
-            {adminData!.messageDeliveryLogs.length ? adminData!.messageDeliveryLogs.map((log) => (
-              <div key={log.id} className="admin-row-card stack-form admin-log-card">
-                <div className="card-row admin-entity-head">
-                  <div>
-                    <strong>{log.patientName || "Paciente nao encontrada"}</strong>
-                    <p className="admin-user-subtitle">{log.templateName || "Envio sem template vinculado"}</p>
-                  </div>
-                  <div className="priority-badge-row">
-                    <span className="badge badge-priority-green">{log.provider}</span>
-                    <span className={`badge badge-soft ${
-                      log.status === "erro"
-                        ? "badge-priority-red"
-                        : log.status === "respondida"
-                          ? "badge-priority-green"
-                          : log.status === "pendente"
-                            ? "badge-priority-yellow"
-                            : "badge-priority-green"
-                    }`}>
-                      {log.status}
-                    </span>
-                  </div>
-                </div>
-                <div className="message-metadata">
-                  <span><strong>Mensagem:</strong> {log.messageId || "Nao vinculada"}</span>
-                  <span><strong>Enviado em:</strong> {log.sentAt || "Nao enviado"}</span>
-                  <span><strong>Entrega:</strong> {log.deliveredAt || "Sem retorno"}</span>
-                  <span><strong>Resposta:</strong> {log.respondedAt || "Sem resposta"}</span>
-                  <span><strong>ID externo:</strong> {log.externalMessageId || "Nao informado"}</span>
-                  {log.errorMessage ? <span className="exam-warning-text"><strong>Erro:</strong> {log.errorMessage}</span> : null}
-                </div>
-              </div>
-            )) : <p className="empty-state">Nenhum log de envio registrado ainda.</p>}
-          </div>
-        </article>
       </div>
       ) : null}
 
