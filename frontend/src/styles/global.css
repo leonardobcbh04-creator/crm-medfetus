@@ -1481,21 +1481,44 @@ textarea:focus {
   gap: 16px;
 }
 
+.admin-activity-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .admin-activity-summary {
   margin: 0;
   color: var(--muted);
   line-height: 1.55;
+  font-size: 0.92rem;
 }
 
 .admin-activity-list {
-  gap: 12px;
+  gap: 10px;
 }
 
 .admin-log-card {
-  padding: 14px 16px;
-  border-radius: 18px;
+  padding: 12px 14px;
+  border-radius: 16px;
   border: 1px solid rgba(219, 228, 239, 0.92);
   background: rgba(255, 255, 255, 0.92);
+}
+
+.admin-activity-toggle {
+  min-height: 40px;
+  padding: 10px 14px;
+  border-radius: 999px;
+}
+
+.admin-activity-badge {
+  font-size: 0.72rem;
+}
+
+.admin-activity-meta {
+  color: var(--muted);
+  font-size: 0.88rem;
 }
 
 .integration-panel-tertiary .admin-log-card .message-metadata {
