@@ -1057,6 +1057,14 @@ export function AdminPage() {
           actionLabel="Abrir cadastros"
           onAction={() => setActiveTab("cadastros")}
         />
+        <QuickActionCard
+          icon="AT"
+          title="Auditoria da equipe"
+          description="Consulte os registros mais recentes de acoes operacionais e administrativas."
+          actionLabel="Abrir auditoria"
+          onAction={() => setActiveTab("auditoria")}
+          statusLabel={`${adminData.recentAuditLogs.length} registro${adminData.recentAuditLogs.length === 1 ? "" : "s"}`}
+        />
         {SHOSP_PRODUCT_VISIBLE ? (
           <QuickActionCard
             icon="SH"
@@ -1116,7 +1124,7 @@ export function AdminPage() {
           className={`patient-tab-button ${activeTab === "auditoria" ? "active" : ""}`}
           onClick={() => setActiveTab("auditoria")}
         >
-          <span>Atividade da equipe</span>
+          <span>Auditoria</span>
           <span className="patient-tab-count">{adminData.recentAuditLogs.length}</span>
         </button>
         {SHOSP_PRODUCT_VISIBLE ? (
