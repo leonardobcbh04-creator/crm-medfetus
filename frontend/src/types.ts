@@ -5,6 +5,10 @@ export type DashboardSummary = {
   gestationalBaseManualReview: number;
   patientsToContactToday: number;
   overduePatients: number;
+  patientsAwaitingScheduling: number;
+  scheduledPatients: number;
+  contactsRegisteredToday: number;
+  appointmentsConfirmedToday: number;
   scheduledThisWeek: number;
   conversionRate: number;
   totalMessagesSent: number;
@@ -33,6 +37,18 @@ export type DashboardActivityPoint = {
   total?: number;
 };
 
+export type DashboardStageCount = {
+  stage: string;
+  stageTitle: string;
+  total: number;
+};
+
+export type DashboardPriorityCount = {
+  priority: "alta" | "media" | "baixa";
+  label: string;
+  total: number;
+};
+
 export type DashboardData = {
   filters: DashboardFilters;
   filterOptions: DashboardFilterOptions;
@@ -46,6 +62,10 @@ export type DashboardData = {
   charts: {
     activityByDay: DashboardActivityPoint[];
     completedExamsByPeriod: DashboardActivityPoint[];
+  };
+  breakdowns: {
+    patientsByStage: DashboardStageCount[];
+    patientsByPriority: DashboardPriorityCount[];
   };
 };
 

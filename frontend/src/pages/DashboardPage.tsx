@@ -53,6 +53,41 @@ function MiniPatientList({ title, patients, emptyMessage }: { title: string; pat
   );
 }
 
+function CompactCountList({
+  title,
+  eyebrow,
+  description,
+  items,
+  emptyMessage
+}: {
+  title: string;
+  eyebrow: string;
+  description: string;
+  items: Array<{ label: string; total: number }>;
+  emptyMessage: string;
+}) {
+  return (
+    <article className="panel-card dashboard-list-card">
+      <div className="page-header">
+        <div>
+          <p className="eyebrow">{eyebrow}</p>
+          <h3>{title}</h3>
+          <p className="page-description">{description}</p>
+        </div>
+      </div>
+
+      <div className="list-grid">
+        {items.length ? items.map((item) => (
+          <div key={item.label} className="priority-item">
+            <strong>{item.label}</strong>
+            <span className="badge badge-soft badge-priority-blue">{item.total}</span>
+          </div>
+        )) : <p className="empty-state">{emptyMessage}</p>}
+      </div>
+    </article>
+  );
+}
+
 function SimpleBarChart({
   title,
   subtitle,
@@ -262,14 +297,34 @@ export function DashboardPage() {
           description="Pacientes que precisam revisar a base gestacional"
           to="/revisao-base-gestacional"
         />
-        <StatCard label="Em atraso" value={dashboard.summary.overduePatients} description="Pacientes com exame fora do prazo" />
+        <StatCard label="Exame em atraso" value={dashboard.summary.overduePatients} description="Pacientes com exame fora do prazo" />
+        <StatCard label="Aguardando agendamento" value={dashboard.summary.patientsAwaitingScheduling} description="Pacientes em retorno ou follow-up" />
+        <StatCard label="Ja agendadas" value={dashboard.summary.scheduledPatients} description="Pacientes na etapa de agendamento" />
         <StatCard label="Agendadas na semana" value={dashboard.summary.scheduledThisWeek} description="Pacientes com exame marcado ate 7 dias" />
+        <StatCard label="Contatos hoje" value={dashboard.summary.contactsRegisteredToday} description="Contatos registrados pela equipe hoje" />
+        <StatCard label="Agendamentos hoje" value={dashboard.summary.appointmentsConfirmedToday} description="Agendamentos confirmados hoje" />
         <StatCard label="Conversao" value={dashboard.summary.conversionRate} description="Contato convertido em agendamento" />
         <StatCard label="Mensagens enviadas" value={dashboard.summary.totalMessagesSent} description="Mensagens no periodo filtrado" />
         <StatCard label="Exames realizados" value={dashboard.summary.totalExamsCompleted} description="Realizados no periodo filtrado" />
       </div>
 
       <div className="dashboard-grid">
+        <CompactCountList
+          eyebrow="Fluxo"
+          title="Pacientes por etapa"
+          description="Distribuicao atual do fluxo de atendimento."
+          items={dashboard.breakdowns.patientsByStage.map((item) => ({ label: item.stageTitle, total: item.total }))}
+          emptyMessage="Nenhuma etapa com pacientes neste filtro."
+        />
+
+        <CompactCountList
+          eyebrow="Prioridade"
+          title="Pacientes por prioridade"
+          description="Resumo rapido das prioridades operacionais."
+          items={dashboard.breakdowns.patientsByPriority.map((item) => ({ label: item.label, total: item.total }))}
+          emptyMessage="Nenhuma prioridade encontrada neste filtro."
+        />
+
         <MiniPatientList
           title="Pacientes para contato hoje"
           patients={dashboard.lists.patientsToContactToday}
