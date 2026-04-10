@@ -178,6 +178,7 @@ export function AdminPage() {
   const [savingKey, setSavingKey] = useState("");
   const [syncingScope, setSyncingScope] = useState("");
   const [operationalTestResult, setOperationalTestResult] = useState<OperationalTestResult | null>(null);
+  const [showAllRecentActivity, setShowAllRecentActivity] = useState(false);
   const [searchUsers, setSearchUsers] = useState("");
   const [searchUnits, setSearchUnits] = useState("");
   const [searchPhysicians, setSearchPhysicians] = useState("");
@@ -952,6 +953,9 @@ export function AdminPage() {
   const activeUnitsCount = adminData.units.filter((unit) => unit.active).length;
   const activePhysiciansCount = adminData.physicians.filter((physician) => physician.active).length;
   const activeExamsCount = adminData.examConfigs.filter((examConfig) => examConfig.active).length;
+  const visibleRecentAuditLogs = showAllRecentActivity
+    ? adminData.recentAuditLogs.slice(0, 12)
+    : adminData.recentAuditLogs.slice(0, 5);
 
   return (
     <section className="page-section">
@@ -978,20 +982,31 @@ export function AdminPage() {
             <SectionHeader
               eyebrow="Auditoria"
               title="Atividade recente da equipe"
-              description="Acompanhe as ultimas acoes registradas pela equipe sem sair da area administrativa."
+              description="Um resumo rapido das movimentacoes mais recentes da equipe."
             />
             <p className="admin-activity-summary">
               {adminData.recentAuditLogs.length
-                ? `${Math.min(adminData.recentAuditLogs.length, 8)} atividade(s) recente(s) exibida(s) abaixo.`
+                ? `${Math.min(visibleRecentAuditLogs.length, adminData.recentAuditLogs.length)} de ${adminData.recentAuditLogs.length} registro(s) recente(s) visiveis.`
                 : "Nenhuma atividade administrativa foi registrada ainda neste ambiente."}
             </p>
           </div>
-          <span className="badge badge-soft badge-priority-blue">
-            {adminData.recentAuditLogs.length} registro{adminData.recentAuditLogs.length === 1 ? "" : "s"}
-          </span>
+          <div className="admin-activity-actions">
+            <span className="badge badge-soft badge-priority-blue">
+              {adminData.recentAuditLogs.length} registro{adminData.recentAuditLogs.length === 1 ? "" : "s"}
+            </span>
+            {adminData.recentAuditLogs.length > 5 ? (
+              <button
+                type="button"
+                className="ghost-button admin-activity-toggle"
+                onClick={() => setShowAllRecentActivity((current) => !current)}
+              >
+                {showAllRecentActivity ? "Mostrar menos" : "Ver mais"}
+              </button>
+            ) : null}
+          </div>
         </div>
         <div className="list-grid admin-activity-list">
-          {adminData.recentAuditLogs.length ? adminData.recentAuditLogs.slice(0, 8).map((log) => (
+          {adminData.recentAuditLogs.length ? visibleRecentAuditLogs.map((log) => (
             <div key={log.id} className="admin-row-card stack-form admin-log-card">
               <div className="card-row admin-entity-head">
                 <div>
@@ -1000,11 +1015,11 @@ export function AdminPage() {
                     {log.patientName ? `${log.patientName} • ` : ""}{log.actorUserName || "Usuario nao identificado"}
                   </p>
                 </div>
-                <span className="badge badge-soft badge-priority-blue">{log.actionType}</span>
+                <span className="badge badge-soft badge-priority-blue admin-activity-badge">{log.actionType}</span>
               </div>
-              <div className="message-metadata">
-                <span><strong>Data:</strong> {formatDateTimeLabel(log.createdAt)}</span>
-                <span><strong>Entidade:</strong> {log.entityType}</span>
+              <div className="message-metadata admin-activity-meta">
+                <span>{formatDateTimeLabel(log.createdAt)}</span>
+                <span>{log.entityType}</span>
               </div>
             </div>
           )) : (
