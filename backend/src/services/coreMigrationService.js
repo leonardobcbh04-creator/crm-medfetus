@@ -696,48 +696,40 @@ function buildManualReviewNextExam() {
   };
 }
 
-function inferStage(patient, patientExams, latestMessage) {
+function inferStage(patient, patientExams, latestMessage, nextExamRow) {
   const currentStage = patient.stage || "contato_pendente";
 
   if (patient.status === "encerrada") {
-    return currentStage;
+    return currentStage === "follow_up" ? "follow_up" : "contato_pendente";
   }
 
   if (patient.gestationalReviewRequired) {
-    return "revisao_base_gestacional";
+    return "contato_pendente";
   }
 
   const nextExam = buildNextExam(patientExams);
   if (!nextExam.code) {
-    return ["contato_pendente", "mensagem_enviada", "follow_up", "agendada"].includes(currentStage)
-      ? "contato_pendente"
-      : currentStage;
+    return currentStage === "follow_up" ? "follow_up" : "contato_pendente";
   }
 
   if (patientExams.some((exam) => exam.status === "agendado" && exam.completedDate == null)) {
     return "agendada";
   }
 
-  if (!["contato_pendente", "mensagem_enviada", "follow_up", "agendada"].includes(currentStage)) {
-    return currentStage;
-  }
-
-  const latestMessageNeedsFollowUp =
+  const latestMessageDate = latestMessage?.sentAt || latestMessage?.createdAt || null;
+  const latestRelevantContactDate = [latestMessageDate, nextExamRow?.lastContactedAt]
+    .filter(Boolean)
+    .sort()
+    .at(-1) || null;
+  const pendingMessageReply = Boolean(
     latestMessage?.deliveryStatus === "enviada" &&
     latestMessage?.responseStatus !== "respondida" &&
-    latestMessage?.sentAt &&
-    addDays(latestMessage.sentAt, 2) <= todayIso();
+    latestMessageDate
+  );
+  const pendingManualFollowUp = Boolean(nextExamRow?.lastContactedAt && !pendingMessageReply);
 
-  if (latestMessageNeedsFollowUp) {
+  if ((pendingMessageReply || pendingManualFollowUp) && latestRelevantContactDate && addDays(latestRelevantContactDate, 2) <= todayIso()) {
     return "follow_up";
-  }
-
-  if (
-    ["mensagem_enviada", "follow_up"].includes(currentStage) &&
-    latestMessage?.deliveryStatus === "enviada" &&
-    latestMessage?.responseStatus !== "respondida"
-  ) {
-    return "mensagem_enviada";
   }
 
   return "contato_pendente";
@@ -774,7 +766,8 @@ function enrichPatient(patient, patientExamsMap, latestMessagesMap) {
       gestationalReviewRequired: snapshot.gestationalBaseRequiresManualReview
     },
     patientExams,
-    latestMessage
+    latestMessage,
+    nextPendingExamRow
   );
 
   return {
@@ -916,7 +909,11 @@ export async function getKanbanDataCore() {
     listPatientsCore()
   ]);
 
-  return columns.map((stage) => ({
+  const visibleStageIds = new Set(KANBAN_STAGES.map((stage) => stage.id));
+
+  return columns
+    .filter((stage) => visibleStageIds.has(stage.id))
+    .map((stage) => ({
     ...stage,
     isSystem: Boolean(stage.isSystem),
     patients: sortPatientsByPriority(patients.filter((patient) => patient.stage === stage.id))

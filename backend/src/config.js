@@ -134,28 +134,13 @@ export const LOG_RETENTION_CONFIG = {
 
 export const KANBAN_STAGES = [
   {
-    id: "revisao_base_gestacional",
-    title: "Revisao manual da base gestacional",
-    description: "Pacientes que precisam confirmar a base gestacional antes de seguir o fluxo"
-  },
-  {
     id: "contato_pendente",
     title: "Contato pendente",
     description: "Pacientes que ainda precisam de contato da recepcao"
   },
   {
-    id: "mensagem_enviada",
-    title: "Mensagem enviada",
-    description: "Pacientes que ja receberam mensagem e aguardam retorno"
-  },
-  {
     id: "follow_up",
     title: "Follow up",
     description: "Mensagens sem resposta ha mais de 2 dias para nova tentativa"
-  },
-  {
-    id: "agendada",
-    title: "Agendada",
-    description: "Pacientes com exame marcado e data ja definida"
   }
 ];
