@@ -590,6 +590,17 @@ function buildDashboardBuckets(filters) {
   return buckets;
 }
 
+function getDashboardPriorityBucket(patient) {
+  const deadlineStatus = String(patient?.nextExam?.deadlineStatus || "");
+  if (deadlineStatus === DEADLINE_STATUS.OVERDUE || deadlineStatus === DEADLINE_STATUS.PENDING) {
+    return "alta";
+  }
+  if (deadlineStatus === DEADLINE_STATUS.APPROACHING) {
+    return "media";
+  }
+  return "baixa";
+}
+
 function shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters = null) {
   if (isMessagingBlockedByGestationalBase(patient) || !nextExamRow) {
     return false;
@@ -935,12 +946,39 @@ export async function getDashboardDataCore(inputFilters = {}) {
   const today = todayIso();
   const endOfWeek = addDays(today, 6);
   const pendingExamCounts = new Map();
+  const contactsRegisteredToday = filteredMovementRows.filter(
+    (movement) => movement.actionType === "contato_realizado" && movement.createdAt === today
+  ).length;
+  const appointmentsConfirmedToday = filteredMovementRows.filter(
+    (movement) => movement.actionType === "exame_agendado" && movement.createdAt === today
+  ).length;
   const patientsToContactToday = sortPatientsByPriority(
     patients.filter((patient) => {
       const nextExamRow = (patientExamsMap.get(patient.id) ?? []).find((exam) => exam.code === patient.nextExam.code);
       return shouldPatientEnterReminderQueue(patient, nextExamRow, today);
     })
   );
+  const patientsAwaitingScheduling = patients.filter((patient) => ["mensagem_enviada", "follow_up"].includes(String(patient.stage || ""))).length;
+  const scheduledPatients = patients.filter((patient) => String(patient.stage || "") === "agendada").length;
+  const patientsByPriority = [
+    { priority: "alta", label: "Alta prioridade", total: 0 },
+    { priority: "media", label: "Media prioridade", total: 0 },
+    { priority: "baixa", label: "Baixa prioridade", total: 0 }
+  ];
+
+  patients.forEach((patient) => {
+    const bucket = getDashboardPriorityBucket(patient);
+    const priorityItem = patientsByPriority.find((item) => item.priority === bucket);
+    if (priorityItem) {
+      priorityItem.total += 1;
+    }
+  });
+
+  const patientsByStage = KANBAN_STAGES.map((stage) => ({
+    stage: stage.id,
+    stageTitle: stage.title,
+    total: patients.filter((patient) => patient.stage === stage.id).length
+  }));
 
   examRows
     .filter((exam) => exam.status !== "realizado")
@@ -990,6 +1028,10 @@ export async function getDashboardDataCore(inputFilters = {}) {
       gestationalBaseManualReview: patients.filter((patient) => isMessagingBlockedByGestationalBase(patient)).length,
       patientsToContactToday: patientsToContactToday.length,
       overduePatients: patients.filter((patient) => patient.nextExam.deadlineStatus === DEADLINE_STATUS.OVERDUE).length,
+      patientsAwaitingScheduling,
+      scheduledPatients,
+      contactsRegisteredToday,
+      appointmentsConfirmedToday,
       scheduledThisWeek: new Set(
         examRows
           .filter((exam) => exam.scheduledDate && exam.scheduledDate >= today && exam.scheduledDate <= endOfWeek)
@@ -1020,6 +1062,10 @@ export async function getDashboardDataCore(inputFilters = {}) {
         label: bucket.label,
         total: bucket.completed
       }))
+    },
+    breakdowns: {
+      patientsByStage,
+      patientsByPriority
     }
   };
 }
