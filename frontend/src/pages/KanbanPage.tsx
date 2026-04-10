@@ -164,9 +164,6 @@ export function KanbanPage() {
             Organize o atendimento por etapa, priorize os casos mais sensiveis e acompanhe o proximo exame em tempo real.
           </p>
         </div>
-        <button type="button" className="secondary-button" onClick={() => void handleCreateColumn()}>
-          Adicionar etapa
-        </button>
       </div>
 
       <div className="toolbar-row">

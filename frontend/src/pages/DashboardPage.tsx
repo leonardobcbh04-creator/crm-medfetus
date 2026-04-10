@@ -342,47 +342,6 @@ export function DashboardPage() {
           patients={dashboard.lists.scheduledThisWeek}
           emptyMessage="Nenhuma paciente agendada nesta semana."
         />
-
-        <article className="panel-card dashboard-list-card">
-          <div className="page-header">
-            <div>
-              <p className="eyebrow">Pendencias</p>
-              <h3>Exames mais pendentes</h3>
-            </div>
-          </div>
-
-          <div className="list-grid">
-            {dashboard.lists.examsMostPending.length ? dashboard.lists.examsMostPending.map((exam) => (
-              <div key={exam.name} className="priority-item">
-                <div>
-                  <strong>{exam.name}</strong>
-                  <p>Pendencias no acompanhamento atual</p>
-                </div>
-                <span className="badge badge-priority-orange">{exam.total}</span>
-              </div>
-            )) : <p className="empty-state">Nenhuma pendencia encontrada.</p>}
-          </div>
-        </article>
-      </div>
-
-      <div className="dashboard-chart-grid">
-        <SimpleBarChart
-          title="Mensagens, agendamentos e realizados"
-          subtitle="Comparativo diario dentro do periodo filtrado."
-          points={dashboard.charts.activityByDay}
-          keys={[
-            { id: "messages", label: "Mensagens", className: "chart-messages" },
-            { id: "scheduled", label: "Agendados", className: "chart-scheduled" },
-            { id: "completed", label: "Realizados", className: "chart-completed" }
-          ]}
-        />
-
-        <SimpleBarChart
-          title="Exames realizados por periodo"
-          subtitle={`Total de exames realizados no intervalo. Conversao atual: ${formatPercent(dashboard.summary.conversionRate)}.`}
-          points={dashboard.charts.completedExamsByPeriod}
-          keys={[{ id: "total", label: "Realizados", className: "chart-completed" }]}
-        />
       </div>
     </section>
   );

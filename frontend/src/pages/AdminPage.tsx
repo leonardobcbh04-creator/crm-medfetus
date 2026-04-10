@@ -1110,16 +1110,6 @@ export function AdminPage() {
         <button
           type="button"
           role="tab"
-          aria-selected={activeTab === "mensageria"}
-          className={`patient-tab-button ${activeTab === "mensageria" ? "active" : ""}`}
-          onClick={() => setActiveTab("mensageria")}
-        >
-          <span>Mensageria</span>
-          <span className="patient-tab-count">{adminData.messageTemplates.length + adminData.messageDeliveryLogs.length}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={activeTab === "auditoria"}
           className={`patient-tab-button ${activeTab === "auditoria" ? "active" : ""}`}
           onClick={() => setActiveTab("auditoria")}
@@ -1899,7 +1889,7 @@ export function AdminPage() {
       </div>
       ) : null}
 
-      {activeTab === "mensageria" ? (
+      {false && activeTab === "mensageria" ? (
       <div className="detail-layout admin-layout">
         <article className="panel-card stack-form integration-hero-card">
           <SectionHeader
@@ -1911,23 +1901,23 @@ export function AdminPage() {
           <div className="admin-summary-strip">
             <div className="admin-summary-pill">
               <span className="admin-summary-label">Provider atual</span>
-              <strong>{adminData.messagingConfig.provider}</strong>
+              <strong>{adminData!.messagingConfig.provider}</strong>
             </div>
             <div className="admin-summary-pill">
               <span className="admin-summary-label">Modo de envio</span>
-              <strong>{adminData.messagingConfig.dryRun ? "Preparado sem envio real" : "Ativo"}</strong>
+              <strong>{adminData!.messagingConfig.dryRun ? "Preparado sem envio real" : "Ativo"}</strong>
             </div>
             <div className="admin-summary-pill">
               <span className="admin-summary-label">API externa pronta</span>
-              <strong>{adminData.messagingConfig.isExternalProviderConfigured ? "Configurada" : "Ainda nao configurada"}</strong>
+              <strong>{adminData!.messagingConfig.isExternalProviderConfigured ? "Configurada" : "Ainda nao configurada"}</strong>
             </div>
           </div>
 
           <div className="message-metadata">
-            <span><strong>Canal:</strong> {adminData.messagingConfig.channel}</span>
-            <span><strong>Templates habilitados:</strong> {adminData.messagingConfig.templatesEnabled ? "Sim" : "Nao"}</span>
-            <span><strong>Base URL externa:</strong> {adminData.messagingConfig.externalApiBaseUrl || "Nao configurada"}</span>
-            <span><strong>Phone Number ID:</strong> {adminData.messagingConfig.externalPhoneNumberId || "Nao configurado"}</span>
+            <span><strong>Canal:</strong> {adminData!.messagingConfig.channel}</span>
+            <span><strong>Templates habilitados:</strong> {adminData!.messagingConfig.templatesEnabled ? "Sim" : "Nao"}</span>
+            <span><strong>Base URL externa:</strong> {adminData!.messagingConfig.externalApiBaseUrl || "Nao configurada"}</span>
+            <span><strong>Phone Number ID:</strong> {adminData!.messagingConfig.externalPhoneNumberId || "Nao configurado"}</span>
           </div>
         </article>
 
@@ -1939,7 +1929,7 @@ export function AdminPage() {
           />
 
           <div className="list-grid">
-            {adminData.messageTemplates.map((template) => (
+            {adminData!.messageTemplates.map((template) => (
               <form key={template.id} className="admin-row-card stack-form admin-entity-card" onSubmit={(event) => handleUpdateMessageTemplate(event, template)}>
                 <div className="card-row admin-entity-head">
                   <div className="admin-user-title-block">
@@ -1990,7 +1980,7 @@ export function AdminPage() {
           />
 
           <div className="list-grid">
-            {adminData.messageDeliveryLogs.length ? adminData.messageDeliveryLogs.map((log) => (
+            {adminData!.messageDeliveryLogs.length ? adminData!.messageDeliveryLogs.map((log) => (
               <div key={log.id} className="admin-row-card stack-form admin-log-card">
                 <div className="card-row admin-entity-head">
                   <div>
