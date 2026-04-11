@@ -823,7 +823,9 @@ export function AdminPage() {
   }
 
   async function handleDeleteExam(examConfig: ExamConfig) {
-    const confirmed = window.confirm(`Deseja excluir o exame ${examConfig.name}?`);
+    const confirmed = window.confirm(
+      `Deseja excluir o exame ${examConfig.name}?\n\nUse a exclusao apenas para exames que nunca foram usados em pacientes. Se este exame ja fez parte de algum atendimento, o sistema vai bloquear a exclusao e recomendar inativar o exame ou trocar o tipo para avulso/manual.`
+    );
     if (!confirmed) {
       return;
     }
@@ -839,6 +841,42 @@ export function AdminPage() {
       await loadAdminData();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel excluir o exame.");
+    } finally {
+      setSavingKey("");
+    }
+  }
+
+  async function handleToggleExamActive(examConfig: ExamConfig) {
+    setSavingKey(`toggle-exam-${examConfig.id}`);
+    setFeedback("");
+
+    try {
+      const response = await api.updateAdminExamConfig(examConfig.id, {
+        code: examConfig.code,
+        name: examConfig.name,
+        startWeek: examConfig.startWeek,
+        endWeek: examConfig.endWeek,
+        targetWeek: examConfig.targetWeek,
+        reminderDaysBefore1: examConfig.reminderDaysBefore1,
+        reminderDaysBefore2: examConfig.reminderDaysBefore2,
+        defaultMessage: examConfig.defaultMessage,
+        required: examConfig.required,
+        flowType: examConfig.flowType,
+        active: !examConfig.active,
+        sortOrder: examConfig.sortOrder
+      });
+
+      setAdminData((current) =>
+        current
+          ? {
+              ...current,
+              examConfigs: current.examConfigs.map((item) => (item.id === examConfig.id ? response.examConfig : item))
+            }
+          : current
+      );
+      setFeedback(response.examConfig.active ? "Exame reativado com sucesso." : "Exame inativado com sucesso.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar o status do exame.");
     } finally {
       setSavingKey("");
     }
@@ -1779,22 +1817,38 @@ export function AdminPage() {
                 <span className="field-hint">Tags disponiveis: [NOME], [EXAME], [DATA_IDEAL], [MEDICO], [UNIDADE], [IDADE_GESTACIONAL] e [DPP].</span>
               </label>
 
-              <div className="admin-exam-actions">
-                <button className="secondary-button admin-exam-save-button" type="submit" disabled={savingKey === `exam-${examConfig.id}`}>
-                  {savingKey === `exam-${examConfig.id}` ? "Salvando..." : "Salvar exame"}
-                </button>
-                <button
-                  className="danger-button admin-exam-delete-button"
+                <div className="admin-exam-actions">
+                  <button
+                    className="ghost-button admin-exam-save-button"
+                    type="button"
+                    disabled={savingKey === `toggle-exam-${examConfig.id}`}
+                    onClick={() => void handleToggleExamActive(examConfig)}
+                  >
+                    {savingKey === `toggle-exam-${examConfig.id}`
+                      ? "Atualizando..."
+                      : examConfig.active
+                        ? "Inativar exame"
+                        : "Reativar exame"}
+                  </button>
+                  <button className="secondary-button admin-exam-save-button" type="submit" disabled={savingKey === `exam-${examConfig.id}`}>
+                    {savingKey === `exam-${examConfig.id}` ? "Salvando..." : "Salvar exame"}
+                  </button>
+                  <button
+                    className="danger-button admin-exam-delete-button"
                   type="button"
                   disabled={savingKey === `delete-exam-${examConfig.id}`}
                   onClick={() => void handleDeleteExam(examConfig)}
-                >
-                  {savingKey === `delete-exam-${examConfig.id}` ? "Excluindo..." : "Excluir exame"}
-                </button>
-              </div>
-            </form>
-          ))}
-        </div>
+                  >
+                    {savingKey === `delete-exam-${examConfig.id}` ? "Excluindo..." : "Excluir exame"}
+                  </button>
+                </div>
+                <p className="field-hint">
+                  Exames ja usados em pacientes nao podem ser excluidos. Nesses casos, prefira inativar o exame ou
+                  trocar o tipo para avulso/manual.
+                </p>
+              </form>
+            ))}
+          </div>
       </article>
 
       <article className="panel-card stack-form">
