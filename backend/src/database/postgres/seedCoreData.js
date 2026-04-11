@@ -19,13 +19,22 @@ function buildDefaultInferenceRule(examModelId, examModel) {
 }
 
 async function alignSequence(client, tableName) {
+  const sequenceResult = await client.query(`
+    SELECT pg_get_serial_sequence($1, 'id') AS sequence_name
+  `, [tableName]);
+  const sequenceName = sequenceResult.rows[0]?.sequence_name;
+
+  if (!sequenceName) {
+    return;
+  }
+
   await client.query(`
     SELECT setval(
-      pg_get_serial_sequence($1, 'id'),
+      $1,
       GREATEST(COALESCE((SELECT MAX(id) FROM ${tableName}), 1), 1),
       TRUE
     )
-  `, [tableName]);
+  `, [sequenceName]);
 }
 
 export async function seedPostgresCoreData() {
@@ -38,6 +47,33 @@ export async function seedPostgresCoreData() {
 
   await runtime.transaction(async (client) => {
     for (const user of users) {
+      const existingUser = await client.query(`
+        SELECT id
+        FROM users
+        WHERE email = $1
+        LIMIT 1
+      `, [user.email]);
+
+      if (existingUser.rowCount) {
+        continue;
+      }
+
+      const idConflict = await client.query(`
+        SELECT 1
+        FROM users
+        WHERE id = $1
+        LIMIT 1
+      `, [user.id]);
+
+      let userId = Number(user.id);
+      if (idConflict.rowCount) {
+        const nextIdResult = await client.query(`
+          SELECT COALESCE(MAX(id), 0) + 1 AS next_id
+          FROM users
+        `);
+        userId = Number(nextIdResult.rows[0]?.next_id || user.id);
+      }
+
       await client.query(`
         INSERT INTO users (
           id,
@@ -50,9 +86,8 @@ export async function seedPostgresCoreData() {
           updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        ON CONFLICT (email) DO NOTHING
       `, [
-        user.id,
+        userId,
         user.name,
         user.email,
         hashPassword(user.password),
@@ -66,16 +101,14 @@ export async function seedPostgresCoreData() {
     for (const unit of clinicUnits) {
       await client.query(`
         INSERT INTO clinic_units (
-          id,
           name,
           active,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4)
         ON CONFLICT (name) DO NOTHING
       `, [
-        unit.id,
         unit.name,
         Boolean(unit.active),
         now,
@@ -110,11 +143,7 @@ export async function seedPostgresCoreData() {
           updated_at
         )
         VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (name) DO UPDATE
-        SET
-          clinic_unit_id = EXCLUDED.clinic_unit_id,
-          active = EXCLUDED.active,
-          updated_at = EXCLUDED.updated_at
+        ON CONFLICT (name) DO NOTHING
       `, [
         physician.name,
         clinicUnitId,
