@@ -2802,8 +2802,11 @@ export async function deleteExamConfigCore(id) {
 
   const runtime = await getDatabaseRuntime();
   const usage = await runtime.query("SELECT COUNT(*)::int AS count FROM exames_paciente WHERE exam_model_id = $1", [id]);
-  if (Number(usage.rows[0]?.count || 0) > 0) {
-    throw new Error("Este exame ja foi usado em pacientes e nao pode ser excluido. Se preferir, deixe-o como avulso ou inativo.");
+  const usageCount = Number(usage.rows[0]?.count || 0);
+  if (usageCount > 0) {
+    throw new Error(
+      `Este exame ja foi vinculado a ${usageCount} paciente(s) e nao pode ser excluido. Para tirar do uso, deixe-o como inativo. Se quiser manter apenas para lancamentos manuais, troque o tipo para avulso/manual.`
+    );
   }
 
   await runtime.query("DELETE FROM exames_modelo WHERE id = $1", [id]);
