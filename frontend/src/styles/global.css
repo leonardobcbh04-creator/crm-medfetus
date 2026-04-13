@@ -2127,6 +2127,22 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.filter-summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-search-toolbar {
+  align-items: end;
+}
+
+.admin-search-toolbar label {
+  flex: 1 1 280px;
+}
+
 .kanban-card-footer .kanban-card-actions {
   display: inline-grid;
   margin-inline: auto;
