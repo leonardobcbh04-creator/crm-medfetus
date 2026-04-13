@@ -256,12 +256,12 @@ export function PatientDetailPage() {
       );
       setFeedback(
         status === "realizado"
-          ? completedOutsideClinic
-            ? "Exame marcado como ja realizado e proximo fluxo recalculado."
-            : "Exame marcado como realizado e proximo fluxo recalculado."
-          : status === "agendado"
-            ? "Exame agendado com sucesso."
-            : "Exame voltou para acompanhamento pendente."
+            ? completedOutsideClinic
+              ? "Exame registrado como ja realizado e fluxo recalculado."
+              : "Exame marcado como realizado e fluxo recalculado."
+            : status === "agendado"
+              ? "Agendamento registrado com sucesso."
+              : "Exame voltou para acompanhamento."
       );
     } catch (error) {
       setFeedbackType("error");
@@ -322,14 +322,14 @@ export function PatientDetailPage() {
         <div>
           <p className="eyebrow">Paciente</p>
           <h2>{details.patient.name}</h2>
-          <p className="page-description">
-            Visao completa com exames previstos, mensagens registradas e historico operacional.
-          </p>
+            <p className="page-description">
+              Acompanhe exames, contatos e historico operacional da paciente em um unico lugar.
+            </p>
         </div>
         <div className="inline-actions list-action-bar detail-action-bar">
           <Link to={`/pacientes/${details.patient.id}/editar`} className="secondary-button">Editar paciente</Link>
-          <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar agendamento</button>
-          <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Marcar exame realizado</button>
+            <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar agendamento</button>
+            <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar exame realizado</button>
           <a href={whatsappUrl} target="_blank" rel="noreferrer" className="whatsapp-link">Abrir WhatsApp</a>
           <Link to="/kanban" className="secondary-button">Voltar ao fluxo</Link>
         </div>
@@ -475,7 +475,7 @@ export function PatientDetailPage() {
                       </span>
                       <div>
                         <strong>{exam.name}</strong>
-                        <p className="timeline-subtitle">{getTimelineActionMeta(exam).text}</p>
+                          <p className="timeline-subtitle">{getTimelineActionMeta(exam).text}</p>
                       </div>
                     </div>
                     <div className="priority-badge-row">
@@ -503,13 +503,13 @@ export function PatientDetailPage() {
                     <span><strong>Data prevista:</strong> {exam.predictedDateLabel}</span>
                     <span><strong>Agendado para:</strong> {exam.scheduledDateLabel || "Ainda nao agendado"}</span>
                     <span><strong>Horario:</strong> {exam.scheduledTime || "Nao informado"}</span>
-                    <span><strong>Realizado em:</strong> {exam.completedDateLabel || "Ainda nao realizado"}</span>
+                      <span><strong>Realizado em:</strong> {exam.completedDateLabel || "Nao informado"}</span>
                   </div>
                   {exam.showOperationalAlert ? (
-                    <p className="timeline-warning">Este exame ja passou da janela ideal e precisa de atencao da equipe.</p>
+                      <p className="timeline-warning">A janela ideal deste exame ja passou e a equipe deve revisar a paciente.</p>
                   ) : null}
                   {exam.timelineStatus === "superado" ? (
-                    <p className="timeline-notes">Esta etapa da jornada ja foi superada pela evolucao da gestacao e nao exige acao operacional ativa.</p>
+                      <p className="timeline-notes">Esta etapa ja foi superada pela evolucao da gestacao e nao exige acao operacional no momento.</p>
                   ) : null}
                   {exam.schedulingNotes ? <p className="timeline-notes">{exam.schedulingNotes}</p> : null}
                   {exam.status !== "realizado" ? (
@@ -526,14 +526,14 @@ export function PatientDetailPage() {
                         rel="noreferrer"
                         className="whatsapp-link timeline-compact-action"
                       >
-                        Mandar mensagem pelo WhatsApp
+                          Enviar mensagem no WhatsApp
                       </a>
                       <button
                         type="button"
                         className="secondary-button timeline-compact-action"
                         onClick={() => openTimelineExamInExamsTab(exam.id)}
                       >
-                        Lancar agendamento
+                          Registrar agendamento
                       </button>
                       {confirmingExternalRealizedExamId === exam.id ? (
                         <>
@@ -567,7 +567,7 @@ export function PatientDetailPage() {
                           disabled={savingExamId === exam.id}
                           onClick={() => setConfirmingExternalRealizedExamId(exam.id)}
                         >
-                          Exame ja realizado
+                          Ja realizado
                         </button>
                       )}
                     </div>
@@ -584,7 +584,7 @@ export function PatientDetailPage() {
         {activeTab === "exames" ? (
           <div className="detail-layout detail-layout-single">
         <article className="panel-card" id="exames-paciente">
-          <p className="muted-label">Proximos exames</p>
+            <p className="muted-label">Exames em acompanhamento</p>
           <div className="message-history-list">
             {upcomingExams.length ? upcomingExams.map((exam) => (
               <div
@@ -623,7 +623,7 @@ export function PatientDetailPage() {
                 <span><strong>Lembrete 2:</strong> {exam.reminderDate2 || "Nao definido"}</span>
                 <div className="two-columns">
                   <label>
-                    Data do agendamento
+                      Data do agendamento
                     <input
                       type="date"
                       className={invalidScheduleFields[exam.id]?.scheduledDate ? "field-input-error" : ""}
@@ -660,7 +660,7 @@ export function PatientDetailPage() {
                   </label>
                 </div>
                 <label>
-                  Observacoes do agendamento
+                    Observacoes do agendamento
                   <textarea
                     rows={3}
                     value={schedulingNotes[exam.id] || ""}
@@ -743,7 +743,7 @@ export function PatientDetailPage() {
                           }
                         }}
                       >
-                        {savingExamId === exam.id ? "Salvando..." : "Confirmar realizado"}
+                        {savingExamId === exam.id ? "Salvando..." : "Confirmar realizacao"}
                       </button>
                       <button
                         className="ghost-button"
@@ -761,7 +761,7 @@ export function PatientDetailPage() {
                       disabled={savingExamId === exam.id || exam.status === "realizado"}
                       onClick={() => setConfirmingRealizedExamId(exam.id)}
                     >
-                      Marcar realizado
+                      Registrar realizacao
                     </button>
                   )}
                   {confirmingExternalRealizedExamId === exam.id ? (
@@ -796,7 +796,7 @@ export function PatientDetailPage() {
                       disabled={savingExamId === exam.id || exam.status === "realizado"}
                       onClick={() => setConfirmingExternalRealizedExamId(exam.id)}
                     >
-                      Exame ja realizado
+                      Ja realizado
                     </button>
                   )}
                   <button
@@ -809,12 +809,12 @@ export function PatientDetailPage() {
                   </button>
                 </div>
               </div>
-            )) : <p className="empty-state">Nenhum proximo exame pendente.</p>}
+            )) : <p className="empty-state">Nenhum exame pendente no momento.</p>}
           </div>
         </article>
 
         <article className="panel-card">
-          <p className="muted-label">Exames ja realizados</p>
+          <p className="muted-label">Exames concluidos</p>
           <div className="message-history-list">
             {completedExams.length ? completedExams.map((exam) => (
                   <div key={exam.id} className="message-history-item exam-detail-card exam-detail-card-completed">
@@ -836,7 +836,7 @@ export function PatientDetailPage() {
                 <span><strong>Realizacao salva:</strong> {exam.completedDateLabel || "Nao informada"}</span>
                 <span><strong>Realizado por:</strong> {exam.completedByName || "Nao registrado"}</span>
               </div>
-            )) : <p className="empty-state">Nenhum exame realizado ainda.</p>}
+            )) : <p className="empty-state">Nenhum exame concluido ainda.</p>}
           </div>
         </article>
 
@@ -855,12 +855,12 @@ export function PatientDetailPage() {
                 <span><strong>Data:</strong> {message.sentAt || "Nao registrada"}</span>
                 <p>{message.content}</p>
               </div>
-            )) : <p className="empty-state">Nenhuma mensagem registrada.</p>}
+            )) : <p className="empty-state">Nenhum contato registrado ainda.</p>}
           </div>
         </article>
 
         <article className="panel-card">
-          <p className="muted-label">Historico de movimentacoes no kanban</p>
+          <p className="muted-label">Historico do fluxo</p>
           <div className="message-history-list">
             {details.movements.length ? details.movements.map((movement) => (
               <div key={movement.id} className="message-history-item">
@@ -870,7 +870,7 @@ export function PatientDetailPage() {
                 <span><strong>Data:</strong> {movement.createdAt}</span>
                 <p>{movement.description}</p>
               </div>
-            )) : <p className="empty-state">Nenhum historico registrado.</p>}
+            )) : <p className="empty-state">Nenhuma movimentacao registrada ainda.</p>}
           </div>
         </article>
 
