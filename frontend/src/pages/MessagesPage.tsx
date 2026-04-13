@@ -21,6 +21,22 @@ function getOperationalPriorityBadgeClass(level?: "alta" | "media" | "baixa") {
   return "badge-priority-green";
 }
 
+function getMessageTypeBadgeClass(type?: string) {
+  if (type === "atraso") return "badge-priority-red";
+  if (type === "janela_ideal") return "badge-priority-yellow";
+  if (type === "janela_proxima") return "badge-priority-blue";
+  return "badge-priority-green";
+}
+
+function normalizeBadgeText(value?: string | null) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function safeText(value: unknown) {
   return String(value || "");
 }
@@ -319,26 +335,43 @@ export function MessagesPage() {
             estimatedDueDate: "",
             nextExam: item.nextExam
           });
+          const primaryStatusLabel =
+            item.messageType === "atraso"
+              ? "Em atraso"
+              : item.messageTypeLabel || item.reminderLabel || "Mensagem sugerida";
+          const normalizedPrimaryStatus = normalizeBadgeText(primaryStatusLabel);
+          const normalizedPriorityLabel = normalizeBadgeText(item.priorityLabel);
+          const normalizedReminderLabel = normalizeBadgeText(item.reminderLabel);
+          const showReminderBadge =
+            Boolean(item.reminderLabel) &&
+            normalizedReminderLabel !== normalizedPrimaryStatus &&
+            normalizedReminderLabel !== normalizedPriorityLabel &&
+            item.messageType !== "atraso";
+          const showOverdueExamDetail =
+            Boolean(item.nextExam.overdueExam) &&
+            item.nextExam.overdueExam?.name &&
+            item.nextExam.overdueExam.name !== item.nextExam.name;
 
           return (
             <article
               key={item.patientId}
-              className={`panel-card message-card operational-card ${item.priorityLevel === "alta" ? "operational-priority-high" : ""} ${priority.cardClassName} ${priority.needsImmediateAction ? "patient-card-immediate" : ""}`}
+              className={`panel-card message-card operational-card ${item.priorityLevel === "alta" ? "operational-priority-high" : ""} ${priority.needsImmediateAction ? "patient-card-immediate" : ""}`}
             >
               <div className="card-row">
                 <div>
                   <h3>{item.patientName}</h3>
                   <p>{item.gestationalAgeLabel}</p>
                 </div>
-                <span className={`badge ${priority.badgeClassName}`}>{priority.label}</span>
+                <span className={`badge ${getMessageTypeBadgeClass(item.messageType)}`}>{primaryStatusLabel}</span>
               </div>
 
               <div className="priority-badge-row">
-                <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
-                  <span className={`badge badge-soft ${getOperationalPriorityBadgeClass(item.priorityLevel)}`}>{item.priorityLabel || "Prioridade operacional"}</span>
-                <span className={`badge badge-soft ${priority.badgeClassName}`}>{item.reminderLabel}</span>
-                <span className="badge badge-soft badge-priority-blue">{item.messageTypeLabel || "Mensagem sugerida"}</span>
-                  {priority.needsImmediateAction ? <span className="badge badge-attention">Atencao imediata</span> : null}
+                <span className={`badge badge-soft ${getOperationalPriorityBadgeClass(item.priorityLevel)}`}>
+                  {item.priorityLabel || "Prioridade operacional"}
+                </span>
+                {showReminderBadge ? (
+                  <span className="badge badge-soft badge-priority-blue">{item.reminderLabel}</span>
+                ) : null}
               </div>
 
               <div className="message-metadata">
@@ -349,8 +382,8 @@ export function MessagesPage() {
                 <span><strong>Confiabilidade:</strong> {item.gestationalBaseConfidenceLabel}</span>
                 <span><strong>Medico:</strong> {item.physicianName || "Nao informado"}</span>
                 <span><strong>Unidade:</strong> {item.clinicUnit || "Nao informada"}</span>
-                {item.nextExam.overdueExam ? (
-                  <span className="exam-warning-text"><strong>Exame em atraso:</strong> {item.nextExam.overdueExam.name}</span>
+                {showOverdueExamDetail ? (
+                  <span className="exam-warning-text"><strong>Exame em atraso:</strong> {item.nextExam.overdueExam?.name}</span>
                 ) : null}
               </div>
 

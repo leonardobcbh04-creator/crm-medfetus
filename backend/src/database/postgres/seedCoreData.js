@@ -37,6 +37,11 @@ async function alignSequence(client, tableName) {
   `, [sequenceName]);
 }
 
+async function tableHasRows(client, tableName) {
+  const result = await client.query(`SELECT EXISTS (SELECT 1 FROM ${tableName} LIMIT 1) AS has_rows`);
+  return Boolean(result.rows[0]?.has_rows);
+}
+
 export async function seedPostgresCoreData() {
   if (getConfiguredDatabaseKind() !== "postgres") {
     throw new Error("O seed PostgreSQL so pode rodar quando DATABASE_URL apontar para postgres.");
@@ -46,78 +51,72 @@ export async function seedPostgresCoreData() {
   const now = todayIso();
 
   await runtime.transaction(async (client) => {
-    for (const user of users) {
-      const existingUser = await client.query(`
-        SELECT id
-        FROM users
-        WHERE email = $1
-        LIMIT 1
-      `, [user.email]);
-
-      if (existingUser.rowCount) {
-        continue;
-      }
-
-      const idConflict = await client.query(`
-        SELECT 1
-        FROM users
-        WHERE id = $1
-        LIMIT 1
-      `, [user.id]);
-
-      let userId = Number(user.id);
-      if (idConflict.rowCount) {
-        const nextIdResult = await client.query(`
-          SELECT COALESCE(MAX(id), 0) + 1 AS next_id
+    if (!(await tableHasRows(client, "users"))) {
+      for (const user of users) {
+        const idConflict = await client.query(`
+          SELECT 1
           FROM users
-        `);
-        userId = Number(nextIdResult.rows[0]?.next_id || user.id);
+          WHERE id = $1
+          LIMIT 1
+        `, [user.id]);
+
+        let userId = Number(user.id);
+        if (idConflict.rowCount) {
+          const nextIdResult = await client.query(`
+            SELECT COALESCE(MAX(id), 0) + 1 AS next_id
+            FROM users
+          `);
+          userId = Number(nextIdResult.rows[0]?.next_id || user.id);
+        }
+
+        await client.query(`
+          INSERT INTO users (
+            id,
+            name,
+            email,
+            password,
+            role,
+            active,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [
+          userId,
+          user.name,
+          user.email,
+          hashPassword(user.password),
+          user.role,
+          Boolean(user.active),
+          now,
+          now
+        ]);
       }
 
-      await client.query(`
-        INSERT INTO users (
-          id,
-          name,
-          email,
-          password,
-          role,
-          active,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      `, [
-        userId,
-        user.name,
-        user.email,
-        hashPassword(user.password),
-        user.role,
-        Boolean(user.active),
-        now,
-        now
-      ]);
+      await alignSequence(client, "users");
     }
 
-    for (const unit of clinicUnits) {
-      await client.query(`
-        INSERT INTO clinic_units (
-          name,
-          active,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (name) DO NOTHING
-      `, [
-        unit.name,
-        Boolean(unit.active),
-        now,
-        now
-      ]);
-    }
+    const shouldSeedClinicUnits = !(await tableHasRows(client, "clinic_units"));
+    if (shouldSeedClinicUnits) {
+      for (const unit of clinicUnits) {
+        await client.query(`
+          INSERT INTO clinic_units (
+            name,
+            active,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4)
+        `, [
+          unit.name,
+          Boolean(unit.active),
+          now,
+          now
+        ]);
+      }
 
-    await alignSequence(client, "users");
-    await alignSequence(client, "clinic_units");
+      await alignSequence(client, "clinic_units");
+    }
 
     const clinicUnitRows = await client.query(`
       SELECT id, name
@@ -130,160 +129,165 @@ export async function seedPostgresCoreData() {
       clinicUnits.map((unit) => [Number(unit.id), String(unit.name)])
     );
 
-    for (const physician of physicians) {
-      const clinicUnitName = clinicUnitNameBySeedId.get(Number(physician.clinicUnitId));
-      const clinicUnitId = clinicUnitName ? clinicUnitIdByName.get(clinicUnitName) ?? null : null;
+    if (!(await tableHasRows(client, "physicians"))) {
+      for (const physician of physicians) {
+        const clinicUnitName = clinicUnitNameBySeedId.get(Number(physician.clinicUnitId));
+        const clinicUnitId = clinicUnitName ? clinicUnitIdByName.get(clinicUnitName) ?? null : null;
 
-      await client.query(`
-        INSERT INTO physicians (
-          name,
-          clinic_unit_id,
-          active,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (name) DO NOTHING
-      `, [
-        physician.name,
-        clinicUnitId,
-        Boolean(physician.active),
-        now,
-        now
-      ]);
-    }
-
-    await alignSequence(client, "physicians");
-
-    for (const [index, stage] of KANBAN_STAGES.entries()) {
-      await client.query(`
-        INSERT INTO kanban_columns (
-          id,
-          title,
-          description,
-          sort_order,
-          is_system,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (id) DO NOTHING
-      `, [
-        stage.id,
-        stage.title,
-        stage.description,
-        index + 1,
-        true,
-        now,
-        now
-      ]);
-    }
-
-    for (const examModel of examModels) {
-      await client.query(`
-        INSERT INTO exames_modelo (
-          code,
-          name,
-          start_week,
-          end_week,
-          target_week,
-          reminder_days_before_1,
-          reminder_days_before_2,
-          default_message,
-          required,
-          flow_type,
-          active,
-          sort_order,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12, $13, $14
-        )
-        ON CONFLICT (code) DO NOTHING
-      `, [
-        examModel.code,
-        examModel.name,
-        Number(examModel.startWeek),
-        Number(examModel.endWeek),
-        Number(examModel.targetWeek),
-        Number(examModel.reminderDaysBefore1),
-        Number(examModel.reminderDaysBefore2),
-        examModel.defaultMessage,
-        Boolean(examModel.required),
-        examModel.flowType,
-        Boolean(examModel.active),
-        Number(examModel.sortOrder),
-        now,
-        now
-      ]);
-    }
-
-    for (const template of messageTemplates) {
-      await client.query(`
-        INSERT INTO message_templates (
-          code,
-          name,
-          channel,
-          language,
-          content,
-          active,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        ON CONFLICT (code) DO NOTHING
-      `, [
-        template.code,
-        template.name,
-        template.channel,
-        template.language,
-        template.content,
-        Boolean(template.active),
-        now,
-        now
-      ]);
-    }
-
-    const examRows = await client.query(`
-      SELECT id, code
-      FROM exames_modelo
-    `);
-    const examIdByCode = new Map(examRows.rows.map((row) => [row.code, Number(row.id)]));
-
-    for (const examModel of examModels) {
-      const examModelId = examIdByCode.get(examModel.code);
-      if (!examModelId) {
-        continue;
+        await client.query(`
+          INSERT INTO physicians (
+            name,
+            clinic_unit_id,
+            active,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5)
+        `, [
+          physician.name,
+          clinicUnitId,
+          Boolean(physician.active),
+          now,
+          now
+        ]);
       }
 
-      const rule = buildDefaultInferenceRule(examModelId, examModel);
-      await client.query(`
-        INSERT INTO regras_inferencia_gestacional (
-          exam_model_id,
-          typical_start_week,
-          typical_end_week,
-          reference_week,
-          uncertainty_margin_weeks,
-          allow_automatic_inference,
-          active,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (exam_model_id) DO NOTHING
-      `, [
-        rule.examModelId,
-        rule.typicalStartWeek,
-        rule.typicalEndWeek,
-        rule.referenceWeek,
-        rule.uncertaintyMarginWeeks,
-        rule.allowAutomaticInference,
-        rule.active,
-        now,
-        now
-      ]);
+      await alignSequence(client, "physicians");
+    }
+
+    if (!(await tableHasRows(client, "kanban_columns"))) {
+      for (const [index, stage] of KANBAN_STAGES.entries()) {
+        await client.query(`
+          INSERT INTO kanban_columns (
+            id,
+            title,
+            description,
+            sort_order,
+            is_system,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [
+          stage.id,
+          stage.title,
+          stage.description,
+          index + 1,
+          true,
+          now,
+          now
+        ]);
+      }
+    }
+
+    if (!(await tableHasRows(client, "exames_modelo"))) {
+      for (const examModel of examModels) {
+        await client.query(`
+          INSERT INTO exames_modelo (
+            code,
+            name,
+            start_week,
+            end_week,
+            target_week,
+            reminder_days_before_1,
+            reminder_days_before_2,
+            default_message,
+            required,
+            flow_type,
+            active,
+            sort_order,
+            created_at,
+            updated_at
+          )
+          VALUES (
+            $1, $2, $3, $4, $5, $6, $7,
+            $8, $9, $10, $11, $12, $13, $14
+          )
+        `, [
+          examModel.code,
+          examModel.name,
+          Number(examModel.startWeek),
+          Number(examModel.endWeek),
+          Number(examModel.targetWeek),
+          Number(examModel.reminderDaysBefore1),
+          Number(examModel.reminderDaysBefore2),
+          examModel.defaultMessage,
+          Boolean(examModel.required),
+          examModel.flowType,
+          Boolean(examModel.active),
+          Number(examModel.sortOrder),
+          now,
+          now
+        ]);
+      }
+    }
+
+    if (!(await tableHasRows(client, "message_templates"))) {
+      for (const template of messageTemplates) {
+        await client.query(`
+          INSERT INTO message_templates (
+            code,
+            name,
+            channel,
+            language,
+            content,
+            active,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [
+          template.code,
+          template.name,
+          template.channel,
+          template.language,
+          template.content,
+          Boolean(template.active),
+          now,
+          now
+        ]);
+      }
+    }
+
+    if (!(await tableHasRows(client, "regras_inferencia_gestacional"))) {
+      const examRows = await client.query(`
+        SELECT id, code
+        FROM exames_modelo
+      `);
+      const examIdByCode = new Map(examRows.rows.map((row) => [row.code, Number(row.id)]));
+
+      for (const examModel of examModels) {
+        const examModelId = examIdByCode.get(examModel.code);
+        if (!examModelId) {
+          continue;
+        }
+
+        const rule = buildDefaultInferenceRule(examModelId, examModel);
+        await client.query(`
+          INSERT INTO regras_inferencia_gestacional (
+            exam_model_id,
+            typical_start_week,
+            typical_end_week,
+            reference_week,
+            uncertainty_margin_weeks,
+            allow_automatic_inference,
+            active,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [
+          rule.examModelId,
+          rule.typicalStartWeek,
+          rule.typicalEndWeek,
+          rule.referenceWeek,
+          rule.uncertaintyMarginWeeks,
+          rule.allowAutomaticInference,
+          rule.active,
+          now,
+          now
+        ]);
+      }
     }
   });
 
