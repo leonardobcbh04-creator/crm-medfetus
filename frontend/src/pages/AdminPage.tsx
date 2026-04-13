@@ -165,6 +165,10 @@ function getFeedbackTone(message: string) {
   return "success";
 }
 
+function hasSearchValue(value: string) {
+  return value.trim().length > 0;
+}
+
 export function AdminPage() {
   const [adminData, setAdminData] = useState<AdminPanelData | null>(null);
   const [shospStatus, setShospStatus] = useState<ShospIntegrationStatus | null>(null);
@@ -991,6 +995,10 @@ export function AdminPage() {
   const activeUnitsCount = adminData.units.filter((unit) => unit.active).length;
   const activePhysiciansCount = adminData.physicians.filter((physician) => physician.active).length;
   const activeExamsCount = adminData.examConfigs.filter((examConfig) => examConfig.active).length;
+  const hasUserSearch = hasSearchValue(searchUsers);
+  const hasUnitSearch = hasSearchValue(searchUnits);
+  const hasPhysicianSearch = hasSearchValue(searchPhysicians);
+  const hasExamSearch = hasSearchValue(searchExams);
   const visibleRecentAuditLogs = showAllRecentActivity
     ? adminData.recentAuditLogs.slice(0, 12)
     : adminData.recentAuditLogs.slice(0, 5);
@@ -1283,18 +1291,25 @@ export function AdminPage() {
           </form>
         </details>
 
-        <label>
-          Buscar usuario
-          <input
-            value={searchUsers}
-            onChange={(event) => setSearchUsers(event.target.value)}
-            placeholder="Buscar por nome ou e-mail"
-          />
-        </label>
+          <div className="toolbar-row admin-search-toolbar">
+            <label>
+              Buscar usuario
+              <input
+                value={searchUsers}
+                onChange={(event) => setSearchUsers(event.target.value)}
+                placeholder="Buscar por nome ou e-mail"
+              />
+            </label>
+            {hasUserSearch ? (
+              <button type="button" className="secondary-button" onClick={() => setSearchUsers("")}>
+                Limpar busca
+              </button>
+            ) : null}
+          </div>
 
-        <div className="settings-grid">
-          {filteredUsers.map((user) => (
-            <form key={user.id} className="admin-row-card admin-user-card stack-form" onSubmit={(event) => handleUpdateUser(event, user)}>
+          <div className="settings-grid">
+            {filteredUsers.length ? filteredUsers.map((user) => (
+              <form key={user.id} className="admin-row-card admin-user-card stack-form" onSubmit={(event) => handleUpdateUser(event, user)}>
               <div className="card-row admin-user-card-head">
                 <div className="admin-user-title-block">
                   <div className="admin-user-avatar" aria-hidden="true">
@@ -1354,7 +1369,16 @@ export function AdminPage() {
                 {savingKey === `delete-user-${user.id}` ? "Excluindo..." : "Excluir usuario"}
               </button>
             </form>
-          ))}
+          )) : (
+            <div className="empty-state-card">
+              <strong>Nenhum usuario encontrado</strong>
+              <p className="field-hint">
+                {hasUserSearch
+                  ? "Ajuste a busca por nome ou e-mail para localizar outro usuario."
+                  : "Cadastre o primeiro usuario da equipe para continuar."}
+              </p>
+            </div>
+          )}
         </div>
       </article>
       <article className="panel-card stack-form" id="admin-patient-cleanup">
@@ -1462,18 +1486,25 @@ export function AdminPage() {
             </form>
           </details>
 
-          <label>
-            Buscar unidade
-            <input
-              value={searchUnits}
-              onChange={(event) => setSearchUnits(event.target.value)}
-              placeholder="Buscar por nome da unidade"
-            />
-          </label>
+            <div className="toolbar-row admin-search-toolbar">
+              <label>
+                Buscar unidade
+                <input
+                  value={searchUnits}
+                  onChange={(event) => setSearchUnits(event.target.value)}
+                  placeholder="Buscar por nome da unidade"
+                />
+              </label>
+              {hasUnitSearch ? (
+                <button type="button" className="secondary-button" onClick={() => setSearchUnits("")}>
+                  Limpar busca
+                </button>
+              ) : null}
+            </div>
 
-          <div className="list-grid">
-            {filteredUnits.map((unit) => (
-              <form key={unit.id} className="admin-row-card admin-entity-card stack-form" onSubmit={(event) => handleUpdateUnit(event, unit)}>
+            <div className="list-grid">
+              {filteredUnits.length ? filteredUnits.map((unit) => (
+                <form key={unit.id} className="admin-row-card admin-entity-card stack-form" onSubmit={(event) => handleUpdateUnit(event, unit)}>
                 <div className="card-row admin-entity-head">
                   <div className="admin-user-title-block">
                     <div className="admin-user-avatar admin-entity-avatar" aria-hidden="true">UN</div>
@@ -1503,7 +1534,16 @@ export function AdminPage() {
                   {savingKey === `delete-unit-${unit.id}` ? "Excluindo..." : "Excluir unidade"}
                 </button>
               </form>
-            ))}
+            )) : (
+              <div className="empty-state-card">
+                <strong>Nenhuma unidade encontrada</strong>
+                <p className="field-hint">
+                  {hasUnitSearch
+                    ? "Revise o nome informado ou limpe a busca para ver todas as unidades."
+                    : "As unidades cadastradas vao aparecer aqui."}
+                </p>
+              </div>
+            )}
           </div>
         </article>
 
@@ -1553,18 +1593,25 @@ export function AdminPage() {
             </form>
           </details>
 
-          <label>
-            Buscar medico
-            <input
-              value={searchPhysicians}
-              onChange={(event) => setSearchPhysicians(event.target.value)}
-              placeholder="Buscar por nome ou unidade"
-            />
-          </label>
+            <div className="toolbar-row admin-search-toolbar">
+              <label>
+                Buscar medico
+                <input
+                  value={searchPhysicians}
+                  onChange={(event) => setSearchPhysicians(event.target.value)}
+                  placeholder="Buscar por nome ou unidade"
+                />
+              </label>
+              {hasPhysicianSearch ? (
+                <button type="button" className="secondary-button" onClick={() => setSearchPhysicians("")}>
+                  Limpar busca
+                </button>
+              ) : null}
+            </div>
 
-          <div className="list-grid">
-            {filteredPhysicians.map((physician) => (
-              <form key={physician.id} className="admin-row-card admin-entity-card stack-form" onSubmit={(event) => handleUpdatePhysician(event, physician)}>
+            <div className="list-grid">
+              {filteredPhysicians.length ? filteredPhysicians.map((physician) => (
+                <form key={physician.id} className="admin-row-card admin-entity-card stack-form" onSubmit={(event) => handleUpdatePhysician(event, physician)}>
                 <div className="card-row admin-entity-head">
                   <div className="admin-user-title-block">
                     <div className="admin-user-avatar admin-entity-avatar" aria-hidden="true">MD</div>
@@ -1603,8 +1650,17 @@ export function AdminPage() {
                   {savingKey === `delete-physician-${physician.id}` ? "Excluindo..." : "Excluir medico"}
                 </button>
               </form>
-            ))}
-          </div>
+              )) : (
+                <div className="empty-state-card">
+                  <strong>Nenhum medico encontrado</strong>
+                  <p className="field-hint">
+                    {hasPhysicianSearch
+                      ? "Tente buscar pelo nome do medico ou pela unidade vinculada."
+                      : "Os medicos cadastrados vao aparecer aqui."}
+                  </p>
+                </div>
+              )}
+            </div>
         </article>
       </div>
       ) : null}
@@ -1728,18 +1784,25 @@ export function AdminPage() {
           </form>
         ) : null}
 
-        <label>
-          Buscar exame
-          <input
-            value={searchExams}
-            onChange={(event) => setSearchExams(event.target.value)}
-            placeholder="Buscar por nome ou codigo"
-          />
-        </label>
+          <div className="toolbar-row admin-search-toolbar">
+            <label>
+              Buscar exame
+              <input
+                value={searchExams}
+                onChange={(event) => setSearchExams(event.target.value)}
+                placeholder="Buscar por nome ou codigo"
+              />
+            </label>
+            {hasExamSearch ? (
+              <button type="button" className="secondary-button" onClick={() => setSearchExams("")}>
+                Limpar busca
+              </button>
+            ) : null}
+          </div>
 
-        <div className="settings-grid">
-          {filteredExams.map((examConfig) => (
-            <form key={examConfig.id} className="admin-row-card admin-exam-card stack-form" onSubmit={(event) => handleUpdateExam(event, examConfig)}>
+          <div className="settings-grid">
+            {filteredExams.length ? filteredExams.map((examConfig) => (
+              <form key={examConfig.id} className="admin-row-card admin-exam-card stack-form" onSubmit={(event) => handleUpdateExam(event, examConfig)}>
               <div className="card-row admin-entity-head">
                 <div className="admin-user-title-block">
                   <div className="admin-user-avatar admin-entity-avatar" aria-hidden="true">EX</div>
@@ -1847,8 +1910,17 @@ export function AdminPage() {
                   trocar o tipo para avulso/manual.
                 </p>
               </form>
-            ))}
-          </div>
+              )) : (
+                <div className="empty-state-card">
+                  <strong>Nenhum exame encontrado</strong>
+                  <p className="field-hint">
+                    {hasExamSearch
+                      ? "Ajuste a busca por nome ou codigo para localizar outro exame."
+                      : "Os exames cadastrados vao aparecer aqui."}
+                  </p>
+                </div>
+              )}
+            </div>
       </article>
 
       <article className="panel-card stack-form">
@@ -1937,8 +2009,8 @@ export function AdminPage() {
                 {savingKey === `exam-inference-${rule.id}` ? "Salvando..." : "Salvar regra"}
               </button>
             </form>
-          ))}
-        </div>
+            ))}
+          </div>
       </article>
       </div>
       ) : null}

@@ -154,6 +154,13 @@ export function KanbanPage() {
     [allPatients]
   );
 
+  const totalFilteredPatients = useMemo(
+    () => filteredColumns.reduce((total, column) => total + column.patients.length, 0),
+    [filteredColumns]
+  );
+
+  const hasActiveFilters = Boolean(search || priorityFilter !== "todas" || unitFilter || physicianFilter || stageFilter);
+
   return (
     <section className="page-section kanban-page">
       <div className="page-header">
@@ -245,6 +252,29 @@ export function KanbanPage() {
             </select>
           </label>
         </div>
+
+        <div className="filter-summary-row">
+          <p className="field-hint">
+            {hasActiveFilters
+              ? `${totalFilteredPatients} paciente(s) visivel(is) com os filtros atuais.`
+              : `${allPatients.length} paciente(s) no fluxo completo.`}
+          </p>
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                setSearch("");
+                setPriorityFilter("todas");
+                setUnitFilter("");
+                setPhysicianFilter("");
+                setStageFilter("");
+              }}
+            >
+              Limpar filtros
+            </button>
+          ) : null}
+        </div>
       </article>
 
       <div className="kanban-legend">
@@ -280,10 +310,10 @@ export function KanbanPage() {
           <p className="empty-state">
             Nenhuma paciente encontrada com os filtros atuais no fluxo de atendimento.
           </p>
-          {(search || priorityFilter !== "todas" || unitFilter || physicianFilter || stageFilter) ? (
-            <button
-              type="button"
-              className="secondary-button"
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                className="secondary-button"
               onClick={() => {
                 setSearch("");
                 setPriorityFilter("todas");

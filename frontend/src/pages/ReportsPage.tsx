@@ -230,6 +230,22 @@ export function ReportsPage() {
     return <p className="loading-text">Nao foi possivel carregar os relatorios.</p>;
   }
 
+  const reportsHasData =
+    reports.reports.patientsByStage.length > 0 ||
+    reports.reports.pendingExams.length > 0 ||
+    reports.reports.overdueExams.length > 0 ||
+    reports.reports.contactsMade.length > 0 ||
+    reports.reports.scheduledByPeriod.length > 0 ||
+    reports.reports.productivityByUser.length > 0;
+
+  const hasActiveFilters = Boolean(
+    filters.period !== DEFAULT_FILTERS.period ||
+    filters.dateFrom ||
+    filters.dateTo ||
+    filters.clinicUnit ||
+    filters.physicianName
+  );
+
   return (
     <section className="page-section">
       <div className="page-header">
@@ -300,11 +316,37 @@ export function ReportsPage() {
               setFilters(DEFAULT_FILTERS);
               void loadReports(DEFAULT_FILTERS);
             }}
-          >
+            >
             Limpar filtros
           </button>
+          <span className="field-hint">
+            {hasActiveFilters ? "Os relatorios abaixo refletem os filtros atuais." : "Mostrando a visao geral da operacao."}
+          </span>
         </div>
       </article>
+
+      {!reportsHasData ? (
+        <article className="panel-card">
+          <div className="empty-state-card">
+            <strong>Nenhum resultado encontrado para este filtro</strong>
+            <p className="field-hint">
+              Ajuste periodo, unidade ou medico para ampliar a consulta e revisar os relatorios operacionais.
+            </p>
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setFilters(DEFAULT_FILTERS);
+                  void loadReports(DEFAULT_FILTERS);
+                }}
+              >
+                Limpar filtros
+              </button>
+            ) : null}
+          </div>
+        </article>
+      ) : null}
 
       <div className="stats-grid reports-stats-grid">
         <article className="stat-card">
