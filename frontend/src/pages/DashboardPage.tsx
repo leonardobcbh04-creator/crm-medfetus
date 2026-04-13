@@ -226,7 +226,7 @@ export function DashboardPage() {
       <article className="panel-card stack-form filter-panel">
         <div className="form-section-header">
           <p className="muted-label">Filtros</p>
-          <p className="field-hint">Use periodo, unidade e medico para enxergar a operacao de forma mais precisa.</p>
+            <p className="field-hint">Use periodo, unidade e medico para refinar a visao da operacao.</p>
         </div>
 
         <div className="three-columns">
@@ -314,7 +314,7 @@ export function DashboardPage() {
           title="Pacientes por etapa"
           description="Distribuicao atual do fluxo de atendimento."
           items={dashboard.breakdowns.patientsByStage.map((item) => ({ label: item.stageTitle, total: item.total }))}
-          emptyMessage="Nenhuma etapa com pacientes neste filtro."
+            emptyMessage="Nenhuma etapa encontrada com os filtros atuais."
         />
 
         <CompactCountList
@@ -322,19 +322,19 @@ export function DashboardPage() {
           title="Pacientes por prioridade"
           description="Resumo rapido das prioridades operacionais."
           items={dashboard.breakdowns.patientsByPriority.map((item) => ({ label: item.label, total: item.total }))}
-          emptyMessage="Nenhuma prioridade encontrada neste filtro."
+            emptyMessage="Nenhuma prioridade encontrada com os filtros atuais."
         />
 
         <MiniPatientList
           title="Pacientes para contato hoje"
           patients={dashboard.lists.patientsToContactToday}
-          emptyMessage="Nenhuma paciente pedindo contato hoje."
+            emptyMessage="Nenhuma paciente precisa de contato hoje."
         />
 
         <MiniPatientList
           title="Pacientes atrasadas"
           patients={dashboard.lists.overduePatients}
-          emptyMessage="Nenhuma paciente atrasada neste filtro."
+            emptyMessage="Nenhuma paciente em atraso com os filtros atuais."
         />
 
         <MiniPatientList

@@ -60,7 +60,7 @@ export function ReminderCenterPage() {
       setData(response);
     } catch (error) {
       setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a central de lembretes.");
+        setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a fila de lembretes.");
     } finally {
       setLoading(false);
     }
@@ -76,7 +76,7 @@ export function ReminderCenterPage() {
     }
 
     if (action === "scheduled") {
-      const confirmed = window.confirm("Confirmar que este exame ja esta agendado? Ele saira da fila ativa.");
+        const confirmed = window.confirm("Confirmar agendamento? A paciente saira da fila ativa de lembretes.");
       if (!confirmed) {
         return;
       }
@@ -102,14 +102,14 @@ export function ReminderCenterPage() {
       setFeedbackType("success");
       setFeedback(
         action === "contacted"
-          ? "Contato registrado com sucesso."
-          : action === "snooze"
-            ? "Lembrete adiado para o proximo dia."
-            : "Agendamento registrado com sucesso."
+            ? "Contato registrado com sucesso na fila de lembretes."
+            : action === "snooze"
+              ? "Lembrete adiado para o proximo dia."
+              : "Agendamento registrado com sucesso e removido da fila ativa."
       );
     } catch (error) {
       setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar o lembrete.");
+        setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a fila de lembretes.");
     } finally {
       setActingKey(null);
     }
@@ -122,7 +122,7 @@ export function ReminderCenterPage() {
       setFeedback(`Mensagem de ${patientName} copiada.`);
     } catch {
       setFeedbackType("error");
-      setFeedback("Nao foi possivel copiar a mensagem.");
+        setFeedback("Nao foi possivel copiar a mensagem de contato.");
     }
   }
 
@@ -158,7 +158,7 @@ export function ReminderCenterPage() {
   }
 
   if (!data) {
-    return <p className="loading-text">Nao foi possivel carregar a central de lembretes.</p>;
+      return <p className="loading-text">Nao foi possivel carregar a fila de lembretes.</p>;
   }
 
   return (
@@ -166,17 +166,17 @@ export function ReminderCenterPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">Atendimento</p>
-          <h2>Central de lembretes</h2>
-          <p className="page-description">
-            Pacientes que precisam de contato hoje, organizadas por prioridade.
-          </p>
+            <h2>Central de lembretes</h2>
+            <p className="page-description">
+              Pacientes que precisam de contato agora, organizadas por prioridade operacional.
+            </p>
         </div>
       </div>
 
       <article className="panel-card stack-form filter-panel operational-filter-panel">
         <div className="operational-filter-grid operational-filter-grid-five">
           <label>
-            Buscar paciente
+              Buscar paciente
             <input
               type="search"
               placeholder="Nome, telefone ou exame"
@@ -196,7 +196,7 @@ export function ReminderCenterPage() {
           </label>
 
           <label>
-            Tipo
+              Motivo do contato
             <select value={messageTypeFilter} onChange={(event) => setMessageTypeFilter(event.target.value as MessageTypeFilterValue)}>
               <option value="todos">Todos</option>
               <option value="atraso">Atraso</option>
@@ -282,7 +282,7 @@ export function ReminderCenterPage() {
               <span><strong>Telefone:</strong> {formatBrazilPhone(item.phone) || "Nao informado"}</span>
               <span><strong>Exame previsto:</strong> {item.examName}</span>
               <span><strong>Inicio da janela ideal:</strong> {item.idealWindowStartDateLabel || "Nao definido"}</span>
-              <span><strong>Motivo do contato:</strong> {item.messageOriginLabel || "Acompanhamento da jornada"}</span>
+                <span><strong>Motivo do contato:</strong> {item.messageOriginLabel || "Acompanhamento da gestacao"}</span>
               <span><strong>Base do calculo:</strong> {item.gestationalBaseSourceLabel}</span>
               <span><strong>Confiabilidade:</strong> {item.gestationalBaseConfidenceLabel}</span>
               <span><strong>Medico:</strong> {item.physicianName || "Nao informado"}</span>
@@ -335,7 +335,7 @@ export function ReminderCenterPage() {
                 disabled={actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
                 onClick={() => void handleAction(item.patientId, item.examPatientId, "scheduled")}
               >
-                {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Registrar agendamento"}
+                {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Confirmar agendamento"}
               </button>
               <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
                 Ver detalhes
@@ -345,7 +345,7 @@ export function ReminderCenterPage() {
         )) : (
           <div className="stack-form">
             <p className="empty-state">
-              Nenhuma paciente precisa de contato com os filtros atuais.
+                Nenhuma paciente precisa de contato com os filtros atuais.
             </p>
             {(search || priorityFilter !== "todas" || messageTypeFilter !== "todos" || filters.clinicUnit || filters.physicianName || filters.examCode) ? (
               <button
@@ -359,10 +359,10 @@ export function ReminderCenterPage() {
                   void loadReminders(DEFAULT_FILTERS);
                 }}
               >
-                Limpar filtros e revisar fila completa
-              </button>
-            ) : null}
-          </div>
+                  Limpar filtros e ver fila completa
+                </button>
+              ) : null}
+            </div>
         )}
       </div>
     </section>

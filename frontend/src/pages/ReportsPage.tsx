@@ -107,7 +107,7 @@ function ReportTable({
             ) : (
               <tr>
                 <td colSpan={headers.length}>
-                  <p className="empty-state">Nenhum dado encontrado para este relatorio.</p>
+                  <p className="empty-state">Nenhum dado encontrado para este relatorio com os filtros atuais.</p>
                 </td>
               </tr>
             )}

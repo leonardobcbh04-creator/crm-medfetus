@@ -241,7 +241,7 @@ export function AdminPage() {
     }));
 
     if (statusResult.status !== "fulfilled" || mappingsResult.status !== "fulfilled") {
-      setFeedback("A integracao com o Shosp nao respondeu neste ambiente. A area administrativa segue disponivel em modo reduzido.");
+      setFeedback("A integracao externa nao respondeu neste ambiente. A administracao segue disponivel em modo reduzido.");
     }
 
     return { statusResponse, mappingsResponse };
@@ -952,7 +952,7 @@ export function AdminPage() {
   }
 
   if (!adminData) {
-    return <p className="loading-text">Nao foi possivel carregar a administracao.</p>;
+      return <p className="loading-text">Nao foi possivel carregar a Administracao da clinica.</p>;
   }
 
   const normalizedUserSearch = searchUsers.trim().toLowerCase();
@@ -1032,9 +1032,9 @@ export function AdminPage() {
               description="Um resumo rapido das movimentacoes mais recentes da equipe."
             />
             <p className="admin-activity-summary">
-              {adminData!.recentAuditLogs.length
-                ? `${Math.min(visibleRecentAuditLogs.length, adminData!.recentAuditLogs.length)} de ${adminData!.recentAuditLogs.length} registro(s) recente(s) visiveis.`
-                : "Nenhuma atividade administrativa foi registrada ainda neste ambiente."}
+                {adminData!.recentAuditLogs.length
+                  ? `${Math.min(visibleRecentAuditLogs.length, adminData!.recentAuditLogs.length)} de ${adminData!.recentAuditLogs.length} registro(s) recentes visiveis.`
+                  : "Ainda nao ha atividade recente registrada neste ambiente."}
             </p>
           </div>
           <div className="admin-activity-actions">
@@ -1071,11 +1071,11 @@ export function AdminPage() {
             </div>
           )) : (
             <div className="empty-state-card">
-              <strong>Sem atividade recente por enquanto</strong>
-              <p className="field-hint">
-                Assim que a equipe cadastrar pacientes, registrar contatos ou fizer ajustes administrativos, esse bloco vai mostrar os eventos mais recentes.
-              </p>
-            </div>
+                <strong>Sem atividade recente por enquanto</strong>
+                <p className="field-hint">
+                  Assim que a equipe cadastrar pacientes, registrar contatos ou fizer ajustes administrativos, esta aba vai mostrar os eventos mais recentes.
+                </p>
+              </div>
           )}
         </div>
       </article>

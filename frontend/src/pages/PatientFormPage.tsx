@@ -194,7 +194,7 @@ export function PatientFormPage() {
       } catch (error) {
         if (isMounted) {
           setMessageType("error");
-          setMessage(error instanceof Error ? error.message : "Nao foi possivel carregar o formulario.");
+            setMessage(error instanceof Error ? error.message : "Nao foi possivel carregar os dados do formulario.");
         }
       } finally {
         if (isMounted) {
@@ -312,7 +312,7 @@ export function PatientFormPage() {
 
     if (!formData.name.trim() || !formData.phone.trim() || !formData.birthDate || !formData.gestationalWeeks.trim()) {
       setMessageType("error");
-      setMessage("Preencha os campos obrigatorios para salvar a paciente.");
+        setMessage("Preencha os campos obrigatorios para continuar.");
       return;
     }
 
@@ -324,13 +324,13 @@ export function PatientFormPage() {
 
     if (!formData.physicianName.trim() || !formData.clinicUnit.trim() || !formData.pregnancyType.trim()) {
       setMessageType("error");
-      setMessage("Medico solicitante, unidade e tipo de gestacao sao obrigatorios.");
+        setMessage("Medico, unidade e tipo de gestacao sao obrigatorios.");
       return;
     }
 
     if (!formData.notes.trim()) {
       setMessageType("error");
-      setMessage("Preencha as observacoes da paciente.");
+        setMessage("Preencha as observacoes para concluir o cadastro.");
       return;
     }
 
@@ -363,14 +363,14 @@ export function PatientFormPage() {
       navigate(`/pacientes/${response.patient.patient.id}`);
     } catch (error) {
       setMessageType("error");
-      setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar a paciente.");
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel salvar os dados da paciente.");
     } finally {
       setIsSaving(false);
     }
   }
 
   if (loading) {
-    return <p className="loading-text">Carregando formulario da paciente...</p>;
+      return <p className="loading-text">Carregando dados da paciente...</p>;
   }
 
   return (
@@ -380,7 +380,7 @@ export function PatientFormPage() {
           <p className="eyebrow">{isEditing ? "Edicao" : "Cadastro"}</p>
           <h2>{isEditing ? "Editar paciente" : "Nova paciente"}</h2>
           <p className="page-description">
-            A recepcao preenche os dados principais e a idade gestacional informada para o sistema calcular a DPP e a previsao inicial dos exames.
+              Preencha os dados principais para organizar o acompanhamento e calcular a previsao inicial dos exames.
           </p>
         </div>
         {isEditing && id ? (
@@ -467,7 +467,7 @@ export function PatientFormPage() {
                 value={formData.lastCompletedExamCode}
                 onChange={(event) => updateField("lastCompletedExamCode", event.target.value)}
               >
-                <option value="">Paciente iniciando do zero na esteira</option>
+                <option value="">Paciente iniciando no comeco do acompanhamento</option>
                 {automaticExamOptions.map((exam) => (
                   <option key={exam.id} value={exam.code}>
                     {exam.name}
@@ -475,8 +475,8 @@ export function PatientFormPage() {
                 ))}
               </select>
               <span className="field-hint">
-                Use quando a paciente ja chegar no meio do acompanhamento. O exame escolhido e os automaticos anteriores ficarao como realizados, sem data.
-              </span>
+                  Use quando a paciente ja chegar no meio do acompanhamento. O exame escolhido e os anteriores ficam registrados como historico previo, sem data.
+                </span>
             </label>
           ) : null}
 
@@ -561,7 +561,7 @@ export function PatientFormPage() {
                   type="checkbox"
                 />
                 <div className="risk-guidance">
-                  <strong>{formData.highRisk ? "Paciente marcada como alto risco." : "Acompanhamento habitual."}</strong>
+                    <strong>{formData.highRisk ? "Paciente marcada como alto risco." : "Acompanhamento habitual."}</strong>
                   <span>{formData.highRisk ? HIGH_RISK_HELP.active : HIGH_RISK_HELP.inactive}</span>
                 </div>
               </div>
@@ -586,13 +586,13 @@ export function PatientFormPage() {
 
           {message ? (
             <div className={messageType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
-              <strong>{messageType === "error" ? "Atencao" : "Sucesso"}</strong>
+                <strong>{messageType === "error" ? "Atencao" : "Tudo certo"}</strong>
               <span>{message}</span>
             </div>
           ) : null}
 
           <button className="primary-button" type="submit" disabled={isSaving}>
-            {isSaving ? "Salvando..." : isEditing ? "Salvar alteracoes" : "Salvar paciente"}
+              {isSaving ? "Salvando..." : isEditing ? "Salvar alteracoes" : "Cadastrar paciente"}
           </button>
         </form>
 

@@ -168,7 +168,7 @@ export function KanbanPage() {
           <p className="eyebrow">Operacao</p>
           <h2>Fluxo de atendimento</h2>
           <p className="page-description">
-            Organize o atendimento por etapa, priorize os casos mais sensiveis e acompanhe o proximo exame em tempo real.
+            Organize o atendimento por etapa, priorize os casos mais sensiveis e acompanhe o proximo exame com clareza.
           </p>
         </div>
       </div>
@@ -308,7 +308,7 @@ export function KanbanPage() {
       ) : filteredColumns.every((column) => column.patients.length === 0) ? (
         <div className="stack-form">
           <p className="empty-state">
-            Nenhuma paciente encontrada com os filtros atuais no fluxo de atendimento.
+              Nenhuma paciente encontrada com os filtros atuais no fluxo de atendimento.
           </p>
             {hasActiveFilters ? (
               <button
@@ -322,7 +322,7 @@ export function KanbanPage() {
                 setStageFilter("");
               }}
             >
-              Limpar filtros e revisar fluxo completo
+              Limpar filtros e ver fluxo completo
             </button>
           ) : null}
         </div>

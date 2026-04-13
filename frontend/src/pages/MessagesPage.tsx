@@ -61,7 +61,7 @@ export function MessagesPage() {
       }));
     } catch (error) {
       setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a fila de mensagens.");
+        setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a lista de mensagens.");
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export function MessagesPage() {
       setFeedback(`Mensagem registrada para ${item.patientName}.`);
     } catch (error) {
       setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel registrar a mensagem.");
+        setFeedback(error instanceof Error ? error.message : "Nao foi possivel registrar a mensagem.");
     }
   }
 
@@ -98,7 +98,7 @@ export function MessagesPage() {
 
       syncPatientMessage(item.patientId, response.message);
       setFeedbackType("success");
-      setFeedback(`Status da mensagem atualizado para ${item.patientName}.`);
+        setFeedback(`Status da mensagem atualizado para ${item.patientName}.`);
     } catch (error) {
       setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a mensagem.");
@@ -130,14 +130,14 @@ export function MessagesPage() {
       setFeedbackType("success");
       setFeedback(
         action === "contacted"
-          ? `Contato registrado para ${item.patientName}.`
-          : action === "snooze"
-            ? `Lembrete de ${item.patientName} adiado para o proximo dia.`
-            : `Agendamento registrado para ${item.patientName}.`
+            ? `Contato registrado para ${item.patientName}.`
+            : action === "snooze"
+              ? `Lembrete de ${item.patientName} adiado para o proximo dia.`
+              : `Agendamento confirmado para ${item.patientName}.`
       );
     } catch (error) {
       setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a fila operacional.");
+        setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a lista operacional.");
     } finally {
       setActingKey(null);
     }
@@ -151,7 +151,7 @@ export function MessagesPage() {
       setFeedback(`Mensagem de ${item.patientName} copiada.`);
     } catch {
       setFeedbackType("error");
-      setFeedback("Nao foi possivel copiar a mensagem.");
+        setFeedback("Nao foi possivel copiar a mensagem.");
     }
   }
 
@@ -223,10 +223,10 @@ export function MessagesPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">Comunicacao</p>
-          <h2>Mensagens automaticas</h2>
-          <p className="page-description">
-            Revise a mensagem sugerida e conduza os contatos do dia com mais agilidade.
-          </p>
+            <h2>Mensagens automaticas</h2>
+            <p className="page-description">
+              Revise a mensagem sugerida e conduza os contatos do dia com mais agilidade.
+            </p>
         </div>
       </div>
 
@@ -253,7 +253,7 @@ export function MessagesPage() {
           </label>
 
           <label>
-            Tipo
+              Motivo da mensagem
             <select value={messageTypeFilter} onChange={(event) => setMessageTypeFilter(event.target.value as MessageTypeFilterValue)}>
               <option value="todos">Todos</option>
               <option value="atraso">Atraso</option>
@@ -285,10 +285,10 @@ export function MessagesPage() {
         </div>
 
         <div className="message-filter-bar">
-          <button className={filter === "todos" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("todos")}>Todos</button>
-          <button className={filter === "hoje" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("hoje")}>Hoje</button>
+          <button className={filter === "todos" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("todos")}>Todas</button>
+          <button className={filter === "hoje" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("hoje")}>Prioridade de hoje</button>
           <button className={filter === "atrasadas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("atrasadas")}>Em atraso</button>
-          <button className={filter === "respondidas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("respondidas")}>Respondidas</button>
+          <button className={filter === "respondidas" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("respondidas")}>Com resposta</button>
           <button className={filter === "sem_resposta" ? "menu-link active" : "menu-link"} type="button" onClick={() => setFilter("sem_resposta")}>Sem resposta</button>
         </div>
       </article>
@@ -335,10 +335,10 @@ export function MessagesPage() {
 
               <div className="priority-badge-row">
                 <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
-                <span className={`badge badge-soft ${getOperationalPriorityBadgeClass(item.priorityLevel)}`}>{item.priorityLabel || "Prioridade do contato"}</span>
+                  <span className={`badge badge-soft ${getOperationalPriorityBadgeClass(item.priorityLevel)}`}>{item.priorityLabel || "Prioridade operacional"}</span>
                 <span className={`badge badge-soft ${priority.badgeClassName}`}>{item.reminderLabel}</span>
                 <span className="badge badge-soft badge-priority-blue">{item.messageTypeLabel || "Mensagem sugerida"}</span>
-                {priority.needsImmediateAction ? <span className="badge badge-attention">Prioridade imediata</span> : null}
+                  {priority.needsImmediateAction ? <span className="badge badge-attention">Atencao imediata</span> : null}
               </div>
 
               <div className="message-metadata">
@@ -381,16 +381,16 @@ export function MessagesPage() {
                 <button className="secondary-button" type="button" onClick={() => void handleCopyMessage(item)}>
                   Copiar mensagem
                 </button>
-                <a className="whatsapp-link" href={whatsappUrl} target="_blank" rel="noreferrer">
-                  Abrir WhatsApp
-                </a>
+                  <a className="whatsapp-link" href={whatsappUrl} target="_blank" rel="noreferrer">
+                    Abrir conversa no WhatsApp
+                  </a>
                 <button
                   className="secondary-button"
                   type="button"
                   disabled={item.gestationalMessagingAlertLevel === "blocked"}
                   onClick={() => void handleRegisterSend(item)}
                 >
-                  Registrar envio
+                    Registrar envio
                 </button>
                 <button
                   className="secondary-button"
@@ -414,13 +414,13 @@ export function MessagesPage() {
                   disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
                   onClick={() => void handleReminderAction(item, "scheduled")}
                 >
-                  {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Registrar agendamento"}
+                    {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Confirmar agendamento"}
                 </button>
                 <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "respondida")}>
-                  Registrar resposta
+                    Registrar resposta
                 </button>
                 <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "sem_resposta")}>
-                  Registrar sem resposta
+                    Registrar sem resposta
                 </button>
                 <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
                   Ver detalhes
@@ -441,7 +441,7 @@ export function MessagesPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="empty-state">Nenhuma mensagem registrada ainda.</p>
+                    <p className="empty-state">Nenhuma mensagem registrada para esta paciente ainda.</p>
                 )}
               </div>
             </article>
@@ -449,7 +449,7 @@ export function MessagesPage() {
         }) : (
           <div className="stack-form">
             <p className="empty-state">
-              Nenhuma paciente encontrada com os filtros atuais.
+                Nenhuma paciente encontrada com os filtros atuais.
             </p>
             {(search || filter !== "todos" || priorityFilter !== "todas" || messageTypeFilter !== "todos" || unitFilter || physicianFilter) ? (
               <button
@@ -464,10 +464,10 @@ export function MessagesPage() {
                   setPhysicianFilter("");
                 }}
               >
-                Limpar filtros e revisar lista completa
-              </button>
-            ) : null}
-          </div>
+                  Limpar filtros e ver lista completa
+                </button>
+              ) : null}
+            </div>
         )}
       </div>
     </section>
