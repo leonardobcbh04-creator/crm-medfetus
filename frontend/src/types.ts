@@ -7,6 +7,7 @@ export type DashboardSummary = {
   overduePatients: number;
   patientsAwaitingScheduling: number;
   scheduledPatients: number;
+  examsThisWeek: number;
   contactsRegisteredToday: number;
   appointmentsConfirmedToday: number;
   scheduledThisWeek: number;
