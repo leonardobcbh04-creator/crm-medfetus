@@ -188,7 +188,7 @@ function validateExamConfigInput(input) {
   const startWeek = Number(input.startWeek);
   const endWeek = Number(input.endWeek);
   const targetWeek = Number(input.targetWeek);
-  const reminderDaysBefore1 = Number(input.reminderDaysBefore1 ?? 7);
+  const reminderDaysBefore1 = Number(input.reminderDaysBefore1 ?? 10);
   const reminderDaysBefore2 = Number(input.reminderDaysBefore2 ?? 2);
 
   if (!name) {
@@ -940,9 +940,17 @@ export async function getDashboardDataCore(inputFilters = {}) {
   const examRows = patientExamRows.filter((exam) => patientIds.has(exam.patientId));
   const filteredMessageRows = messageRows.filter((message) => patientIds.has(message.patientId));
   const filteredMovementRows = movementRows.filter((movement) => patientIds.has(movement.patientId));
-  const today = todayIso();
-  const endOfWeek = addDays(today, 6);
-  const pendingExamCounts = new Map();
+    const today = todayIso();
+    const endOfWeek = addDays(today, 6);
+    const examsWithinWeek = new Set(
+      patients
+        .filter((patient) => {
+          const idealDate = patient.nextExam?.idealDate || null;
+          return Boolean(idealDate && idealDate >= today && idealDate <= endOfWeek);
+        })
+        .map((patient) => patient.id)
+    ).size;
+    const pendingExamCounts = new Map();
   const contactsRegisteredToday = filteredMovementRows.filter(
     (movement) => movement.actionType === "contato_realizado" && movement.createdAt === today
   ).length;
@@ -1026,9 +1034,10 @@ export async function getDashboardDataCore(inputFilters = {}) {
       patientsToContactToday: patientsToContactToday.length,
       overduePatients: patients.filter((patient) => patient.nextExam.deadlineStatus === DEADLINE_STATUS.OVERDUE).length,
       patientsAwaitingScheduling,
-      scheduledPatients,
-      contactsRegisteredToday,
-      appointmentsConfirmedToday,
+        scheduledPatients,
+        examsThisWeek: examsWithinWeek,
+        contactsRegisteredToday,
+        appointmentsConfirmedToday,
       scheduledThisWeek: new Set(
         examRows
           .filter((exam) => exam.scheduledDate && exam.scheduledDate >= today && exam.scheduledDate <= endOfWeek)
@@ -2703,7 +2712,7 @@ export async function createExamConfigCore(input) {
     Number(input.startWeek),
     Number(input.endWeek),
     Number(input.targetWeek),
-    Number(input.reminderDaysBefore1 ?? 7),
+    Number(input.reminderDaysBefore1 ?? 10),
     Number(input.reminderDaysBefore2 ?? 2),
     String(input.defaultMessage || "").trim(),
     Boolean(input.required),
@@ -2740,7 +2749,7 @@ export async function createExamConfigCore(input) {
     startWeek: Number(input.startWeek),
     endWeek: Number(input.endWeek),
     targetWeek: Number(input.targetWeek),
-    reminderDaysBefore1: Number(input.reminderDaysBefore1 ?? 7),
+      reminderDaysBefore1: Number(input.reminderDaysBefore1 ?? 10),
     reminderDaysBefore2: Number(input.reminderDaysBefore2 ?? 2),
     defaultMessage: String(input.defaultMessage || "").trim(),
     required: Boolean(input.required),
@@ -2780,7 +2789,7 @@ export async function updateExamConfigCore(id, input) {
     Number(input.startWeek ?? currentExam.startWeek),
     Number(input.endWeek ?? currentExam.endWeek),
     Number(input.targetWeek ?? currentExam.targetWeek),
-    Number(input.reminderDaysBefore1 ?? currentExam.reminderDaysBefore1 ?? 7),
+    Number(input.reminderDaysBefore1 ?? currentExam.reminderDaysBefore1 ?? 10),
     Number(input.reminderDaysBefore2 ?? currentExam.reminderDaysBefore2 ?? 2),
     String(input.defaultMessage ?? currentExam.defaultMessage ?? ""),
     Boolean(input.required ?? currentExam.required),

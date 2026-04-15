@@ -300,6 +300,7 @@ export function DashboardPage() {
         <StatCard label="Exame em atraso" value={dashboard.summary.overduePatients} description="Pacientes com exame fora do prazo" />
         <StatCard label="Aguardando agendamento" value={dashboard.summary.patientsAwaitingScheduling} description="Pacientes em retorno ou follow-up" />
         <StatCard label="Ja agendadas" value={dashboard.summary.scheduledPatients} description="Pacientes na etapa de agendamento" />
+        <StatCard label="Exames nesta semana" value={dashboard.summary.examsThisWeek} description="Pacientes com janela ideal nos proximos 7 dias" />
         <StatCard label="Agendadas na semana" value={dashboard.summary.scheduledThisWeek} description="Pacientes com exame marcado ate 7 dias" />
         <StatCard label="Contatos hoje" value={dashboard.summary.contactsRegisteredToday} description="Contatos registrados pela equipe hoje" />
         <StatCard label="Agendamentos hoje" value={dashboard.summary.appointmentsConfirmedToday} description="Agendamentos confirmados hoje" />

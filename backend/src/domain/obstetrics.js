@@ -266,7 +266,7 @@ export function resolvePregnancySnapshot(
 
 // Converte a configuracao do exame em datas concretas a partir da base gestacional resolvida.
 export function calculateExamScheduleDates(
-  { dum, targetWeek, reminderDaysBefore1 = 7, reminderDaysBefore2 = 2 },
+  { dum, targetWeek, reminderDaysBefore1 = 10, reminderDaysBefore2 = 2 },
   referenceDate = todayIso()
 ) {
   const baseDate = dum || null;
