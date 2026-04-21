@@ -23,17 +23,56 @@ function getStatusBadgeMeta(status: PatientImportPreview["rows"][number]["status
   return { label: "Com erro", className: "badge-priority-red" };
 }
 
-function downloadTemplate() {
-  const content = [
-    "nome,telefone,id_clinica,data_nascimento,idade_gestacional,ultimo_exame,medico,unidade",
-    "Maria Aparecida,(31) 99999-9999,MF-1001,20-04-1992,12s3d,Morfologico 1o trimestre,Dra. Helena Castro,Unidade Centro"
-  ].join("\n");
+async function downloadTemplate() {
+  const ExcelJS = await import("exceljs");
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Importacao de pacientes");
 
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  worksheet.columns = [
+    { header: "nome", key: "nome", width: 26 },
+    { header: "telefone", key: "telefone", width: 18 },
+    { header: "id_clinica", key: "idClinica", width: 16 },
+    { header: "data_nascimento", key: "dataNascimento", width: 18 },
+    { header: "idade_gestacional", key: "idadeGestacional", width: 18 },
+    { header: "ultimo_exame", key: "ultimoExame", width: 24 },
+    { header: "medico", key: "medico", width: 24 },
+    { header: "unidade", key: "unidade", width: 20 }
+  ];
+
+  worksheet.addRow({
+    nome: "Maria Aparecida",
+    telefone: "31999999999",
+    idClinica: "MF-1001",
+    dataNascimento: "20-04-1992",
+    idadeGestacional: "12s3d",
+    ultimoExame: "",
+    medico: "Dra. Helena Castro",
+    unidade: "Unidade Centro"
+  });
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: "FF203047" } };
+  headerRow.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFEAF2FB" }
+  };
+  headerRow.alignment = { vertical: "middle", horizontal: "center" };
+  headerRow.border = {
+    bottom: { style: "thin", color: { argb: "FFD6E2EE" } }
+  };
+
+  worksheet.getRow(2).alignment = { vertical: "middle" };
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "modelo-importacao-pacientes.csv";
+  link.download = "modelo-importacao-pacientes.xlsx";
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -116,8 +155,8 @@ export function PatientImportPage() {
           </p>
         </div>
         <div className="inline-actions list-action-bar">
-          <button type="button" className="secondary-button" onClick={downloadTemplate}>
-            Baixar modelo de planilha
+          <button type="button" className="secondary-button" onClick={() => void downloadTemplate()}>
+            Baixar modelo de planilha (Excel)
           </button>
           <Link to="/clientes" className="secondary-button">Voltar aos clientes</Link>
         </div>
@@ -137,8 +176,8 @@ export function PatientImportPage() {
               Use o arquivo de exemplo para preencher a planilha no formato esperado pela recepcao.
             </p>
           </div>
-          <button type="button" className="primary-button" onClick={downloadTemplate}>
-            Baixar modelo de planilha
+          <button type="button" className="primary-button" onClick={() => void downloadTemplate()}>
+            Baixar modelo de planilha (Excel)
           </button>
         </div>
       </article>
