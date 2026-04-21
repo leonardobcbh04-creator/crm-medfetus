@@ -238,7 +238,7 @@ export function PatientImportPage() {
 
           <button
             type="button"
-            className="primary-button"
+            className="primary-button patient-import-primary-action"
             onClick={handlePreview}
             disabled={loadingPreview}
           >
@@ -269,7 +269,7 @@ export function PatientImportPage() {
                 </div>
                 <button
                   type="button"
-                  className="primary-button patient-import-confirm-button"
+                  className="primary-button patient-import-primary-action patient-import-confirm-button"
                   onClick={handleConfirmImport}
                   disabled={confirmingImport}
                 >

@@ -2106,9 +2106,18 @@ textarea:focus {
   line-height: 1.45;
 }
 
+.patient-import-primary-action {
+  min-height: 48px;
+  padding: 12px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 28px rgba(47, 110, 148, 0.22);
+}
+
 .patient-import-confirm-button {
   min-width: 220px;
-  justify-content: center;
+  align-self: flex-start;
   white-space: nowrap;
 }
 
