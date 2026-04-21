@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import ExcelJS from "exceljs";
 import { api } from "../services/api";
 import type { PatientImportConfirmResult, PatientImportPreview } from "../types";
 import { formatBrazilPhone } from "../utils/phone";
@@ -23,8 +24,24 @@ function getStatusBadgeMeta(status: PatientImportPreview["rows"][number]["status
   return { label: "Com erro", className: "badge-priority-red" };
 }
 
-async function downloadTemplate() {
-  const ExcelJS = await import("exceljs");
+export function PatientImportPage() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePayload, setFilePayload] = useState<{ fileName: string; fileBase64: string } | null>(null);
+  const [preview, setPreview] = useState<PatientImportPreview | null>(null);
+  const [result, setResult] = useState<PatientImportConfirmResult | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [confirmingImport, setConfirmingImport] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedbackType, setFeedbackType] = useState<"success" | "error">("success");
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+
+  const visibleRows = useMemo(() => preview?.rows ?? result?.preview.rows ?? [], [preview, result]);
+
+  async function downloadExcelTemplate() {
+    setDownloadingTemplate(true);
+    setFeedback(null);
+
+    try {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Importacao de pacientes");
 
@@ -73,21 +90,19 @@ async function downloadTemplate() {
   const link = document.createElement("a");
   link.href = url;
   link.download = "modelo-importacao-pacientes.xlsx";
+  document.body.appendChild(link);
   link.click();
+  link.remove();
   URL.revokeObjectURL(url);
-}
-
-export function PatientImportPage() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [filePayload, setFilePayload] = useState<{ fileName: string; fileBase64: string } | null>(null);
-  const [preview, setPreview] = useState<PatientImportPreview | null>(null);
-  const [result, setResult] = useState<PatientImportConfirmResult | null>(null);
-  const [loadingPreview, setLoadingPreview] = useState(false);
-  const [confirmingImport, setConfirmingImport] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [feedbackType, setFeedbackType] = useState<"success" | "error">("success");
-
-  const visibleRows = useMemo(() => preview?.rows ?? result?.preview.rows ?? [], [preview, result]);
+      setFeedbackType("success");
+      setFeedback("Modelo Excel baixado com sucesso.");
+    } catch (error) {
+      setFeedbackType("error");
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel gerar o modelo Excel.");
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  }
 
   async function handlePreview() {
     if (!selectedFile) {
@@ -155,7 +170,12 @@ export function PatientImportPage() {
           </p>
         </div>
         <div className="inline-actions list-action-bar">
-          <button type="button" className="secondary-button" onClick={() => void downloadTemplate()}>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void downloadExcelTemplate()}
+            disabled={downloadingTemplate}
+          >
             Baixar modelo de planilha (Excel)
           </button>
           <Link to="/clientes" className="secondary-button">Voltar aos clientes</Link>
@@ -176,8 +196,13 @@ export function PatientImportPage() {
               Use o arquivo de exemplo para preencher a planilha no formato esperado pela recepcao.
             </p>
           </div>
-          <button type="button" className="primary-button" onClick={() => void downloadTemplate()}>
-            Baixar modelo de planilha (Excel)
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => void downloadExcelTemplate()}
+            disabled={downloadingTemplate}
+          >
+            {downloadingTemplate ? "Gerando modelo Excel..." : "Baixar modelo de planilha (Excel)"}
           </button>
         </div>
       </article>
