@@ -2069,6 +2069,49 @@ textarea:focus {
   padding-top: 0;
 }
 
+.patient-import-summary-card {
+  display: grid;
+  gap: 16px;
+}
+
+.patient-import-summary-metadata {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.patient-import-confirm-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(47, 110, 148, 0.18);
+  background: linear-gradient(180deg, rgba(234, 242, 251, 0.88), rgba(255, 255, 255, 0.96));
+  box-shadow: var(--shadow-soft);
+}
+
+.patient-import-confirm-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.patient-import-confirm-copy strong {
+  color: var(--brand-dark);
+  font-size: 1rem;
+}
+
+.patient-import-confirm-copy span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.patient-import-confirm-button {
+  min-width: 220px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
 .toolbar-row {
   display: flex;
   gap: 12px;
@@ -2649,6 +2692,19 @@ textarea:focus {
 
   .message-actions {
     flex-direction: column;
+  }
+
+  .patient-import-summary-metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-import-confirm-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .patient-import-confirm-button {
+    width: 100%;
   }
 
   .message-filter-bar {
