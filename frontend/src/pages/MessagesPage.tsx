@@ -40,6 +40,12 @@ function safeText(value: unknown) {
   return String(value || "");
 }
 
+function sanitizeSuggestedMessage(message: string) {
+  return String(message || "")
+    .replace(/\n{2}(Observacao da equipe:|Contexto atual:)[\s\S]*$/i, "")
+    .trim();
+}
+
 function isOperationallyScheduled(item: MessagingItem) {
   return item.stage === "agendada" || item.nextExam?.status === "agendado" || Boolean(item.nextExam?.scheduledDate);
 }
@@ -66,11 +72,16 @@ export function MessagesPage() {
     setLoading(true);
     try {
       const response = await api.getMessagingItems();
-      const visibleItems = response.items.filter((item) => !isOperationallyScheduled(item));
+      const visibleItems = response.items
+        .filter((item) => !isOperationallyScheduled(item))
+        .map((item) => ({
+          ...item,
+          suggestedMessage: sanitizeSuggestedMessage(item.suggestedMessage)
+        }));
       setItems(visibleItems);
       setDrafts((current) => ({
         ...visibleItems.reduce<Record<number, string>>((accumulator, item) => {
-          accumulator[item.patientId] = current[item.patientId] ?? item.suggestedMessage;
+          accumulator[item.patientId] = sanitizeSuggestedMessage(current[item.patientId] ?? item.suggestedMessage);
           return accumulator;
         }, {})
       }));
@@ -83,7 +94,7 @@ export function MessagesPage() {
   }
 
   async function handleRegisterSend(item: MessagingItem) {
-    const content = drafts[item.patientId] || item.suggestedMessage;
+    const content = sanitizeSuggestedMessage(drafts[item.patientId] || item.suggestedMessage);
     try {
       const response = await api.createMessage({
         patientId: item.patientId,
@@ -159,7 +170,7 @@ export function MessagesPage() {
   }
 
   async function handleCopyMessage(item: MessagingItem) {
-    const content = drafts[item.patientId] || item.suggestedMessage;
+    const content = sanitizeSuggestedMessage(drafts[item.patientId] || item.suggestedMessage);
     try {
       await navigator.clipboard.writeText(content);
       setFeedbackType("success");
@@ -317,7 +328,7 @@ export function MessagesPage() {
 
       <div className="messages-grid">
         {filteredItems.length ? filteredItems.map((item) => {
-          const draftMessage = drafts[item.patientId] || item.suggestedMessage;
+          const draftMessage = sanitizeSuggestedMessage(drafts[item.patientId] || item.suggestedMessage);
           const whatsappUrl = getWhatsAppUrl(item.phone, encodeURIComponent(draftMessage));
           const primaryStatusLabel =
             item.messageType === "atraso"
@@ -389,7 +400,7 @@ export function MessagesPage() {
                   rows={4}
                   value={draftMessage}
                   onChange={(event) =>
-                    setDrafts((current) => ({ ...current, [item.patientId]: event.target.value }))
+                    setDrafts((current) => ({ ...current, [item.patientId]: sanitizeSuggestedMessage(event.target.value) }))
                   }
                 />
               </label>

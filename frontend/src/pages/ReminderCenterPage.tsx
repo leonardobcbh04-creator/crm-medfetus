@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../services/api";
 import type { ReminderCenterData } from "../types";
-import { formatBrazilPhone } from "../utils/phone";
+import { formatBrazilPhone, getWhatsAppUrl } from "../utils/phone";
 
 type ReminderFilters = {
   clinicUnit: string;
@@ -38,6 +38,12 @@ function getOperationalPriorityBadgeClass(level?: "alta" | "media" | "baixa") {
   return "badge-priority-green";
 }
 
+function sanitizeSuggestedMessage(message: string) {
+  return String(message || "")
+    .replace(/\n{2}(Observacao da equipe:|Contexto atual:)[\s\S]*$/i, "")
+    .trim();
+}
+
 export function ReminderCenterPage() {
   const [data, setData] = useState<ReminderCenterData | null>(null);
   const [filters, setFilters] = useState<ReminderFilters>(DEFAULT_FILTERS);
@@ -57,7 +63,17 @@ export function ReminderCenterPage() {
     setLoading(true);
     try {
       const response = await api.getReminders(nextFilters);
-      setData(response);
+      setData({
+        ...response,
+        items: response.items.map((item) => {
+          const suggestedMessage = sanitizeSuggestedMessage(item.suggestedMessage);
+          return {
+            ...item,
+            suggestedMessage,
+            whatsappUrl: getWhatsAppUrl(item.phone, encodeURIComponent(suggestedMessage))
+          };
+        })
+      });
     } catch (error) {
       setFeedbackType("error");
         setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a fila de lembretes.");
@@ -303,14 +319,14 @@ export function ReminderCenterPage() {
 
             <label>
               Mensagem sugerida
-              <textarea rows={4} value={item.suggestedMessage} readOnly />
+              <textarea rows={4} value={sanitizeSuggestedMessage(item.suggestedMessage)} readOnly />
             </label>
 
             <div className="inline-actions list-action-bar operational-action-bar">
-              <button className="secondary-button" type="button" onClick={() => void handleCopyMessage(item.suggestedMessage, item.patientName)}>
+              <button className="secondary-button" type="button" onClick={() => void handleCopyMessage(sanitizeSuggestedMessage(item.suggestedMessage), item.patientName)}>
                 Copiar mensagem
               </button>
-              <a href={item.whatsappUrl} target="_blank" rel="noreferrer" className="whatsapp-link">
+              <a href={getWhatsAppUrl(item.phone, encodeURIComponent(sanitizeSuggestedMessage(item.suggestedMessage)))} target="_blank" rel="noreferrer" className="whatsapp-link">
                 Abrir WhatsApp
               </a>
               <button
