@@ -114,6 +114,12 @@ function renderExamReminderMessage(template, patient, exam, fallbackMessage) {
   return fillMessageVariables(baseTemplate, buildExamMessageVariables(patient, exam));
 }
 
+function stripAutomaticOperationalMessageSuffix(message) {
+  let normalized = String(message || "").trim();
+  normalized = normalized.replace(/\n{2}(Observacao da equipe:|Contexto atual:)[\s\S]*$/i, "");
+  return normalized.trim();
+}
+
 function formatGestationalWeekValue(value) {
   const numeric = Number(value);
   if (Number.isNaN(numeric)) {
@@ -441,7 +447,9 @@ function getOperationalMessageType(deadlineStatus) {
 }
 
 function buildOperationalSuggestedMessage(template, patient, exam, fallbackMessage, deadlineStatus) {
-  return renderExamReminderMessage(template, patient, exam, fallbackMessage).trim();
+  return stripAutomaticOperationalMessageSuffix(
+    renderExamReminderMessage(template, patient, exam, fallbackMessage).trim()
+  );
 }
 
 function findOperationalExamRow(patientExams, patient) {

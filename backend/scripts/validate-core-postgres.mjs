@@ -86,6 +86,14 @@ try {
   const remindersBefore = await getRemindersCenterDataCore();
   const reminderItem = remindersBefore.items.find((item) => item.patientId === createdPatientId);
   assert.ok(reminderItem?.examPatientId, "Paciente criada nao entrou na fila operacional esperada.");
+  assert.ok(
+    !reminderItem.suggestedMessage.includes("Observacao da equipe:"),
+    "Central de lembretes ainda recebeu complemento operacional indevido."
+  );
+  assert.ok(
+    !decodeURIComponent(reminderItem.whatsappUrl).includes("Observacao da equipe:"),
+    "Link do WhatsApp da Central de lembretes ainda recebeu complemento operacional indevido."
+  );
 
   const messagingBefore = await getMessagingOverviewCore();
   const messagingItem = messagingBefore.find((item) => item.patientId === createdPatientId);
@@ -97,6 +105,10 @@ try {
   assert.ok(
     !messagingItem.suggestedMessage.includes("Esse exame e recomendado conforme a evolucao da gestacao."),
     "Mensagem automatica ainda recebeu reforco automatico nao configurado."
+  );
+  assert.ok(
+    !decodeURIComponent(messagingItem.whatsappUrl).includes("Observacao da equipe:"),
+    "Link do WhatsApp em Mensagens automaticas ainda recebeu complemento operacional indevido."
   );
 
   await updateReminderStatusCore(createdPatientId, reminderItem.examPatientId, "scheduled");
