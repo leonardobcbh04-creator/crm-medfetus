@@ -285,6 +285,7 @@ export type Patient = {
   id: number;
   name: string;
   phone: string;
+  clinicPatientId?: string | null;
   birthDate?: string | null;
   dum?: string | null;
   dpp?: string | null;
@@ -444,6 +445,49 @@ export type PatientDetails = {
   messages: MessageRecord[];
   movements: MovementRecord[];
   auditLogs: AuditLogRecord[];
+};
+
+export type PatientImportPreviewRow = {
+  lineNumber: number;
+  status: "pronta" | "duplicada" | "erro";
+  patientName: string;
+  phone: string;
+  clinicPatientId: string | null;
+  physicianName: string | null;
+  clinicUnit: string | null;
+  gestationalAgeLabel: string;
+  birthDateLabel: string;
+  messages: string[];
+};
+
+export type PatientImportPreview = {
+  acceptedFormats: string[];
+  expectedColumns: string[];
+  detectedColumns: Record<string, string>;
+  summary: {
+    totalRows: number;
+    readyRows: number;
+    duplicateRows: number;
+    errorRows: number;
+  };
+  rows: PatientImportPreviewRow[];
+};
+
+export type PatientImportConfirmResult = {
+  preview: PatientImportPreview;
+  summary: {
+    totalRows: number;
+    importedRows: number;
+    skippedRows: number;
+    duplicateRows: number;
+    errorRows: number;
+  };
+  imported: Array<{
+    lineNumber: number;
+    patientId: number;
+    patientName: string;
+  }>;
+  skipped: PatientImportPreviewRow[];
 };
 
 export type GestationalBaseReviewItem = {

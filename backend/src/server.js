@@ -52,7 +52,7 @@ app.use((request, response, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 app.get("/api/health", (_request, response) => {
   response.json({ status: "ok" });

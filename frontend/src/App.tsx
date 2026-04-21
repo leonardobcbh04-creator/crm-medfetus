@@ -10,6 +10,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { MessagesPage } from "./pages/MessagesPage";
 import { PatientDetailPage } from "./pages/PatientDetailPage";
 import { PatientFormPage } from "./pages/PatientFormPage";
+import { PatientImportPage } from "./pages/PatientImportPage";
 import { ReminderCenterPage } from "./pages/ReminderCenterPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { getStoredToken, getStoredUser } from "./services/auth";
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/lembretes" element={<ReminderCenterPage />} />
         <Route path="/kanban" element={<KanbanPage />} />
         <Route path="/pacientes/novo" element={<PatientFormPage />} />
+        <Route path="/pacientes/importar" element={<PatientImportPage />} />
         <Route path="/pacientes/:id" element={<PatientDetailPage />} />
         <Route path="/pacientes/:id/editar" element={<PatientFormPage />} />
         <Route

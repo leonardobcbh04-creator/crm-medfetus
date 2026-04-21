@@ -19,6 +19,8 @@ import type {
   OperationalTestResult,
   ReportsData,
   ReminderCenterData,
+  PatientImportConfirmResult,
+  PatientImportPreview,
   ShospConnectionTestResult,
   ShospCacheClearResult,
   ShospExamMapping,
@@ -293,6 +295,12 @@ export const api = {
       body: JSON.stringify(payload)
     });
   },
+  updatePatientNotes(id: number, notes: string) {
+    return request<{ patient: PatientDetails }>(`/patients/${id}/notes`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes })
+    });
+  },
   deletePatient(id: number) {
     return request<{ success: boolean; deletedPatient: { id: number; name: string } }>(`/patients/${id}`, {
       method: "DELETE"
@@ -319,6 +327,18 @@ export const api = {
   },
   getPatientDetails(id: number) {
     return request<PatientDetails>(`/patients/${id}`);
+  },
+  previewPatientImport(payload: { fileName: string; fileBase64: string }) {
+    return request<PatientImportPreview>("/patients/import/preview", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  confirmPatientImport(payload: { fileName: string; fileBase64: string }) {
+    return request<PatientImportConfirmResult>("/patients/import/confirm", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
   },
   updatePatientExamStatus(
     patientId: number,
