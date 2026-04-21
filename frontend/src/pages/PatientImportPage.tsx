@@ -115,7 +115,12 @@ export function PatientImportPage() {
             Envie uma planilha simples para validar os dados antes de criar varios cadastros de uma vez.
           </p>
         </div>
-        <Link to="/clientes" className="secondary-button">Voltar aos clientes</Link>
+        <div className="inline-actions list-action-bar">
+          <button type="button" className="secondary-button" onClick={downloadTemplate}>
+            Baixar modelo de planilha
+          </button>
+          <Link to="/clientes" className="secondary-button">Voltar aos clientes</Link>
+        </div>
       </div>
 
       {feedback ? (
@@ -124,17 +129,25 @@ export function PatientImportPage() {
         </div>
       ) : null}
 
+      <article className="panel-card">
+        <div className="card-row">
+          <div>
+            <p className="muted-label">Modelo padrao</p>
+            <p className="page-description">
+              Use o arquivo de exemplo para preencher a planilha no formato esperado pela recepcao.
+            </p>
+          </div>
+          <button type="button" className="primary-button" onClick={downloadTemplate}>
+            Baixar modelo de planilha
+          </button>
+        </div>
+      </article>
+
       <div className="detail-layout patient-form-layout">
         <article className="panel-card stack-form">
           <div className="form-section-header">
             <p className="muted-label">Arquivo</p>
             <p className="field-hint">Formatos aceitos: .xlsx, .xls e .csv.</p>
-          </div>
-
-          <div className="inline-actions list-action-bar">
-            <button type="button" className="secondary-button" onClick={downloadTemplate}>
-              Baixar modelo de planilha
-            </button>
           </div>
 
           <label>
