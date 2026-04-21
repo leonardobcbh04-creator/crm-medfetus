@@ -77,7 +77,7 @@ export function ClientsPage() {
     const matchingPatients = patients.filter((patient) => {
       const matchesSearch =
         !normalizedSearch ||
-        `${patient.name} ${patient.phone}`.toLowerCase().includes(normalizedSearch);
+        `${patient.name} ${patient.phone} ${patient.clinicPatientId || ""}`.toLowerCase().includes(normalizedSearch);
 
       const matchesHighRisk =
         highRiskFilter === "todas" ||
@@ -150,9 +150,14 @@ export function ClientsPage() {
             Lista operacional das pacientes cadastradas, com acesso rapido aos dados principais e aos detalhes.
           </p>
         </div>
-        <Link to="/pacientes/novo" className="secondary-button">
-          Novo cliente
-        </Link>
+        <div className="inline-actions list-action-bar">
+          <Link to="/pacientes/importar" className="secondary-button">
+            Importar planilha
+          </Link>
+          <Link to="/pacientes/novo" className="secondary-button">
+            Novo cliente
+          </Link>
+        </div>
       </div>
 
       {feedback ? <div className="form-alert form-alert-success"><span>{feedback}</span></div> : null}
@@ -161,7 +166,7 @@ export function ClientsPage() {
       <div className="toolbar-row">
         <input
           type="search"
-          placeholder="Buscar por nome ou telefone"
+          placeholder="Buscar por nome, telefone ou ID da clinica"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -219,6 +224,7 @@ export function ClientsPage() {
                     <td>
                       <div className="clients-primary-cell">
                         <strong>{patient.name}</strong>
+                        {patient.clinicPatientId ? <span className="field-hint">ID da clinica: {patient.clinicPatientId}</span> : null}
                         <div className="clients-badge-row">
                           {patient.gestationalBaseIsEstimated ? (
                             <span className="badge badge-soft badge-priority-blue clients-status-badge">Base estimada</span>

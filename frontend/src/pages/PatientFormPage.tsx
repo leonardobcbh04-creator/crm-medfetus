@@ -7,6 +7,7 @@ import { formatBrazilPhone } from "../utils/phone";
 type PatientFormState = {
   name: string;
   phone: string;
+  clinicPatientId: string;
   birthDate: string;
   gestationalWeeks: string;
   gestationalDays: string;
@@ -21,6 +22,7 @@ type PatientFormState = {
 const EMPTY_FORM: PatientFormState = {
   name: "",
   phone: "",
+  clinicPatientId: "",
   birthDate: "",
   gestationalWeeks: "",
   gestationalDays: "0",
@@ -180,6 +182,7 @@ export function PatientFormPage() {
           setFormData({
             name: detailsResponse.patient.name,
             phone: detailsResponse.patient.phone,
+            clinicPatientId: detailsResponse.patient.clinicPatientId || "",
             birthDate: detailsResponse.patient.birthDate || "",
             gestationalWeeks: detailsResponse.patient.gestationalWeeks != null ? String(detailsResponse.patient.gestationalWeeks) : "",
             gestationalDays: detailsResponse.patient.gestationalDays != null ? String(detailsResponse.patient.gestationalDays) : "0",
@@ -341,6 +344,7 @@ export function PatientFormPage() {
       const payload = {
         name: formData.name.trim(),
         phone: formData.phone.trim(),
+        clinicPatientId: formData.clinicPatientId.trim() || null,
         birthDate: formData.birthDate,
         gestationalWeeks: Number(formData.gestationalWeeks),
         gestationalDays: Number(formData.gestationalDays || "0"),
@@ -421,6 +425,19 @@ export function PatientFormPage() {
               <span className="field-hint">Voce pode digitar so os numeros. O formato aparece automaticamente.</span>
             </label>
 
+            <label>
+              ID da clinica
+              <input
+                value={formData.clinicPatientId}
+                onChange={(event) => updateField("clinicPatientId", event.target.value)}
+                type="text"
+                placeholder="Ex.: MF-2048"
+              />
+              <span className="field-hint">Use quando a clinica trabalhar com um identificador interno da paciente.</span>
+            </label>
+          </div>
+
+          <div className="two-columns">
             <label>
               Data de nascimento
               <input

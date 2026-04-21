@@ -126,6 +126,9 @@ export function PatientDetailPage() {
   const [schedulingNotes, setSchedulingNotes] = useState<Record<number, string>>({});
   const [completedDates, setCompletedDates] = useState<Record<number, string>>({});
   const [highlightedExamId, setHighlightedExamId] = useState<number | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -164,8 +167,31 @@ export function PatientDetailPage() {
           return accumulator;
         }, {})
       );
+      setNotesDraft(response.patient.notes || "");
+      setIsEditingNotes(false);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSaveNotes() {
+    if (!id) {
+      return;
+    }
+
+    setIsSavingNotes(true);
+    try {
+      const response = await api.updatePatientNotes(Number(id), notesDraft);
+      setDetails(response.patient);
+      setNotesDraft(response.patient.patient.notes || "");
+      setIsEditingNotes(false);
+      setFeedbackType("success");
+      setFeedback("Observacoes salvas com sucesso.");
+    } catch (error) {
+      setFeedbackType("error");
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel salvar as observacoes.");
+    } finally {
+      setIsSavingNotes(false);
     }
   }
 
@@ -404,6 +430,7 @@ export function PatientDetailPage() {
           <div className="message-metadata">
             <span><strong>Nome completo:</strong> {details.patient.name}</span>
             <span><strong>Telefone:</strong> {formatBrazilPhone(details.patient.phone) || "Nao informado"}</span>
+            <span><strong>ID da clinica:</strong> {details.patient.clinicPatientId || "Nao informado"}</span>
             <span><strong>Data de nascimento:</strong> {details.patient.birthDate || "Nao informada"}</span>
             <span><strong>Medico solicitante:</strong> {details.patient.physicianName || "Nao informado"}</span>
             <span><strong>Unidade:</strong> {details.patient.clinicUnit || "Nao informada"}</span>
@@ -432,7 +459,48 @@ export function PatientDetailPage() {
 
         <article className="panel-card">
           <p className="muted-label">Observacoes</p>
-          <p className="admin-notes-text">{details.patient.notes || "Sem observacoes."}</p>
+          {isEditingNotes ? (
+            <>
+              <textarea
+                rows={5}
+                value={notesDraft}
+                onChange={(event) => setNotesDraft(event.target.value)}
+                placeholder="Registre combinados, contexto clinico e observacoes da equipe."
+              />
+              <div className="inline-actions list-action-bar">
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={handleSaveNotes}
+                  disabled={isSavingNotes}
+                >
+                  {isSavingNotes ? "Salvando..." : "Salvar observacoes"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => {
+                    setNotesDraft(details.patient.notes || "");
+                    setIsEditingNotes(false);
+                  }}
+                  disabled={isSavingNotes}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="admin-notes-text">{details.patient.notes || "Sem observacoes."}</p>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setIsEditingNotes(true)}
+              >
+                Editar observacoes
+              </button>
+            </>
+          )}
         </article>
 
         <article className="panel-card timeline-card">

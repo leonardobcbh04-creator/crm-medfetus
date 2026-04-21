@@ -70,6 +70,7 @@ export async function listPatientsBaseRows() {
       gestational_review_required AS "gestationalReviewRequired",
       gestational_base_conflict AS "gestationalBaseConflict",
       gestational_base_conflict_note AS "gestationalBaseConflictNote",
+      clinic_patient_id AS "clinicPatientId",
       physician_name AS "physicianName",
       clinic_unit AS "clinicUnit",
       pregnancy_type AS "pregnancyType",
@@ -472,13 +473,13 @@ export async function insertPatientRecord(payload) {
       name, phone, birth_date, dum, dpp, current_gestational_weeks, current_gestational_days,
       gestational_base_date, gestational_base_source, gestational_base_confidence,
       gestational_base_is_estimated, gestational_review_required, gestational_base_conflict,
-      gestational_base_conflict_note, physician_name, clinic_unit, pregnancy_type,
+      gestational_base_conflict_note, clinic_patient_id, physician_name, clinic_unit, pregnancy_type,
       high_risk, notes, status, stage, created_by_user_id, created_at, updated_at
     )
     VALUES (
       $1, $2, $3, $4, $5, $6, $7,
       $8, $9, $10, $11, $12, $13,
-      $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
+      $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
     )
     RETURNING id
   `, [
@@ -496,6 +497,7 @@ export async function insertPatientRecord(payload) {
     Boolean(payload.gestationalReviewRequired),
     Boolean(payload.gestationalBaseConflict),
     payload.gestationalBaseConflictNote,
+    payload.clinicPatientId,
     payload.physicianName,
     payload.clinicUnit,
     payload.pregnancyType,
@@ -529,14 +531,15 @@ export async function updatePatientRecord(patientId, payload) {
       gestational_review_required = $12,
       gestational_base_conflict = $13,
       gestational_base_conflict_note = $14,
-      physician_name = $15,
-      clinic_unit = $16,
-      pregnancy_type = $17,
-      high_risk = $18,
-      notes = $19,
-      status = $20,
-      updated_at = $21
-    WHERE id = $22
+      clinic_patient_id = $15,
+      physician_name = $16,
+      clinic_unit = $17,
+      pregnancy_type = $18,
+      high_risk = $19,
+      notes = $20,
+      status = $21,
+      updated_at = $22
+    WHERE id = $23
   `, [
     payload.name,
     payload.phone,
@@ -552,6 +555,7 @@ export async function updatePatientRecord(patientId, payload) {
     Boolean(payload.gestationalReviewRequired),
     Boolean(payload.gestationalBaseConflict),
     payload.gestationalBaseConflictNote,
+    payload.clinicPatientId,
     payload.physicianName,
     payload.clinicUnit,
     payload.pregnancyType,

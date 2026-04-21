@@ -6,10 +6,13 @@ import {
   deletePatientCore,
   discardGestationalBaseEstimateCore,
   editGestationalBaseManuallyCore,
+  confirmPatientImportCore,
   getPatientDetailsCore,
   listGestationalBaseReviewsCore,
   listPatientsCore,
+  previewPatientImportDataCore,
   updatePatientCore,
+  updatePatientNotesCore,
   updatePatientExamStatusCore
 } from "../services/coreMigrationService.js";
 import { recordAuditEvent } from "../services/auditService.js";
@@ -97,6 +100,38 @@ patientRoutes.post("/:id/gestational-base/discard", async (request, response) =>
   }
 });
 
+patientRoutes.post("/import/preview", async (request, response) => {
+  try {
+    const preview = await previewPatientImportDataCore(request.body || {});
+    response.json(preview);
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel validar a planilha.");
+  }
+});
+
+patientRoutes.post("/import/confirm", async (request, response) => {
+  try {
+    const result = await confirmPatientImportCore({
+      ...request.body,
+      actorUserId: request.authUser?.id || 1
+    });
+    await recordAuditEvent({
+      actorUserId: request.authUser?.id || null,
+      actionType: "importacao_pacientes",
+      entityType: "patient_import",
+      description: "Importacao em lote de pacientes executada.",
+      details: {
+        importedRows: result.summary.importedRows,
+        duplicateRows: result.summary.duplicateRows,
+        errorRows: result.summary.errorRows
+      }
+    });
+    response.status(201).json(result);
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel concluir a importacao.");
+  }
+});
+
 patientRoutes.post("/", async (request, response) => {
   try {
     const patient = await createPatientCore({
@@ -115,6 +150,24 @@ patientRoutes.post("/", async (request, response) => {
     response.status(201).json({ patient });
   } catch (error) {
     response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel salvar a paciente.");
+  }
+});
+
+patientRoutes.patch("/:id/notes", async (request, response) => {
+  try {
+    const patientId = Number(request.params.id);
+    const patient = await updatePatientNotesCore(patientId, request.body || {});
+    await recordAuditEvent({
+      actorUserId: request.authUser?.id || null,
+      actionType: "edicao_observacoes_paciente",
+      entityType: "patient",
+      entityId: patientId,
+      patientId,
+      description: "Observacoes da paciente atualizadas."
+    });
+    response.json({ patient });
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel salvar as observacoes.");
   }
 });
 

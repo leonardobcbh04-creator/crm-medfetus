@@ -52,6 +52,7 @@ import { normalizeBrazilPhone, toWhatsAppPhone } from "../utils/phone.js";
 import { getMessagingRuntimeConfig } from "./messaging/messagingService.js";
 import { lookupFutureScheduledExamInShosp } from "./shospIntegration/shospIntegrationService.js";
 import { recordAuditEvent } from "./auditService.js";
+import { previewPatientImportCore as previewPatientImportRows } from "./patientImportService.js";
 
 
 async function resolveActorUserId(preferredUserId = null) {
@@ -295,8 +296,9 @@ function buildPatientUpdatePayload(patient, overrides = {}) {
     gestationalBaseConfidence: overrides.gestationalBaseConfidence ?? patient.gestationalBaseConfidence ?? "alta",
     gestationalBaseIsEstimated: overrides.gestationalBaseIsEstimated ?? (patient.gestationalBaseIsEstimated ? 1 : 0),
     gestationalReviewRequired: overrides.gestationalReviewRequired ?? (patient.gestationalReviewRequired ? 1 : 0),
-    gestationalBaseConflict: overrides.gestationalBaseConflict ?? (patient.gestationalBaseHasConflict ? 1 : 0),
+    gestationalBaseConflict: overrides.gestationalBaseConflict ?? ((patient.gestationalBaseHasConflict ?? patient.gestationalBaseConflict) ? 1 : 0),
     gestationalBaseConflictNote: overrides.gestationalBaseConflictNote ?? patient.gestationalBaseConflictNote ?? null,
+    clinicPatientId: overrides.clinicPatientId ?? patient.clinicPatientId ?? null,
     physicianName: overrides.physicianName ?? patient.physicianName ?? null,
     clinicUnit: overrides.clinicUnit ?? patient.clinicUnit ?? null,
     pregnancyType: overrides.pregnancyType ?? patient.pregnancyType ?? null,
@@ -336,6 +338,9 @@ function validatePatientInput(input, automaticExamCodes = []) {
   }
   if (!input.notes?.trim()) {
     throw new Error("Preencha as observacoes.");
+  }
+  if (input.clinicPatientId != null && String(input.clinicPatientId).trim().length > 80) {
+    throw new Error("O ID da clinica deve ter no maximo 80 caracteres.");
   }
   if (input.lastCompletedExamCode != null && String(input.lastCompletedExamCode).trim()) {
     const examCode = String(input.lastCompletedExamCode).trim();
@@ -1402,6 +1407,7 @@ export async function createPatientCore(input) {
     gestationalReviewRequired: gestationalPayload.gestationalReviewRequired,
     gestationalBaseConflict: gestationalPayload.gestationalBaseConflict,
     gestationalBaseConflictNote: gestationalPayload.gestationalBaseConflictNote,
+    clinicPatientId: String(input.clinicPatientId || "").trim() || null,
     physicianName: input.physicianName,
     clinicUnit: input.clinicUnit,
     pregnancyType: input.pregnancyType,
@@ -1468,6 +1474,7 @@ export async function updatePatientCore(patientId, input) {
     gestationalReviewRequired: gestationalPayload.gestationalReviewRequired,
     gestationalBaseConflict: gestationalPayload.gestationalBaseConflict,
     gestationalBaseConflictNote: gestationalPayload.gestationalBaseConflictNote,
+    clinicPatientId: String(input.clinicPatientId || "").trim() || null,
     physicianName: input.physicianName,
     clinicUnit: input.clinicUnit,
     pregnancyType: input.pregnancyType,
@@ -1481,6 +1488,25 @@ export async function updatePatientCore(patientId, input) {
   const preservedState = new Map(currentExamRows.map((exam) => [exam.examModelId, exam]));
   const rebuiltExamRows = buildExamScheduleRows(patientId, automaticExamModels, snapshot, preservedState, "");
   await replacePatientExams(patientId, rebuiltExamRows, now);
+
+  return getPatientDetailsCore(patientId);
+}
+
+export async function updatePatientNotesCore(patientId, input) {
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+
+  const notes = String(input.notes || "").trim();
+  if (!notes) {
+    throw new Error("Preencha as observacoes para salvar.");
+  }
+
+  await updatePatientRecord(patientId, buildPatientUpdatePayload(patient, {
+    notes,
+    updatedAt: todayIso()
+  }));
 
   return getPatientDetailsCore(patientId);
 }
@@ -2020,6 +2046,53 @@ export async function getPatientFormCatalogsCore() {
   return {
     units: units.filter((unit) => Boolean(unit.active)).map((unit) => ({ ...unit, active: Boolean(unit.active) })),
     physicians: physicians.filter((physician) => Boolean(physician.active)).map((physician) => ({ ...physician, active: Boolean(physician.active) }))
+  };
+}
+
+export async function previewPatientImportDataCore(input) {
+  const [units, physicians, patients] = await Promise.all([
+    listClinicUnitsRows(),
+    listPhysiciansRows(),
+    listPatientsBaseRows()
+  ]);
+
+  return previewPatientImportRows({
+    fileName: input.fileName,
+    fileBase64: input.fileBase64,
+    units,
+    physicians,
+    patients
+  });
+}
+
+export async function confirmPatientImportCore(input) {
+  const preview = await previewPatientImportDataCore(input);
+  const actorUserId = await resolveActorUserId(input.actorUserId);
+  const imported = [];
+
+  for (const row of preview.rows.filter((item) => item.status === "pronta")) {
+    const created = await createPatientCore({
+      ...row.normalizedData,
+      actorUserId
+    });
+    imported.push({
+      lineNumber: row.lineNumber,
+      patientId: created.patient.id,
+      patientName: created.patient.name
+    });
+  }
+
+  return {
+    preview,
+    summary: {
+      totalRows: preview.summary.totalRows,
+      importedRows: imported.length,
+      skippedRows: preview.summary.duplicateRows + preview.summary.errorRows,
+      duplicateRows: preview.summary.duplicateRows,
+      errorRows: preview.summary.errorRows
+    },
+    imported,
+    skipped: preview.rows.filter((row) => row.status !== "pronta")
   };
 }
 
