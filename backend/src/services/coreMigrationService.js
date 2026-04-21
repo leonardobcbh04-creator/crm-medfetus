@@ -441,24 +441,7 @@ function getOperationalMessageType(deadlineStatus) {
 }
 
 function buildOperationalSuggestedMessage(template, patient, exam, fallbackMessage, deadlineStatus) {
-  const baseMessage = renderExamReminderMessage(template, patient, exam, fallbackMessage).trim();
-  const examName = exam?.name || patient?.nextExam?.name || "seu exame";
-  const examContext = exam?.required
-    ? "Esse exame faz parte do protocolo principal desta fase."
-    : "Esse exame e recomendado conforme a evolucao da gestacao.";
-
-  let operationalContext = `Contexto atual: ${patient?.gestationalAgeLabel || "fase atual da gestacao"}.`;
-  if (deadlineStatus === DEADLINE_STATUS.OVERDUE) {
-    operationalContext = `Observacao da equipe: o ${examName} esta atrasado e precisa de prioridade no agendamento.`;
-  } else if (deadlineStatus === DEADLINE_STATUS.PENDING) {
-    operationalContext = `Observacao da equipe: este e o momento ideal para organizar o ${examName}.`;
-  } else if (deadlineStatus === DEADLINE_STATUS.APPROACHING) {
-    operationalContext = `Observacao da equipe: a janela ideal do ${examName} esta se aproximando.`;
-  } else {
-    operationalContext = `Observacao da equipe: seguimos acompanhando o melhor momento para o ${examName}.`;
-  }
-
-  return `${baseMessage}\n\n${operationalContext}\n${examContext}`.trim();
+  return renderExamReminderMessage(template, patient, exam, fallbackMessage).trim();
 }
 
 function findOperationalExamRow(patientExams, patient) {

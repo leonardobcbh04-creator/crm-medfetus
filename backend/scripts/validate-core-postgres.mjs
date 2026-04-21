@@ -88,7 +88,16 @@ try {
   assert.ok(reminderItem?.examPatientId, "Paciente criada nao entrou na fila operacional esperada.");
 
   const messagingBefore = await getMessagingOverviewCore();
-  assert.ok(messagingBefore.some((item) => item.patientId === createdPatientId), "Paciente criada nao entrou em Mensagens automaticas.");
+  const messagingItem = messagingBefore.find((item) => item.patientId === createdPatientId);
+  assert.ok(messagingItem, "Paciente criada nao entrou em Mensagens automaticas.");
+  assert.ok(
+    !messagingItem.suggestedMessage.includes("Observacao da equipe:"),
+    "Mensagem automatica ainda recebeu complemento operacional indevido."
+  );
+  assert.ok(
+    !messagingItem.suggestedMessage.includes("Esse exame e recomendado conforme a evolucao da gestacao."),
+    "Mensagem automatica ainda recebeu reforco automatico nao configurado."
+  );
 
   await updateReminderStatusCore(createdPatientId, reminderItem.examPatientId, "scheduled");
 
