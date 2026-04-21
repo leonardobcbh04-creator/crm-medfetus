@@ -247,10 +247,10 @@ export function PatientImportPage() {
         </article>
 
         <div className="stack-form">
-          <article className="panel-card">
+          <article className="panel-card patient-import-summary-card">
             <p className="muted-label">Resumo da importacao</p>
             {preview ? (
-              <div className="message-metadata">
+              <div className="message-metadata patient-import-summary-metadata">
                 <span><strong>Total de linhas:</strong> {preview.summary.totalRows}</span>
                 <span><strong>Prontas para importar:</strong> {preview.summary.readyRows}</span>
                 <span><strong>Duplicadas:</strong> {preview.summary.duplicateRows}</span>
@@ -260,14 +260,22 @@ export function PatientImportPage() {
               <p className="empty-state">Valide uma planilha para ver o resumo antes da importacao.</p>
             )}
             {preview?.summary.readyRows ? (
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={handleConfirmImport}
-                disabled={confirmingImport}
-              >
-                {confirmingImport ? "Importando..." : "Confirmar importacao"}
-              </button>
+              <div className="patient-import-confirm-box">
+                <div className="patient-import-confirm-copy">
+                  <strong>{preview.summary.readyRows} linha(s) pronta(s) para cadastro</strong>
+                  <span>
+                    Revise os erros e duplicidades, depois conclua a importacao para criar apenas as linhas validadas.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="primary-button patient-import-confirm-button"
+                  onClick={handleConfirmImport}
+                  disabled={confirmingImport}
+                >
+                  {confirmingImport ? "Importando..." : "Confirmar importacao"}
+                </button>
+              </div>
             ) : null}
           </article>
 
