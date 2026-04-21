@@ -6,28 +6,29 @@ const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
 const COLUMN_ALIASES = {
   name: ["nome", "nome da paciente", "paciente"],
   phone: ["telefone", "telefone whatsapp", "telefone com whatsapp", "celular", "whatsapp"],
-  clinicPatientId: ["id da clinica", "id da clínica", "id clinica", "codigo da clinica", "codigo interno"],
-  physicianName: ["medico", "médico", "medico solicitante", "médico solicitante"],
-  clinicUnit: ["unidade", "unidade da clinica", "unidade da clínica", "clinica", "clínica"],
-  birthDate: ["data de nascimento", "nascimento", "birthdate"],
+  clinicPatientId: ["id da clinica", "id clinica", "id clinica paciente", "codigo da clinica", "codigo interno"],
+  physicianName: ["medico", "medico solicitante"],
+  clinicUnit: ["unidade", "unidade da clinica", "clinica"],
+  birthDate: ["data de nascimento", "data nascimento", "nascimento", "birthdate"],
   gestationalAge: ["idade gestacional", "ig"],
   gestationalWeeks: ["idade gestacional semanas", "semanas ig", "ig semanas", "semanas"],
   gestationalDays: ["idade gestacional dias", "dias ig", "ig dias", "dias"],
-  dum: ["dum", "data da dum", "data da ultima menstruacao", "data da última menstruação"],
-  notes: ["observacoes", "observações", "obs", "anotacoes", "anotações"],
-  pregnancyType: ["tipo de gestacao", "tipo de gestação"],
-  highRisk: ["alto risco", "gestacao de alto risco", "gestação de alto risco"],
-  lastCompletedExamCode: ["ultimo exame realizado", "último exame realizado"]
+  dum: ["dum", "data da dum", "data da ultima menstruacao"],
+  notes: ["observacoes", "obs", "anotacoes"],
+  pregnancyType: ["tipo de gestacao"],
+  highRisk: ["alto risco", "gestacao de alto risco"],
+  lastCompletedExamCode: ["ultimo exame realizado", "ultimo exame"]
 };
 
 const REQUIRED_LABELS = [
   "nome",
   "telefone",
-  "data de nascimento",
+  "id_clinica",
+  "data_nascimento",
+  "idade_gestacional",
+  "ultimo_exame",
   "medico",
-  "unidade",
-  "observacoes",
-  "idade gestacional ou DUM"
+  "unidade"
 ];
 
 function normalizeText(value) {
@@ -68,12 +69,10 @@ async function parseWorkbookRows(fileName, fileBase64) {
   }
 
   const firstSheet = workbook.Sheets[firstSheetName];
-  const rows = XLSX.utils.sheet_to_json(firstSheet, {
+  return XLSX.utils.sheet_to_json(firstSheet, {
     defval: "",
     raw: true
   });
-
-  return rows;
 }
 
 function buildColumnMap(sampleRow) {
@@ -104,6 +103,31 @@ function parseExcelSerialDate(serialNumber) {
   return date.toISOString().slice(0, 10);
 }
 
+function isValidIsoDateParts(year, month, day) {
+  const normalizedYear = Number(year);
+  const normalizedMonth = Number(month);
+  const normalizedDay = Number(day);
+
+  if (
+    !Number.isInteger(normalizedYear) ||
+    !Number.isInteger(normalizedMonth) ||
+    !Number.isInteger(normalizedDay) ||
+    normalizedMonth < 1 ||
+    normalizedMonth > 12 ||
+    normalizedDay < 1 ||
+    normalizedDay > 31
+  ) {
+    return false;
+  }
+
+  const date = new Date(Date.UTC(normalizedYear, normalizedMonth - 1, normalizedDay));
+  return (
+    date.getUTCFullYear() === normalizedYear &&
+    date.getUTCMonth() === normalizedMonth - 1 &&
+    date.getUTCDate() === normalizedDay
+  );
+}
+
 function parseDateValue(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value.toISOString().slice(0, 10);
@@ -118,19 +142,30 @@ function parseDateValue(value) {
     return null;
   }
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return raw;
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return isValidIsoDateParts(year, month, day) ? `${year}-${month}-${day}` : null;
   }
 
-  const brMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
-  if (brMatch) {
-    const [, day, month, year] = brMatch;
-    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    const normalizedDay = day.padStart(2, "0");
+    const normalizedMonth = month.padStart(2, "0");
+    return isValidIsoDateParts(year, normalizedMonth, normalizedDay)
+      ? `${year}-${normalizedMonth}-${normalizedDay}`
+      : null;
   }
 
-  const parsed = new Date(raw);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10);
+  const dashMatch = /^(\d{1,2})-(\d{1,2})-(\d{4})$/.exec(raw);
+  if (dashMatch) {
+    const [, day, month, year] = dashMatch;
+    const normalizedDay = day.padStart(2, "0");
+    const normalizedMonth = month.padStart(2, "0");
+    return isValidIsoDateParts(year, normalizedMonth, normalizedDay)
+      ? `${year}-${normalizedMonth}-${normalizedDay}`
+      : null;
   }
 
   return null;
@@ -173,11 +208,11 @@ function parseGestationalAgeText(value) {
     };
   }
 
-  const fullMatch = normalized.match(/(\d{1,2})\D+(\d)\b/);
-  if (fullMatch) {
+  const verboseMatch = normalized.match(/(\d{1,2})\D+(\d)\b/);
+  if (verboseMatch) {
     return {
-      gestationalWeeks: Number(fullMatch[1]),
-      gestationalDays: Number(fullMatch[2])
+      gestationalWeeks: Number(verboseMatch[1]),
+      gestationalDays: Number(verboseMatch[2])
     };
   }
 
@@ -186,14 +221,6 @@ function parseGestationalAgeText(value) {
     return {
       gestationalWeeks: Number(simpleMatch[1]),
       gestationalDays: 0
-    };
-  }
-
-  const combinedMatch = normalized.match(/^(\d{1,2})\s*[s+]\s*(\d)[d]?$/i);
-  if (combinedMatch) {
-    return {
-      gestationalWeeks: Number(combinedMatch[1]),
-      gestationalDays: Number(combinedMatch[2])
     };
   }
 
@@ -212,10 +239,16 @@ function resolveGestationalAgeFromRow(row, columnMap, errors) {
   if (weeksValue) {
     const gestationalWeeks = Number(String(weeksValue).replace(/\D/g, ""));
     const gestationalDays = Number(String(daysValue || "0").replace(/\D/g, ""));
-    if (Number.isInteger(gestationalWeeks) && gestationalWeeks >= 0 && Number.isInteger(gestationalDays) && gestationalDays >= 0 && gestationalDays <= 6) {
+    if (
+      Number.isInteger(gestationalWeeks) &&
+      gestationalWeeks >= 0 &&
+      Number.isInteger(gestationalDays) &&
+      gestationalDays >= 0 &&
+      gestationalDays <= 6
+    ) {
       return { gestationalWeeks, gestationalDays };
     }
-    errors.push("Idade gestacional invalida. Informe semanas e dias entre 0 e 6.");
+    errors.push("Idade gestacional invalida. Use formatos como 12s3d, 12+3 ou apenas 12.");
     return null;
   }
 
@@ -223,7 +256,7 @@ function resolveGestationalAgeFromRow(row, columnMap, errors) {
   if (dumIso) {
     const totalDays = daysBetween(dumIso, todayIso());
     if (totalDays < 0) {
-      errors.push("A DUM informada esta no futuro.");
+      errors.push("DUM invalida. A data informada esta no futuro.");
       return null;
     }
     return {
@@ -232,7 +265,7 @@ function resolveGestationalAgeFromRow(row, columnMap, errors) {
     };
   }
 
-  errors.push("Informe a idade gestacional ou a DUM.");
+  errors.push("Idade gestacional invalida. Use um valor como 12s3d ou informe a DUM.");
   return null;
 }
 
@@ -248,7 +281,8 @@ export async function previewPatientImportCore({
   fileBase64,
   units,
   physicians,
-  patients
+  patients,
+  automaticExamModels = []
 }) {
   if (!sanitizeString(fileName) || !sanitizeString(fileBase64)) {
     throw new Error("Selecione uma planilha para continuar.");
@@ -262,6 +296,8 @@ export async function previewPatientImportCore({
   const columnMap = buildColumnMap(rows[0]);
   const unitsByName = buildLookupMap(units.filter((item) => item.active), (item) => item.name);
   const physiciansByName = buildLookupMap(physicians.filter((item) => item.active), (item) => item.name);
+  const automaticExamByCode = buildLookupMap(automaticExamModels, (item) => item.code);
+  const automaticExamByName = buildLookupMap(automaticExamModels, (item) => item.name);
 
   const existingPhoneSet = new Set(
     patients
@@ -279,6 +315,8 @@ export async function previewPatientImportCore({
   const previewRows = rows.map((row, index) => {
     const lineNumber = index + 2;
     const errors = [];
+    const duplicateMessages = [];
+
     const name = sanitizeString(getCell(row, columnMap, "name"));
     const rawPhone = sanitizeString(getCell(row, columnMap, "phone"));
     const phone = normalizeBrazilPhone(rawPhone);
@@ -294,27 +332,27 @@ export async function previewPatientImportCore({
     if (!phone) {
       errors.push("Telefone obrigatorio.");
     }
+    if (!clinicPatientId) {
+      errors.push("ID da clinica obrigatorio.");
+    }
     if (!birthDate) {
-      errors.push("Data de nascimento invalida ou ausente.");
+      errors.push("Data de nascimento invalida. Use DD-MM-YYYY, DD/MM/YYYY ou YYYY-MM-DD.");
     }
     if (!physicianNameInput) {
-      errors.push("Medico obrigatorio.");
+      errors.push("Medico nao informado.");
     }
     if (!clinicUnitInput) {
-      errors.push("Unidade obrigatoria.");
-    }
-    if (!notes) {
-      errors.push("Observacoes obrigatorias.");
+      errors.push("Unidade nao informada.");
     }
 
     const matchedUnit = clinicUnitInput ? unitsByName.get(normalizeText(clinicUnitInput)) : null;
     if (clinicUnitInput && !matchedUnit) {
-      errors.push("Unidade nao encontrada na area administrativa.");
+      errors.push("Unidade nao encontrada.");
     }
 
     const matchedPhysician = physicianNameInput ? physiciansByName.get(normalizeText(physicianNameInput)) : null;
     if (physicianNameInput && !matchedPhysician) {
-      errors.push("Medico nao encontrado na area administrativa.");
+      errors.push("Medico nao encontrado.");
     }
 
     if (matchedUnit && matchedPhysician && matchedPhysician.clinicUnitName && matchedPhysician.clinicUnitName !== matchedUnit.name) {
@@ -324,9 +362,17 @@ export async function previewPatientImportCore({
     const gestationalAge = resolveGestationalAgeFromRow(row, columnMap, errors);
     const pregnancyType = parsePregnancyType(getCell(row, columnMap, "pregnancyType"));
     const highRisk = parseHighRisk(getCell(row, columnMap, "highRisk"));
-    const lastCompletedExamCode = sanitizeString(getCell(row, columnMap, "lastCompletedExamCode"));
 
-    const duplicateMessages = [];
+    const lastCompletedExamRaw = sanitizeString(getCell(row, columnMap, "lastCompletedExamCode"));
+    const matchedLastCompletedExam =
+      (lastCompletedExamRaw && automaticExamByCode.get(normalizeText(lastCompletedExamRaw))) ||
+      (lastCompletedExamRaw && automaticExamByName.get(normalizeText(lastCompletedExamRaw))) ||
+      null;
+
+    if (lastCompletedExamRaw && !matchedLastCompletedExam) {
+      errors.push("Ultimo exame invalido. Informe o nome ou codigo de um exame automatico cadastrado.");
+    }
+
     if (phone && existingPhoneSet.has(phone)) {
       duplicateMessages.push("Telefone ja cadastrado no sistema.");
     }
@@ -357,8 +403,8 @@ export async function previewPatientImportCore({
       clinicUnit: matchedUnit?.name || clinicUnitInput || null,
       pregnancyType,
       highRisk,
-      notes: notes || "",
-      lastCompletedExamCode: lastCompletedExamCode || undefined
+      notes: notes || "Cadastro importado por planilha.",
+      lastCompletedExamCode: matchedLastCompletedExam?.code || undefined
     };
 
     const status = errors.length ? "erro" : duplicateMessages.length ? "duplicada" : "pronta";

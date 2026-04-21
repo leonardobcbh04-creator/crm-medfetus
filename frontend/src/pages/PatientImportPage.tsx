@@ -23,6 +23,21 @@ function getStatusBadgeMeta(status: PatientImportPreview["rows"][number]["status
   return { label: "Com erro", className: "badge-priority-red" };
 }
 
+function downloadTemplate() {
+  const content = [
+    "nome,telefone,id_clinica,data_nascimento,idade_gestacional,ultimo_exame,medico,unidade",
+    "Maria Aparecida,(31) 99999-9999,MF-1001,20-04-1992,12s3d,Morfologico 1o trimestre,Dra. Helena Castro,Unidade Centro"
+  ].join("\n");
+
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "modelo-importacao-pacientes.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function PatientImportPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePayload, setFilePayload] = useState<{ fileName: string; fileBase64: string } | null>(null);
@@ -116,6 +131,12 @@ export function PatientImportPage() {
             <p className="field-hint">Formatos aceitos: .xlsx, .xls e .csv.</p>
           </div>
 
+          <div className="inline-actions list-action-bar">
+            <button type="button" className="secondary-button" onClick={downloadTemplate}>
+              Baixar modelo de planilha
+            </button>
+          </div>
+
           <label>
             Planilha de cadastro
             <input
@@ -124,9 +145,19 @@ export function PatientImportPage() {
               onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
             />
             <span className="field-hint">
-              Colunas esperadas: nome, telefone, ID da clinica, medico, unidade, data de nascimento, idade gestacional ou DUM e observacoes.
+              Modelo padrao: nome, telefone, id_clinica, data_nascimento, idade_gestacional, ultimo_exame, medico e unidade.
             </span>
           </label>
+
+          <article className="panel-card">
+            <p className="muted-label">Orientacao rapida</p>
+            <div className="message-metadata">
+              <span><strong>data_nascimento:</strong> prefira DD-MM-YYYY. Tambem aceitamos DD/MM/YYYY e YYYY-MM-DD.</span>
+              <span><strong>idade_gestacional:</strong> use formatos como 12s3d, 12+3 ou apenas 12.</span>
+              <span><strong>ultimo_exame:</strong> pode ser o nome do exame ou o codigo cadastrado.</span>
+              <span><strong>Seguranca:</strong> linhas duplicadas ou invalidas nao sao importadas sem revisao.</span>
+            </div>
+          </article>
 
           <button
             type="button"
@@ -164,7 +195,7 @@ export function PatientImportPage() {
           </article>
 
           <article className="panel-card">
-            <p className="muted-label">Colunas aceitas</p>
+            <p className="muted-label">Colunas do modelo</p>
             {preview ? (
               <div className="message-history-list">
                 {preview.expectedColumns.map((column) => (

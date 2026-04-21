@@ -109,8 +109,8 @@ try {
     fileName: "pacientes-validacao.csv",
     fileBase64: Buffer.from(
       [
-        "nome,telefone,id da clinica,medico,unidade,data de nascimento,idade gestacional,observacoes",
-        `Paciente Importada,${csvPhone},IMPORT-${Date.now()},${validationPhysician.name},${validationUnit.name},10/04/1993,18s2d,Paciente criada pela importacao de validacao`
+        "nome,telefone,id_clinica,data_nascimento,idade_gestacional,ultimo_exame,medico,unidade",
+        `Paciente Importada,${csvPhone},IMPORT-${Date.now()},10-04-1993,18s2d,,${validationPhysician.name},${validationUnit.name}`
       ].join("\n")
     ).toString("base64")
   });
@@ -120,8 +120,8 @@ try {
     fileName: "pacientes-validacao.csv",
     fileBase64: Buffer.from(
       [
-        "nome,telefone,id da clinica,medico,unidade,data de nascimento,idade gestacional,observacoes",
-        `Paciente Importada,${csvPhone},IMPORT-${Date.now() + 1},${validationPhysician.name},${validationUnit.name},10/04/1993,18s2d,Paciente criada pela importacao de validacao`
+        "nome,telefone,id_clinica,data_nascimento,idade_gestacional,ultimo_exame,medico,unidade",
+        `Paciente Importada,${csvPhone},IMPORT-${Date.now() + 1},10-04-1993,18s2d,,${validationPhysician.name},${validationUnit.name}`
       ].join("\n")
     ).toString("base64"),
     actorUserId: auth.user.id
