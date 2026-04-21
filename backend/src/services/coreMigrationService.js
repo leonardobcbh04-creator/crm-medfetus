@@ -2050,10 +2050,11 @@ export async function getPatientFormCatalogsCore() {
 }
 
 export async function previewPatientImportDataCore(input) {
-  const [units, physicians, patients] = await Promise.all([
+  const [units, physicians, patients, automaticExamModels] = await Promise.all([
     listClinicUnitsRows(),
     listPhysiciansRows(),
-    listPatientsBaseRows()
+    listPatientsBaseRows(),
+    listAutomaticExamModels()
   ]);
 
   return previewPatientImportRows({
@@ -2061,7 +2062,8 @@ export async function previewPatientImportDataCore(input) {
     fileBase64: input.fileBase64,
     units,
     physicians,
-    patients
+    patients,
+    automaticExamModels
   });
 }
 
