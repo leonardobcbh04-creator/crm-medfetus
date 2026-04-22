@@ -10,14 +10,14 @@ export function AppShell() {
   const storedUser = getStoredUser();
   const menuItems = [
     { to: "/dashboard", label: "Dashboard" },
-    { to: "/relatorios", label: "Relatorios" },
-    { to: "/clientes", label: "Clientes" },
-    { to: "/revisao-base-gestacional", label: "Revisao da base gestacional" },
-    { to: "/lembretes", label: "Central de lembretes", badgeKey: "reminders" },
-    { to: "/kanban", label: "Fluxo de atendimento" },
     { to: "/pacientes/novo", label: "Cadastrar paciente" },
-    ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Administracao" }] : []),
-    { to: "/mensagens", label: "Mensagens automaticas" }
+    { to: "/clientes", label: "Pacientes" },
+    { to: "/kanban", label: "Fluxo de atendimento" },
+    { to: "/lembretes", label: "Central de lembretes", badgeKey: "reminders" },
+    { to: "/mensagens", label: "Mensagens automaticas" },
+    { to: "/revisao-base-gestacional", label: "Revisao da base gestacional" },
+    { to: "/relatorios", label: "Relatorios" },
+    ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Administracao" }] : [])
   ];
 
   useEffect(() => {
