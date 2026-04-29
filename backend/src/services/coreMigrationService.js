@@ -2038,10 +2038,11 @@ export async function getPatientFormCatalogsCore() {
 }
 
 export async function previewPatientImportDataCore(input) {
-  const [units, physicians, patients, automaticExamModels] = await Promise.all([
+  const [units, physicians, patients, patientExams, automaticExamModels] = await Promise.all([
     listClinicUnitsRows(),
     listPhysiciansRows(),
     listPatientsBaseRows(),
+    listPatientExamRows(),
     listAutomaticExamModels()
   ]);
 
@@ -2051,16 +2052,116 @@ export async function previewPatientImportDataCore(input) {
     units,
     physicians,
     patients,
+    patientExams,
     automaticExamModels
   });
+}
+
+async function applyPatientImportUpdateCore(row, actorUserId) {
+  const existingPatientId = Number(row.normalizedData.existingPatientId);
+  const existingExamPatientId = Number(row.normalizedData.existingExamPatientId);
+
+  if (!existingPatientId || !existingExamPatientId) {
+    throw new Error("Nao foi possivel identificar a paciente existente para atualizar.");
+  }
+
+  const currentPatient = (await listPatientsBaseRows()).find((patient) => patient.id === existingPatientId);
+  if (!currentPatient) {
+    throw new Error("Paciente da atualizacao nao encontrada.");
+  }
+
+  const now = todayIso();
+  const snapshot = resolvePregnancySnapshot({
+    dum: null,
+    gestationalWeeks: Number(row.normalizedData.gestationalWeeks),
+    gestationalDays: Number(row.normalizedData.gestationalDays),
+    gestationalBaseDate: now,
+    gestationalBaseSource: "idade_gestacional_informada"
+  });
+  const gestationalPayload = getGestationalStoragePayload(snapshot, now);
+
+  await updatePatientRecord(existingPatientId, buildPatientUpdatePayload(currentPatient, {
+    birthDate: row.normalizedData.birthDate ?? currentPatient.birthDate ?? null,
+    clinicPatientId: row.normalizedData.clinicPatientId ?? currentPatient.clinicPatientId ?? null,
+    physicianName: row.normalizedData.physicianName ?? currentPatient.physicianName ?? null,
+    clinicUnit: row.normalizedData.clinicUnit ?? currentPatient.clinicUnit ?? null,
+    currentGestationalWeeks: gestationalPayload.currentGestationalWeeks,
+    currentGestationalDays: gestationalPayload.currentGestationalDays,
+    dum: gestationalPayload.dum,
+    dpp: gestationalPayload.dpp,
+    gestationalBaseDate: gestationalPayload.gestationalBaseDate,
+    gestationalBaseSource: gestationalPayload.gestationalBaseSource,
+    gestationalBaseConfidence: gestationalPayload.gestationalBaseConfidence,
+    gestationalBaseIsEstimated: gestationalPayload.gestationalBaseIsEstimated,
+    gestationalReviewRequired: gestationalPayload.gestationalReviewRequired,
+    gestationalBaseConflict: gestationalPayload.gestationalBaseConflict,
+    gestationalBaseConflictNote: gestationalPayload.gestationalBaseConflictNote,
+    updatedAt: now
+  }));
+
+  await rebuildPatientExamScheduleCore(existingPatientId, snapshot);
+
+  const updatedExam = await getPatientExamRow(existingPatientId, existingExamPatientId);
+  const resolvedExam = updatedExam || (await listPatientExamRows()).find(
+    (exam) => exam.patientId === existingPatientId && exam.code === row.normalizedData.lastCompletedExamCode
+  );
+
+  if (!resolvedExam) {
+    throw new Error("Nao foi possivel localizar o exame para registrar a atualizacao.");
+  }
+
+  await updatePatientExamRecord(existingPatientId, resolvedExam.id, {
+    scheduledDate: null,
+    scheduledTime: null,
+    schedulingNotes: "Exame registrado por importacao de planilha.",
+    scheduledByUserId: null,
+    lastContactedAt: resolvedExam.lastContactedAt ?? null,
+    reminderSnoozedUntil: null,
+    completedDate: row.normalizedData.importCompletedDate || now,
+    completedByUserId: actorUserId,
+    completedOutsideClinic: false,
+    status: "realizado",
+    updatedAt: now
+  });
+
+  const patientDetails = await getPatientDetailsCore(existingPatientId);
+  await updatePatientStage(existingPatientId, patientDetails.patient.stage, now);
+  await insertMovementRecord({
+    patientId: existingPatientId,
+    fromStage: resolvedExam.patientStage || currentPatient.stage,
+    toStage: patientDetails.patient.stage,
+    actionType: "exame_realizado",
+    description: `Exame ${resolvedExam.name} registrado por importacao de planilha.`,
+    metadataJson: JSON.stringify({
+      origem: "importacao_planilha",
+      examId: resolvedExam.id,
+      examCode: resolvedExam.code,
+      completedDate: row.normalizedData.importCompletedDate || now
+    }),
+    createdByUserId: actorUserId,
+    createdAt: now
+  });
+
+  return {
+    lineNumber: row.lineNumber,
+    patientId: existingPatientId,
+    patientName: currentPatient.name,
+    mode: "atualizacao"
+  };
 }
 
 export async function confirmPatientImportCore(input) {
   const preview = await previewPatientImportDataCore(input);
   const actorUserId = await resolveActorUserId(input.actorUserId);
   const imported = [];
+  const updated = [];
 
-  for (const row of preview.rows.filter((item) => item.status === "pronta")) {
+  for (const row of preview.rows.filter((item) => item.status === "pronta" || item.status === "atualizacao")) {
+    if (row.status === "atualizacao") {
+      updated.push(await applyPatientImportUpdateCore(row, actorUserId));
+      continue;
+    }
+
     const created = await createPatientCore({
       ...row.normalizedData,
       actorUserId
@@ -2068,7 +2169,8 @@ export async function confirmPatientImportCore(input) {
     imported.push({
       lineNumber: row.lineNumber,
       patientId: created.patient.id,
-      patientName: created.patient.name
+      patientName: created.patient.name,
+      mode: "novo"
     });
   }
 
@@ -2077,12 +2179,14 @@ export async function confirmPatientImportCore(input) {
     summary: {
       totalRows: preview.summary.totalRows,
       importedRows: imported.length,
+      updatedRows: updated.length,
       skippedRows: preview.summary.duplicateRows + preview.summary.errorRows + (preview.summary.ignoredRows || 0),
       duplicateRows: preview.summary.duplicateRows,
+      ignoredRows: preview.summary.ignoredRows || 0,
       errorRows: preview.summary.errorRows
     },
-    imported,
-    skipped: preview.rows.filter((row) => row.status !== "pronta")
+    imported: [...imported, ...updated],
+    skipped: preview.rows.filter((row) => !["pronta", "atualizacao"].includes(row.status))
   };
 }
 

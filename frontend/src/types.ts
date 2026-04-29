@@ -449,7 +449,7 @@ export type PatientDetails = {
 
 export type PatientImportPreviewRow = {
   lineNumber: number;
-  status: "pronta" | "duplicada" | "erro" | "ignorada";
+  status: "pronta" | "atualizacao" | "duplicada" | "erro" | "ignorada";
   patientName: string;
   phone: string;
   clinicPatientId: string | null;
@@ -472,6 +472,7 @@ export type PatientImportPreview = {
   summary: {
     totalRows: number;
     readyRows: number;
+    updateRows: number;
     duplicateRows: number;
     errorRows: number;
     ignoredRows: number;
@@ -484,14 +485,17 @@ export type PatientImportConfirmResult = {
   summary: {
     totalRows: number;
     importedRows: number;
+    updatedRows: number;
     skippedRows: number;
     duplicateRows: number;
+    ignoredRows: number;
     errorRows: number;
   };
   imported: Array<{
     lineNumber: number;
     patientId: number;
     patientName: string;
+    mode?: "novo" | "atualizacao";
   }>;
   skipped: PatientImportPreviewRow[];
 };
