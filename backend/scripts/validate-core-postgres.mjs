@@ -126,6 +126,36 @@ try {
   const reports = await getReportsDataCore();
   assert.ok(reports?.summary, "Relatorios nao retornaram summary.");
 
+  const updatePreview = await previewPatientImportDataCore({
+    fileName: "pacientes-atualizacao.csv",
+    fileBase64: Buffer.from(
+      [
+        "nome,id_clinica,exame,telefone,data_nascimento,idade_gestacional,medico,unidade,data_agenda",
+        `Paciente Validacao Core Postgres,${created.patient.clinicPatientId},MORF. SEG. TRIM( 20 A 24 sem),${created.patient.phone},,22s0d,${validationPhysician.name},${validationUnit.name},${todayIso()}`
+      ].join("\n")
+    ).toString("base64")
+  });
+  assert.equal(updatePreview.summary.updateRows, 1, "Preview nao marcou a paciente existente com novo exame como atualizacao.");
+  assert.equal(updatePreview.rows[0]?.status, "atualizacao", "Linha de paciente recorrente nao ficou com status de atualizacao.");
+
+  const updateResult = await confirmPatientImportCore({
+    fileName: "pacientes-atualizacao.csv",
+    fileBase64: Buffer.from(
+      [
+        "nome,id_clinica,exame,telefone,data_nascimento,idade_gestacional,medico,unidade,data_agenda",
+        `Paciente Validacao Core Postgres,${created.patient.clinicPatientId},MORF. SEG. TRIM( 20 A 24 sem),${created.patient.phone},,22s0d,${validationPhysician.name},${validationUnit.name},${todayIso()}`
+      ].join("\n")
+    ).toString("base64"),
+    actorUserId: auth.user.id
+  });
+  assert.equal(updateResult.summary.updatedRows, 1, "Importacao nao atualizou a paciente existente.");
+
+  const patientAfterImportUpdate = await getPatientDetailsCore(createdPatientId);
+  assert.ok(
+    patientAfterImportUpdate.exams.some((exam) => exam.code === "morfologico_2_trimestre" && exam.status === "realizado"),
+    "Novo exame da paciente recorrente nao foi registrado como realizado."
+  );
+
   const csvPhone = uniquePhone();
   const preview = await previewPatientImportDataCore({
     fileName: "pacientes-validacao.csv",

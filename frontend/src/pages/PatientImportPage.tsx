@@ -44,6 +44,9 @@ function getStatusBadgeMeta(status: PatientImportPreview["rows"][number]["status
   if (status === "pronta") {
     return { label: "Pronta para importar", className: "badge-priority-green" };
   }
+  if (status === "atualizacao") {
+    return { label: "Atualizacao", className: "badge-priority-blue" };
+  }
   if (status === "duplicada") {
     return { label: "Duplicada", className: "badge-priority-yellow" };
   }
@@ -160,7 +163,9 @@ export function PatientImportPage() {
       setResult(response);
       setPreview(response.preview);
       setFeedbackType("success");
-      setFeedback(`${response.summary.importedRows} paciente(s) importada(s) com sucesso.`);
+      setFeedback(
+        `${response.summary.importedRows} nova(s) paciente(s) importada(s) e ${response.summary.updatedRows} paciente(s) atualizada(s) com sucesso.`
+      );
     } catch (error) {
       setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel concluir a importacao.");
@@ -264,6 +269,7 @@ export function PatientImportPage() {
               <div className="message-metadata patient-import-summary-metadata">
                 <span><strong>Total de linhas:</strong> {preview.summary.totalRows}</span>
                 <span><strong>Prontas para importar:</strong> {preview.summary.readyRows}</span>
+                <span><strong>Atualizacoes:</strong> {preview.summary.updateRows}</span>
                 <span><strong>Duplicadas:</strong> {preview.summary.duplicateRows}</span>
                 <span><strong>Com erro:</strong> {preview.summary.errorRows}</span>
                 <span><strong>Ignoradas:</strong> {preview.summary.ignoredRows}</span>
@@ -271,12 +277,12 @@ export function PatientImportPage() {
             ) : (
               <p className="empty-state">Valide uma planilha para ver o resumo antes da importacao.</p>
             )}
-            {preview?.summary.readyRows ? (
+            {(preview?.summary.readyRows || preview?.summary.updateRows) ? (
               <div className="patient-import-confirm-box">
                 <div className="patient-import-confirm-copy">
-                  <strong>{preview.summary.readyRows} linha(s) pronta(s) para cadastro</strong>
+                  <strong>{preview.summary.readyRows} nova(s) linha(s) e {preview.summary.updateRows} atualizacao(oes) pronta(s)</strong>
                   <span>
-                    Revise os erros e duplicidades, depois conclua a importacao para criar apenas as linhas validadas.
+                    Revise os erros e duplicidades. As linhas de atualizacao vao registrar o novo exame na ficha da paciente ja existente.
                   </span>
                 </div>
                 <button

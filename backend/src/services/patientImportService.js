@@ -364,6 +364,7 @@ export async function previewPatientImportCore({
   units,
   physicians,
   patients,
+  patientExams = [],
   automaticExamModels = []
 }) {
   if (!sanitizeString(fileName) || !sanitizeString(fileBase64)) {
@@ -380,6 +381,23 @@ export async function previewPatientImportCore({
   const physiciansByName = buildLookupMap(physicians.filter((item) => item.active), (item) => item.name);
   const automaticExamByCode = buildLookupMap(automaticExamModels, (item) => item.code);
   const automaticExamByName = buildLookupMap(automaticExamModels, (item) => item.name);
+  const patientExamsMap = patientExams.reduce((map, exam) => {
+    const current = map.get(exam.patientId) ?? [];
+    current.push(exam);
+    map.set(exam.patientId, current);
+    return map;
+  }, new Map());
+
+  const patientsByClinicId = new Map(
+    patients
+      .map((patient) => [sanitizeString(patient.clinicPatientId), patient])
+      .filter(([clinicPatientId]) => Boolean(clinicPatientId))
+  );
+  const patientsByPhone = new Map(
+    patients
+      .map((patient) => [normalizeBrazilPhone(patient.phone), patient])
+      .filter(([phone]) => Boolean(phone))
+  );
 
   const existingPhoneSet = new Set(
     patients
@@ -483,6 +501,30 @@ export async function previewPatientImportCore({
       importClinicIdsSeen.add(clinicPatientId);
     }
 
+    const existingPatient =
+      (clinicPatientId ? patientsByClinicId.get(clinicPatientId) : null)
+      || (!clinicPatientId && phone ? patientsByPhone.get(phone) : null)
+      || null;
+
+    const existingPatientExams = existingPatient ? patientExamsMap.get(existingPatient.id) ?? [] : [];
+    const matchingExamRow = existingPatient && matchedLastCompletedExam
+      ? existingPatientExams.find((exam) => exam.code === matchedLastCompletedExam.code)
+      : null;
+    const canUpdateExistingPatient = Boolean(
+      existingPatient &&
+      matchedLastCompletedExam &&
+      matchingExamRow &&
+      matchingExamRow.status !== "realizado"
+    );
+
+    if (existingPatient && !canUpdateExistingPatient && !shouldIgnoreExam) {
+      duplicateMessages.push(
+        matchedLastCompletedExam
+          ? "Paciente ja cadastrada e esse exame ja consta na jornada dela."
+          : "Paciente ja cadastrada no sistema."
+      );
+    }
+
     const normalizedData = {
       name: name || "",
       phone: rawPhone || "",
@@ -495,11 +537,26 @@ export async function previewPatientImportCore({
       pregnancyType,
       highRisk,
       notes: notes || "Cadastro importado por planilha.",
-      lastCompletedExamCode: matchedLastCompletedExam?.code || undefined
+      lastCompletedExamCode: matchedLastCompletedExam?.code || undefined,
+      importMode: canUpdateExistingPatient ? "atualizacao" : "novo",
+      existingPatientId: existingPatient?.id ?? null,
+      existingExamPatientId: matchingExamRow?.id ?? null,
+      importCompletedDate: scheduleDate || todayIso()
     };
 
-    const status = shouldIgnoreExam ? "ignorada" : errors.length ? "erro" : duplicateMessages.length ? "duplicada" : "pronta";
+    const status = shouldIgnoreExam
+      ? "ignorada"
+      : errors.length
+        ? "erro"
+        : canUpdateExistingPatient
+          ? "atualizacao"
+          : duplicateMessages.length
+            ? "duplicada"
+            : "pronta";
     const informationalMessages = shouldIgnoreExam ? ["Exame fora do ciclo operacional. Linha ignorada sem bloquear a importacao."] : [];
+    if (canUpdateExistingPatient) {
+      informationalMessages.push("Paciente ja existe. O novo exame sera registrado na ficha dela.");
+    }
 
     return {
       lineNumber,
@@ -528,6 +585,7 @@ export async function previewPatientImportCore({
     summary: {
       totalRows: previewRows.length,
       readyRows: previewRows.filter((row) => row.status === "pronta").length,
+      updateRows: previewRows.filter((row) => row.status === "atualizacao").length,
       duplicateRows: previewRows.filter((row) => row.status === "duplicada").length,
       errorRows: previewRows.filter((row) => row.status === "erro").length,
       ignoredRows: previewRows.filter((row) => row.status === "ignorada").length
