@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import { closeDatabaseRuntime } from "../src/database/runtime.js";
 import { recordAuditEvent } from "../src/services/auditService.js";
+import { todayIso } from "../src/utils/date.js";
 import {
   authenticateCore,
   createPatientCore,
@@ -130,19 +131,24 @@ try {
     fileName: "pacientes-validacao.csv",
     fileBase64: Buffer.from(
       [
-        "nome,telefone,id_clinica,data_nascimento,idade_gestacional,ultimo_exame,medico,unidade",
-        `Paciente Importada,${csvPhone},IMPORT-${Date.now()},10-04-1993,18s2d,,${validationPhysician.name},${validationUnit.name}`
+        "nome,id_clinica,exame,telefone,data_nascimento,idade_gestacional,medico,unidade,data_agenda",
+        `Paciente Importada,IMPORT-${Date.now()},MORF.PRECOCE(11 a14 sem),${csvPhone},,12s4d,${validationPhysician.name},${validationUnit.name},${todayIso()}`,
+        `Paciente Ignorada,IMPORT-IGN-${Date.now()},3D,31988887777,,18s0d,${validationPhysician.name},${validationUnit.name},${todayIso()}`
       ].join("\n")
     ).toString("base64")
   });
   assert.equal(preview.summary.readyRows, 1, "Preview da importacao nao marcou a linha valida como pronta.");
+  assert.equal(preview.summary.ignoredRows, 1, "Preview da importacao nao marcou a linha fora do ciclo como ignorada.");
+  const previewReadyRow = preview.rows.find((row) => row.status === "pronta");
+  assert.equal(previewReadyRow?.birthDateLabel, "-", "Nascimento vazio deveria ser aceito na importacao.");
+  assert.equal(previewReadyRow?.gestationalAgeAdjustedLabel, "12 semanas e 4 dias", "Ajuste da idade gestacional com data_agenda falhou.");
 
   const imported = await confirmPatientImportCore({
     fileName: "pacientes-validacao.csv",
     fileBase64: Buffer.from(
       [
-        "nome,telefone,id_clinica,data_nascimento,idade_gestacional,ultimo_exame,medico,unidade",
-        `Paciente Importada,${csvPhone},IMPORT-${Date.now() + 1},10-04-1993,18s2d,,${validationPhysician.name},${validationUnit.name}`
+        "nome,id_clinica,exame,telefone,data_nascimento,idade_gestacional,medico,unidade,data_agenda",
+        `Paciente Importada,IMPORT-${Date.now() + 1},MORF.PRECOCE(11 a14 sem),${csvPhone},,12s4d,${validationPhysician.name},${validationUnit.name},${todayIso()}`
       ].join("\n")
     ).toString("base64"),
     actorUserId: auth.user.id

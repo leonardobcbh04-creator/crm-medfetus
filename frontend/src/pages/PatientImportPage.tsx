@@ -21,6 +21,9 @@ function getStatusBadgeMeta(status: PatientImportPreview["rows"][number]["status
   if (status === "duplicada") {
     return { label: "Duplicada", className: "badge-priority-yellow" };
   }
+  if (status === "ignorada") {
+    return { label: "Ignorada", className: "badge-priority-blue" };
+  }
   return { label: "Com erro", className: "badge-priority-red" };
 }
 
@@ -47,24 +50,26 @@ export function PatientImportPage() {
 
   worksheet.columns = [
     { header: "nome", key: "nome", width: 26 },
-    { header: "telefone", key: "telefone", width: 18 },
     { header: "id_clinica", key: "idClinica", width: 16 },
+    { header: "exame", key: "exame", width: 28 },
+    { header: "telefone", key: "telefone", width: 18 },
     { header: "data_nascimento", key: "dataNascimento", width: 18 },
     { header: "idade_gestacional", key: "idadeGestacional", width: 18 },
-    { header: "ultimo_exame", key: "ultimoExame", width: 24 },
     { header: "medico", key: "medico", width: 24 },
-    { header: "unidade", key: "unidade", width: 20 }
+    { header: "unidade", key: "unidade", width: 20 },
+    { header: "data_agenda", key: "dataAgenda", width: 18 }
   ];
 
   worksheet.addRow({
     nome: "Maria Aparecida",
-    telefone: "31999999999",
     idClinica: "MF-1001",
+    exame: "MORF.PRECOCE(11 a14 sem)",
+    telefone: "31999999999",
     dataNascimento: "20-04-1992",
     idadeGestacional: "12s3d",
-    ultimoExame: "",
     medico: "Dra. Helena Castro",
-    unidade: "Unidade Centro"
+    unidade: "Unidade Centro",
+    dataAgenda: "27-04-2026"
   });
 
   const headerRow = worksheet.getRow(1);
@@ -222,16 +227,17 @@ export function PatientImportPage() {
               onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
             />
             <span className="field-hint">
-              Modelo padrao: nome, telefone, id_clinica, data_nascimento, idade_gestacional, ultimo_exame, medico e unidade.
+              Modelo padrao: nome, id_clinica, exame, telefone, data_nascimento, idade_gestacional, medico, unidade e data_agenda.
             </span>
           </label>
 
           <article className="panel-card">
             <p className="muted-label">Orientacao rapida</p>
             <div className="message-metadata">
-              <span><strong>data_nascimento:</strong> prefira DD-MM-YYYY. Tambem aceitamos DD/MM/YYYY e YYYY-MM-DD.</span>
+              <span><strong>data_nascimento:</strong> campo opcional. Se preencher, use DD-MM-YYYY, DD/MM/YYYY ou YYYY-MM-DD.</span>
               <span><strong>idade_gestacional:</strong> use formatos como 12s3d, 12+3 ou apenas 12.</span>
-              <span><strong>ultimo_exame:</strong> pode ser o nome do exame ou o codigo cadastrado.</span>
+              <span><strong>data_agenda:</strong> use a data em que a idade gestacional foi registrada. O sistema ajusta a IG automaticamente ate hoje.</span>
+              <span><strong>exame:</strong> o importador tenta mapear automaticamente o nome da planilha para o exame cadastrado.</span>
               <span><strong>Seguranca:</strong> linhas duplicadas ou invalidas nao sao importadas sem revisao.</span>
             </div>
           </article>
@@ -255,6 +261,7 @@ export function PatientImportPage() {
                 <span><strong>Prontas para importar:</strong> {preview.summary.readyRows}</span>
                 <span><strong>Duplicadas:</strong> {preview.summary.duplicateRows}</span>
                 <span><strong>Com erro:</strong> {preview.summary.errorRows}</span>
+                <span><strong>Ignoradas:</strong> {preview.summary.ignoredRows}</span>
               </div>
             ) : (
               <p className="empty-state">Valide uma planilha para ver o resumo antes da importacao.</p>
@@ -305,7 +312,7 @@ export function PatientImportPage() {
                 <tr>
                   <th>Linha</th>
                   <th>Paciente</th>
-                  <th>Telefone</th>
+                  <th>Exame</th>
                   <th>Status</th>
                   <th>Detalhes</th>
                 </tr>
@@ -322,14 +329,17 @@ export function PatientImportPage() {
                           {row.clinicPatientId ? <span className="field-hint">ID da clinica: {row.clinicPatientId}</span> : null}
                         </div>
                       </td>
-                      <td>{formatBrazilPhone(row.phone) || "-"}</td>
+                      <td>{row.examName || "-"}</td>
                       <td><span className={`badge ${badge.className}`}>{badge.label}</span></td>
                       <td>
                         <div className="message-history-list">
+                          <span><strong>Telefone:</strong> {formatBrazilPhone(row.phone) || "-"}</span>
                           <span><strong>Medico:</strong> {row.physicianName || "-"}</span>
                           <span><strong>Unidade:</strong> {row.clinicUnit || "-"}</span>
                           <span><strong>Nascimento:</strong> {row.birthDateLabel}</span>
-                          <span><strong>Idade gestacional:</strong> {row.gestationalAgeLabel}</span>
+                          <span><strong>Data da agenda:</strong> {row.scheduleDateLabel}</span>
+                          <span><strong>IG original:</strong> {row.gestationalAgeOriginalLabel}</span>
+                          <span><strong>IG ajustada:</strong> {row.gestationalAgeAdjustedLabel}</span>
                           {row.messages.length ? row.messages.map((message) => (
                             <span key={message} className="exam-warning-text">{message}</span>
                           )) : <span>Sem pendencias de validacao.</span>}

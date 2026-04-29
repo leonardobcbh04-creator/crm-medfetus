@@ -5,14 +5,16 @@ const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
 
 const COLUMN_ALIASES = {
   name: ["nome", "nome da paciente", "paciente"],
+  clinicPatientId: ["id_clinica", "id da clinica", "id clinica", "id clinica paciente", "codigo da clinica", "codigo interno", "id clinica paciente"],
+  examName: ["exame", "ultimo_exame", "ultimo exame", "ultimo exame realizado"],
   phone: ["telefone", "telefone whatsapp", "telefone com whatsapp", "celular", "whatsapp"],
-  clinicPatientId: ["id da clinica", "id clinica", "id clinica paciente", "codigo da clinica", "codigo interno"],
   physicianName: ["medico", "medico solicitante"],
   clinicUnit: ["unidade", "unidade da clinica", "clinica"],
-  birthDate: ["data de nascimento", "data nascimento", "nascimento", "birthdate"],
+  birthDate: ["data_nascimento", "data de nascimento", "data nascimento", "nascimento", "birthdate"],
   gestationalAge: ["idade gestacional", "ig"],
   gestationalWeeks: ["idade gestacional semanas", "semanas ig", "ig semanas", "semanas"],
   gestationalDays: ["idade gestacional dias", "dias ig", "ig dias", "dias"],
+  scheduleDate: ["data_agenda", "data agenda", "data da agenda", "agenda"],
   dum: ["dum", "data da dum", "data da ultima menstruacao"],
   notes: ["observacoes", "obs", "anotacoes"],
   pregnancyType: ["tipo de gestacao"],
@@ -22,13 +24,33 @@ const COLUMN_ALIASES = {
 
 const REQUIRED_LABELS = [
   "nome",
-  "telefone",
   "id_clinica",
+  "exame",
+  "telefone",
   "data_nascimento",
   "idade_gestacional",
-  "ultimo_exame",
   "medico",
-  "unidade"
+  "unidade",
+  "data_agenda"
+];
+
+const IGNORED_EXAM_PATTERNS = [
+  /endo/,
+  /\btv\b/,
+  /3d/,
+  /mamas?\s*e\s*axilas?/
+];
+
+const EXAM_IMPORT_ALIASES = [
+  { matchers: [/obst.*inicial/, /4 a 10 sem/], targetName: "Exame obstetrico inicial" },
+  { matchers: [/morf.*precoce/, /11 a ?14 sem/], targetName: "Morfologico 1o trimestre" },
+  { matchers: [/obst.*sexo/, /apos 14 sem/], targetName: "Obstetrica para sexo" },
+  { matchers: [/morf.*seg.*trim/, /20 a 24 sem/], targetName: "Morfologico 2o trimestre" },
+  { matchers: [/ecocardio/, /fetal/], targetName: "Ecocardiograma fetal" },
+  { matchers: [/\bpbf\b/, /perfil biofisico/], targetName: "Perfil biofisico fetal" },
+  { matchers: [/doppler/], targetName: "Doppler obstetrico" },
+  { matchers: [/morf.*terc.*trim/, /30 a 36 sem/], targetName: "Morfologico 3o trimestre" },
+  { matchers: [/simples/], targetName: "Obstetrico simples" }
 ];
 
 function normalizeText(value) {
@@ -80,7 +102,7 @@ function buildColumnMap(sampleRow) {
   const keys = Object.keys(sampleRow || {});
 
   Object.entries(COLUMN_ALIASES).forEach(([targetKey, aliases]) => {
-    const match = keys.find((key) => aliases.includes(normalizeText(key)));
+    const match = keys.find((key) => aliases.some((alias) => normalizeText(alias) === normalizeText(key)));
     if (match) {
       map.set(targetKey, match);
     }
@@ -171,6 +193,13 @@ function parseDateValue(value) {
   return null;
 }
 
+function formatGestationalAgeLabel(weeks, days) {
+  if (!Number.isInteger(weeks) || weeks < 0) {
+    return "-";
+  }
+  return `${weeks} semanas e ${days || 0} dias`;
+}
+
 function parseHighRisk(value) {
   const normalized = normalizeText(value);
   if (!normalized) {
@@ -227,6 +256,32 @@ function parseGestationalAgeText(value) {
   return null;
 }
 
+function adjustGestationalAgeByScheduleDate(gestationalAge, scheduleDateIso, errors) {
+  if (!gestationalAge) {
+    return null;
+  }
+
+  if (!scheduleDateIso) {
+    return {
+      ...gestationalAge,
+      adjustmentDays: 0
+    };
+  }
+
+  const adjustmentDays = daysBetween(scheduleDateIso, todayIso());
+  if (adjustmentDays < 0) {
+    errors.push("Data da agenda invalida. A data informada esta no futuro.");
+    return null;
+  }
+
+  const totalDays = gestationalAge.gestationalWeeks * 7 + gestationalAge.gestationalDays + adjustmentDays;
+  return {
+    gestationalWeeks: Math.floor(totalDays / 7),
+    gestationalDays: totalDays % 7,
+    adjustmentDays
+  };
+}
+
 function resolveGestationalAgeFromRow(row, columnMap, errors) {
   const directGestationalAge = parseGestationalAgeText(getCell(row, columnMap, "gestationalAge"));
   if (directGestationalAge) {
@@ -267,6 +322,33 @@ function resolveGestationalAgeFromRow(row, columnMap, errors) {
 
   errors.push("Idade gestacional invalida. Use um valor como 12s3d ou informe a DUM.");
   return null;
+}
+
+function isIgnoredExamImport(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return false;
+  }
+  return IGNORED_EXAM_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function resolveImportedExam(value, automaticExamByCode, automaticExamByName) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const directMatch = automaticExamByCode.get(normalized) || automaticExamByName.get(normalized);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  const aliasMatch = EXAM_IMPORT_ALIASES.find(({ matchers }) => matchers.some((matcher) => matcher.test(normalized)));
+  if (!aliasMatch) {
+    return null;
+  }
+
+  return automaticExamByName.get(normalizeText(aliasMatch.targetName)) || null;
 }
 
 function buildLookupMap(items, keySelector) {
@@ -321,9 +403,13 @@ export async function previewPatientImportCore({
     const rawPhone = sanitizeString(getCell(row, columnMap, "phone"));
     const phone = normalizeBrazilPhone(rawPhone);
     const clinicPatientId = sanitizeString(getCell(row, columnMap, "clinicPatientId"));
+    const birthDateRaw = sanitizeString(getCell(row, columnMap, "birthDate"));
     const birthDate = parseDateValue(getCell(row, columnMap, "birthDate"));
     const physicianNameInput = sanitizeString(getCell(row, columnMap, "physicianName"));
     const clinicUnitInput = sanitizeString(getCell(row, columnMap, "clinicUnit"));
+    const examNameInput = sanitizeString(getCell(row, columnMap, "examName") || getCell(row, columnMap, "lastCompletedExamCode"));
+    const scheduleDateRaw = sanitizeString(getCell(row, columnMap, "scheduleDate"));
+    const scheduleDate = parseDateValue(getCell(row, columnMap, "scheduleDate"));
     const notes = sanitizeString(getCell(row, columnMap, "notes"));
 
     if (!name) {
@@ -335,7 +421,7 @@ export async function previewPatientImportCore({
     if (!clinicPatientId) {
       errors.push("ID da clinica obrigatorio.");
     }
-    if (!birthDate) {
+    if (birthDateRaw && !birthDate) {
       errors.push("Data de nascimento invalida. Use DD-MM-YYYY, DD/MM/YYYY ou YYYY-MM-DD.");
     }
     if (!physicianNameInput) {
@@ -343,6 +429,10 @@ export async function previewPatientImportCore({
     }
     if (!clinicUnitInput) {
       errors.push("Unidade nao informada.");
+    }
+
+    if (scheduleDateRaw && !scheduleDate) {
+      errors.push("Data da agenda invalida. Use DD-MM-YYYY, DD/MM/YYYY ou YYYY-MM-DD.");
     }
 
     const matchedUnit = clinicUnitInput ? unitsByName.get(normalizeText(clinicUnitInput)) : null;
@@ -359,18 +449,19 @@ export async function previewPatientImportCore({
       errors.push("O medico informado nao pertence a unidade selecionada.");
     }
 
-    const gestationalAge = resolveGestationalAgeFromRow(row, columnMap, errors);
+    const originalGestationalAge = resolveGestationalAgeFromRow(row, columnMap, errors);
+    const adjustedGestationalAge = adjustGestationalAgeByScheduleDate(originalGestationalAge, scheduleDate, errors);
     const pregnancyType = parsePregnancyType(getCell(row, columnMap, "pregnancyType"));
     const highRisk = parseHighRisk(getCell(row, columnMap, "highRisk"));
 
-    const lastCompletedExamRaw = sanitizeString(getCell(row, columnMap, "lastCompletedExamCode"));
-    const matchedLastCompletedExam =
-      (lastCompletedExamRaw && automaticExamByCode.get(normalizeText(lastCompletedExamRaw))) ||
-      (lastCompletedExamRaw && automaticExamByName.get(normalizeText(lastCompletedExamRaw))) ||
-      null;
+    const lastCompletedExamRaw = examNameInput;
+    const shouldIgnoreExam = isIgnoredExamImport(lastCompletedExamRaw);
+    const matchedLastCompletedExam = shouldIgnoreExam
+      ? null
+      : resolveImportedExam(lastCompletedExamRaw, automaticExamByCode, automaticExamByName);
 
-    if (lastCompletedExamRaw && !matchedLastCompletedExam) {
-      errors.push("Ultimo exame invalido. Informe o nome ou codigo de um exame automatico cadastrado.");
+    if (lastCompletedExamRaw && !shouldIgnoreExam && !matchedLastCompletedExam) {
+      errors.push("Exame nao encontrado. Confira o nome informado na planilha.");
     }
 
     if (phone && existingPhoneSet.has(phone)) {
@@ -396,9 +487,9 @@ export async function previewPatientImportCore({
       name: name || "",
       phone: rawPhone || "",
       clinicPatientId,
-      birthDate,
-      gestationalWeeks: gestationalAge?.gestationalWeeks ?? null,
-      gestationalDays: gestationalAge?.gestationalDays ?? null,
+      birthDate: birthDate || null,
+      gestationalWeeks: adjustedGestationalAge?.gestationalWeeks ?? null,
+      gestationalDays: adjustedGestationalAge?.gestationalDays ?? null,
       physicianName: matchedPhysician?.name || physicianNameInput || null,
       clinicUnit: matchedUnit?.name || clinicUnitInput || null,
       pregnancyType,
@@ -407,7 +498,8 @@ export async function previewPatientImportCore({
       lastCompletedExamCode: matchedLastCompletedExam?.code || undefined
     };
 
-    const status = errors.length ? "erro" : duplicateMessages.length ? "duplicada" : "pronta";
+    const status = shouldIgnoreExam ? "ignorada" : errors.length ? "erro" : duplicateMessages.length ? "duplicada" : "pronta";
+    const informationalMessages = shouldIgnoreExam ? ["Exame fora do ciclo operacional. Linha ignorada sem bloquear a importacao."] : [];
 
     return {
       lineNumber,
@@ -417,12 +509,14 @@ export async function previewPatientImportCore({
       clinicPatientId: normalizedData.clinicPatientId,
       physicianName: normalizedData.physicianName,
       clinicUnit: normalizedData.clinicUnit,
-      gestationalAgeLabel:
-        normalizedData.gestationalWeeks == null
-          ? "-"
-          : `${normalizedData.gestationalWeeks} semanas e ${normalizedData.gestationalDays || 0} dias`,
+      examName: matchedLastCompletedExam?.name || lastCompletedExamRaw || null,
+      originalExamName: lastCompletedExamRaw || null,
+      gestationalAgeOriginalLabel: formatGestationalAgeLabel(originalGestationalAge?.gestationalWeeks ?? null, originalGestationalAge?.gestationalDays ?? 0),
+      gestationalAgeAdjustedLabel: formatGestationalAgeLabel(normalizedData.gestationalWeeks, normalizedData.gestationalDays),
+      gestationalAgeLabel: formatGestationalAgeLabel(normalizedData.gestationalWeeks, normalizedData.gestationalDays),
+      scheduleDateLabel: scheduleDate ? formatDatePtBr(scheduleDate) : "-",
       birthDateLabel: normalizedData.birthDate ? formatDatePtBr(normalizedData.birthDate) : "-",
-      messages: [...errors, ...duplicateMessages],
+      messages: [...errors, ...duplicateMessages, ...informationalMessages],
       normalizedData
     };
   });
@@ -435,7 +529,8 @@ export async function previewPatientImportCore({
       totalRows: previewRows.length,
       readyRows: previewRows.filter((row) => row.status === "pronta").length,
       duplicateRows: previewRows.filter((row) => row.status === "duplicada").length,
-      errorRows: previewRows.filter((row) => row.status === "erro").length
+      errorRows: previewRows.filter((row) => row.status === "erro").length,
+      ignoredRows: previewRows.filter((row) => row.status === "ignorada").length
     },
     rows: previewRows
   };
