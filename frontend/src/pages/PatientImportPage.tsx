@@ -5,6 +5,32 @@ import { api } from "../services/api";
 import type { PatientImportConfirmResult, PatientImportPreview } from "../types";
 import { formatBrazilPhone } from "../utils/phone";
 
+const PATIENT_IMPORT_TEMPLATE_COLUMNS = [
+  { header: "nome", key: "nome", width: 26 },
+  { header: "id_clinica", key: "idClinica", width: 16 },
+  { header: "exame", key: "exame", width: 28 },
+  { header: "telefone", key: "telefone", width: 18 },
+  { header: "data_nascimento", key: "dataNascimento", width: 18 },
+  { header: "idade_gestacional", key: "idadeGestacional", width: 18 },
+  { header: "medico", key: "medico", width: 24 },
+  { header: "unidade", key: "unidade", width: 20 },
+  { header: "data_agenda", key: "dataAgenda", width: 18 }
+] as const;
+
+const PATIENT_IMPORT_TEMPLATE_EXAMPLE_ROW = {
+  nome: "Maria Aparecida",
+  idClinica: "MF-1001",
+  exame: "MORF.PRECOCE(11 a14 sem)",
+  telefone: "31999999999",
+  dataNascimento: "",
+  idadeGestacional: "12s3d",
+  medico: "Dra. Helena Castro",
+  unidade: "Unidade Centro",
+  dataAgenda: "27-04-2026"
+} as const;
+
+const PATIENT_IMPORT_TEMPLATE_FILE_NAME = "modelo-importacao-pacientes-v2.xlsx";
+
 async function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -45,60 +71,39 @@ export function PatientImportPage() {
     setFeedback(null);
 
     try {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Importacao de pacientes");
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Importacao de pacientes");
 
-  worksheet.columns = [
-    { header: "nome", key: "nome", width: 26 },
-    { header: "id_clinica", key: "idClinica", width: 16 },
-    { header: "exame", key: "exame", width: 28 },
-    { header: "telefone", key: "telefone", width: 18 },
-    { header: "data_nascimento", key: "dataNascimento", width: 18 },
-    { header: "idade_gestacional", key: "idadeGestacional", width: 18 },
-    { header: "medico", key: "medico", width: 24 },
-    { header: "unidade", key: "unidade", width: 20 },
-    { header: "data_agenda", key: "dataAgenda", width: 18 }
-  ];
+      worksheet.columns = [...PATIENT_IMPORT_TEMPLATE_COLUMNS];
+      worksheet.addRow(PATIENT_IMPORT_TEMPLATE_EXAMPLE_ROW);
 
-  worksheet.addRow({
-    nome: "Maria Aparecida",
-    idClinica: "MF-1001",
-    exame: "MORF.PRECOCE(11 a14 sem)",
-    telefone: "31999999999",
-    dataNascimento: "20-04-1992",
-    idadeGestacional: "12s3d",
-    medico: "Dra. Helena Castro",
-    unidade: "Unidade Centro",
-    dataAgenda: "27-04-2026"
-  });
+      const headerRow = worksheet.getRow(1);
+      headerRow.font = { bold: true, color: { argb: "FF203047" } };
+      headerRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFEAF2FB" }
+      };
+      headerRow.alignment = { vertical: "middle", horizontal: "center" };
+      headerRow.border = {
+        bottom: { style: "thin", color: { argb: "FFD6E2EE" } }
+      };
 
-  const headerRow = worksheet.getRow(1);
-  headerRow.font = { bold: true, color: { argb: "FF203047" } };
-  headerRow.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFEAF2FB" }
-  };
-  headerRow.alignment = { vertical: "middle", horizontal: "center" };
-  headerRow.border = {
-    bottom: { style: "thin", color: { argb: "FFD6E2EE" } }
-  };
+      worksheet.getRow(2).alignment = { vertical: "middle" };
+      worksheet.views = [{ state: "frozen", ySplit: 1 }];
 
-  worksheet.getRow(2).alignment = { vertical: "middle" };
-  worksheet.views = [{ state: "frozen", ySplit: 1 }];
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "modelo-importacao-pacientes.xlsx";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = PATIENT_IMPORT_TEMPLATE_FILE_NAME;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
       setFeedbackType("success");
       setFeedback("Modelo Excel baixado com sucesso.");
     } catch (error) {
