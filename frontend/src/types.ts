@@ -449,13 +449,18 @@ export type PatientDetails = {
 
 export type PatientImportPreviewRow = {
   lineNumber: number;
-  status: "pronta" | "duplicada" | "erro";
+  status: "pronta" | "duplicada" | "erro" | "ignorada";
   patientName: string;
   phone: string;
   clinicPatientId: string | null;
   physicianName: string | null;
   clinicUnit: string | null;
+  examName: string | null;
+  originalExamName?: string | null;
+  gestationalAgeOriginalLabel: string;
+  gestationalAgeAdjustedLabel: string;
   gestationalAgeLabel: string;
+  scheduleDateLabel: string;
   birthDateLabel: string;
   messages: string[];
 };
@@ -469,6 +474,7 @@ export type PatientImportPreview = {
     readyRows: number;
     duplicateRows: number;
     errorRows: number;
+    ignoredRows: number;
   };
   rows: PatientImportPreviewRow[];
 };

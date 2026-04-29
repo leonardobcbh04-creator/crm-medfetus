@@ -322,9 +322,6 @@ function validatePatientInput(input, automaticExamCodes = []) {
   if (!sanitizePhone(input.phone)) {
     throw new Error("Informe o telefone com WhatsApp.");
   }
-  if (!input.birthDate) {
-    throw new Error("Informe a data de nascimento.");
-  }
   const gestationalWeeks = Number(input.gestationalWeeks);
   const gestationalDays = Number(input.gestationalDays);
   if (!Number.isInteger(gestationalWeeks) || gestationalWeeks < 0) {
@@ -2080,7 +2077,7 @@ export async function confirmPatientImportCore(input) {
     summary: {
       totalRows: preview.summary.totalRows,
       importedRows: imported.length,
-      skippedRows: preview.summary.duplicateRows + preview.summary.errorRows,
+      skippedRows: preview.summary.duplicateRows + preview.summary.errorRows + (preview.summary.ignoredRows || 0),
       duplicateRows: preview.summary.duplicateRows,
       errorRows: preview.summary.errorRows
     },
