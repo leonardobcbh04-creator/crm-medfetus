@@ -3,24 +3,47 @@ import { normalizeBrazilPhone } from "../utils/phone.js";
 
 const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
 
+// Colunas padrao (aba unica, cabecalho na primeira linha) OU planilha de recepcao
+// (varias abas, uma por dia, cabecalho mais abaixo). Ambas usam o mesmo mapa de
+// aliases; a deteccao de qual formato esta sendo lido acontece em parseWorkbookRows.
 const COLUMN_ALIASES = {
-  name: ["nome", "nome da paciente", "paciente"],
-  clinicPatientId: ["id_clinica", "id da clinica", "id clinica", "id clinica paciente", "codigo da clinica", "codigo interno", "id clinica paciente"],
+  name: ["nome", "nome da paciente", "paciente", "nome completo"],
+  clinicPatientId: [
+    "id_clinica",
+    "id da clinica",
+    "id clinica",
+    "id clinica paciente",
+    "codigo da clinica",
+    "codigo interno",
+    "registro medfetus",
+    "registro"
+  ],
   examName: ["exame", "ultimo_exame", "ultimo exame", "ultimo exame realizado"],
-  phone: ["telefone", "telefone whatsapp", "telefone com whatsapp", "celular", "whatsapp"],
+  phone: ["telefone", "telefone whatsapp", "telefone com whatsapp", "celular", "celular de contato", "whatsapp"],
   physicianName: ["medico", "medico solicitante"],
   clinicUnit: ["unidade", "unidade da clinica", "clinica"],
   birthDate: ["data_nascimento", "data de nascimento", "data nascimento", "nascimento", "birthdate"],
   gestationalAge: ["idade gestacional", "ig"],
   gestationalWeeks: ["idade gestacional semanas", "semanas ig", "ig semanas", "semanas"],
   gestationalDays: ["idade gestacional dias", "dias ig", "ig dias", "dias"],
-  scheduleDate: ["data_agenda", "data agenda", "data da agenda", "agenda"],
+  // "data" (sozinho) casa com a coluna A da planilha de recepcao (data do atendimento do dia).
+  // So entra em jogo via match exato, entao nao conflita com "data_agenda"/"data_nascimento".
+  scheduleDate: ["data_agenda", "data agenda", "data da agenda", "agenda", "data"],
   dum: ["dum", "data da dum", "data da ultima menstruacao"],
   notes: ["observacoes", "obs", "anotacoes"],
   pregnancyType: ["tipo de gestacao"],
   highRisk: ["alto risco", "gestacao de alto risco"],
-  lastCompletedExamCode: ["ultimo exame realizado", "ultimo exame"]
+  lastCompletedExamCode: ["ultimo exame realizado", "ultimo exame"],
+  // Usada so na planilha de recepcao, para identificar e ignorar atendimentos cancelados.
+  importStatus: ["observacao", "observacoes"]
 };
+
+const DEFAULT_PHYSICIAN_NAME = "Dr. Túlio";
+const DEFAULT_CLINIC_UNIT = "Medfetus";
+
+// Marcadores (na coluna de observacao da planilha de recepcao) que indicam que a
+// linha nao deve ser importada.
+const CANCELLED_STATUS_PATTERNS = [/cancel/];
 
 const REQUIRED_LABELS = [
   "nome",
@@ -38,7 +61,11 @@ const IGNORED_EXAM_PATTERNS = [
   /endo/,
   /\btv\b/,
   /3d/,
-  /mamas?\s*e\s*axilas?/
+  /mamas?\s*e\s*axilas?/,
+  // Procedimento complementar (nao e um exame por si so): quando aparece junto de
+  // outro exame na mesma celula, e ignorado e so o outro exame e considerado.
+  /medida.*colo/,
+  /colo.*medida/
 ];
 
 const EXAM_IMPORT_ALIASES = [
@@ -73,7 +100,71 @@ function decodeBase64File(fileBase64) {
   return Buffer.from(cleanBase64, "base64");
 }
 
-async function parseWorkbookRows(fileName, fileBase64) {
+// Cabecalho da planilha de recepcao fica mais abaixo (nao na linha 1) e tem varias
+// colunas repetidas (ex: "EXAME" aparece duas vezes). Por isso o parser trabalha com
+// linhas em formato array (posicao de coluna), nao objetos por nome de cabecalho:
+// assim a primeira ocorrencia de cada coluna sempre "ganha" e nunca ha colisao de chave.
+function findHeaderRowIndex(grid) {
+  const searchLimit = Math.min(grid.length, 30);
+  for (let rowIndex = 0; rowIndex < searchLimit; rowIndex += 1) {
+    const normalizedCells = (grid[rowIndex] || []).map(normalizeText);
+    const hasName = normalizedCells.some((cell) => cell.includes("nome completo"));
+    const hasPhone = normalizedCells.some((cell) => cell.includes("celular"));
+    if (hasName && hasPhone) {
+      return rowIndex;
+    }
+  }
+  return -1;
+}
+
+function buildColumnMapFromHeaderRow(headerRow) {
+  const map = new Map();
+
+  // 1a passada: so aceita correspondencia EXATA do cabecalho normalizado com o alias.
+  // Garante que o modelo padrao (colunas com nomes limpos, tipo "data_agenda") nunca
+  // seja confundido com cabecalhos parecidos.
+  headerRow.forEach((headerText, columnIndex) => {
+    const normalizedHeader = normalizeText(headerText);
+    if (!normalizedHeader) {
+      return;
+    }
+    Object.entries(COLUMN_ALIASES).forEach(([targetKey, aliases]) => {
+      if (map.has(targetKey)) {
+        return;
+      }
+      const isExactMatch = aliases.some((alias) => normalizeText(alias) === normalizedHeader);
+      if (isExactMatch) {
+        map.set(targetKey, columnIndex);
+      }
+    });
+  });
+
+  // 2a passada (fallback): aceita o cabecalho CONTER o alias. Cobre cabecalhos com
+  // texto extra, como "NOME COMPLETO\nsem abreviacoes" ou "DATA DE NASCIMENTO (dd/mm/aaaa)".
+  headerRow.forEach((headerText, columnIndex) => {
+    const normalizedHeader = normalizeText(headerText);
+    if (!normalizedHeader) {
+      return;
+    }
+    Object.entries(COLUMN_ALIASES).forEach(([targetKey, aliases]) => {
+      if (map.has(targetKey)) {
+        return;
+      }
+      const isPartialMatch = aliases.some((alias) => normalizedHeader.includes(normalizeText(alias)));
+      if (isPartialMatch) {
+        map.set(targetKey, columnIndex);
+      }
+    });
+  });
+
+  return map;
+}
+
+function isRowEmpty(row) {
+  return !Array.isArray(row) || row.every((cell) => cell === "" || cell === null || cell === undefined);
+}
+
+async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
   const extension = ACCEPTED_EXTENSIONS.find((item) => String(fileName || "").toLowerCase().endsWith(item));
   if (!extension) {
     throw new Error("Formato nao suportado. Envie uma planilha .xlsx, .xls ou .csv.");
@@ -85,38 +176,67 @@ async function parseWorkbookRows(fileName, fileBase64) {
     cellDates: true,
     raw: true
   });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) {
+  if (!workbook.SheetNames.length) {
     throw new Error("Nao foi encontrada nenhuma aba na planilha.");
   }
 
-  const firstSheet = workbook.Sheets[firstSheetName];
-  return XLSX.utils.sheet_to_json(firstSheet, {
-    defval: "",
-    raw: true
-  });
-}
+  let columnMap = null;
+  let isReceptionLayout = false;
+  const rows = [];
 
-function buildColumnMap(sampleRow) {
-  const map = new Map();
-  const keys = Object.keys(sampleRow || {});
-
-  Object.entries(COLUMN_ALIASES).forEach(([targetKey, aliases]) => {
-    const match = keys.find((key) => aliases.some((alias) => normalizeText(alias) === normalizeText(key)));
-    if (match) {
-      map.set(targetKey, match);
+  for (const sheetName of workbook.SheetNames) {
+    const grid = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      header: 1,
+      defval: "",
+      raw: true,
+      blankrows: true
+    });
+    if (!grid.length) {
+      continue;
     }
-  });
 
-  return map;
+    const receptionHeaderIndex = findHeaderRowIndex(grid);
+    const headerIndex = receptionHeaderIndex >= 0 ? receptionHeaderIndex : 0;
+    const sheetColumnMap = buildColumnMapFromHeaderRow(grid[headerIndex] || []);
+
+    // O mapa de colunas e definido pela primeira aba com cabecalho reconhecivel e
+    // reaproveitado nas demais (todas as abas da planilha de recepcao seguem o
+    // mesmo layout, uma por dia).
+    if (!columnMap) {
+      columnMap = sheetColumnMap;
+      isReceptionLayout = receptionHeaderIndex >= 0;
+    }
+
+    for (let rowIndex = headerIndex + 1; rowIndex < grid.length; rowIndex += 1) {
+      const row = grid[rowIndex];
+      if (isRowEmpty(row)) {
+        continue;
+      }
+      const nameValue = getCell(row, columnMap, "name");
+      if (!sanitizeString(nameValue)) {
+        continue;
+      }
+
+      if (isReceptionLayout && referenceDateIso && columnMap.has("scheduleDate")) {
+        const rowDateIso = parseDateValue(getCell(row, columnMap, "scheduleDate"));
+        if (rowDateIso && rowDateIso !== referenceDateIso) {
+          continue;
+        }
+      }
+
+      rows.push(row);
+    }
+  }
+
+  return { columnMap: columnMap || new Map(), rows, isReceptionLayout };
 }
 
 function getCell(row, columnMap, key) {
-  const column = columnMap.get(key);
-  if (!column) {
+  const columnIndex = columnMap.get(key);
+  if (columnIndex === undefined) {
     return null;
   }
-  return row?.[column] ?? null;
+  return Array.isArray(row) ? row[columnIndex] ?? null : null;
 }
 
 function parseExcelSerialDate(serialNumber) {
@@ -358,9 +478,44 @@ function buildLookupMap(items, keySelector) {
   }, new Map());
 }
 
+function normalizeExamCellText(value) {
+  return String(value ?? "").trim();
+}
+
+function splitExamEntries(value) {
+  return normalizeExamCellText(value)
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function isCancelledStatus(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return false;
+  }
+  return CANCELLED_STATUS_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+// Quando a celula de exame lista mais de um exame (ex: paciente fez dois exames na
+// mesma visita), escolhemos o mais avancado no protocolo (ordem de automaticExamModels)
+// como "ultimo exame realizado": o sistema ja marca automaticamente como realizados
+// todos os exames anteriores a ele, entao os demais exames da celula ficam cobertos.
+function pickMostAdvancedExam(matchedExams, automaticExamModels) {
+  if (!matchedExams.length) {
+    return null;
+  }
+  return matchedExams.reduce((best, current) => {
+    const bestIndex = automaticExamModels.findIndex((exam) => exam.code === best.code);
+    const currentIndex = automaticExamModels.findIndex((exam) => exam.code === current.code);
+    return currentIndex > bestIndex ? current : best;
+  });
+}
+
 export async function previewPatientImportCore({
   fileName,
   fileBase64,
+  referenceDate,
   units,
   physicians,
   patients,
@@ -371,12 +526,18 @@ export async function previewPatientImportCore({
     throw new Error("Selecione uma planilha para continuar.");
   }
 
-  const rows = await parseWorkbookRows(fileName, fileBase64);
+  const referenceDateIso = parseDateValue(referenceDate) || todayIso();
+  const { columnMap, rows, isReceptionLayout } = await parseWorkbookRows(fileName, fileBase64, referenceDateIso);
   if (!rows.length) {
-    throw new Error("A planilha esta vazia.");
+    throw new Error(
+      isReceptionLayout
+        ? `Nenhuma linha encontrada para a data ${formatDatePtBr(referenceDateIso)}. Confira a data selecionada.`
+        : "A planilha esta vazia."
+    );
   }
 
-  const columnMap = buildColumnMap(rows[0]);
+  const hasPhysicianColumn = columnMap.has("physicianName");
+  const hasClinicUnitColumn = columnMap.has("clinicUnit");
   const unitsByName = buildLookupMap(units.filter((item) => item.active), (item) => item.name);
   const physiciansByName = buildLookupMap(physicians.filter((item) => item.active), (item) => item.name);
   const automaticExamByCode = buildLookupMap(automaticExamModels, (item) => item.code);
@@ -423,12 +584,20 @@ export async function previewPatientImportCore({
     const clinicPatientId = sanitizeString(getCell(row, columnMap, "clinicPatientId"));
     const birthDateRaw = sanitizeString(getCell(row, columnMap, "birthDate"));
     const birthDate = parseDateValue(getCell(row, columnMap, "birthDate"));
-    const physicianNameInput = sanitizeString(getCell(row, columnMap, "physicianName"));
-    const clinicUnitInput = sanitizeString(getCell(row, columnMap, "clinicUnit"));
+    // Quando a planilha nao tem coluna de medico/unidade (caso da planilha de
+    // recepcao, que hoje so opera com Dr. Tulio na unidade Medfetus), usamos o
+    // padrao da clinica em vez de exigir a coluna. Se a coluna existir mas a
+    // celula estiver vazia, continua sendo erro (igual ao modelo padrao).
+    const physicianNameInput =
+      sanitizeString(getCell(row, columnMap, "physicianName")) || (hasPhysicianColumn ? null : DEFAULT_PHYSICIAN_NAME);
+    const clinicUnitInput =
+      sanitizeString(getCell(row, columnMap, "clinicUnit")) || (hasClinicUnitColumn ? null : DEFAULT_CLINIC_UNIT);
     const examNameInput = sanitizeString(getCell(row, columnMap, "examName") || getCell(row, columnMap, "lastCompletedExamCode"));
     const scheduleDateRaw = sanitizeString(getCell(row, columnMap, "scheduleDate"));
     const scheduleDate = parseDateValue(getCell(row, columnMap, "scheduleDate"));
     const notes = sanitizeString(getCell(row, columnMap, "notes"));
+    const statusRaw = sanitizeString(getCell(row, columnMap, "importStatus"));
+    const isCancelled = isCancelledStatus(statusRaw);
 
     if (!name) {
       errors.push("Nome obrigatorio.");
@@ -473,13 +642,23 @@ export async function previewPatientImportCore({
     const highRisk = parseHighRisk(getCell(row, columnMap, "highRisk"));
 
     const lastCompletedExamRaw = examNameInput;
-    const shouldIgnoreExam = isIgnoredExamImport(lastCompletedExamRaw);
-    const matchedLastCompletedExam = shouldIgnoreExam
-      ? null
-      : resolveImportedExam(lastCompletedExamRaw, automaticExamByCode, automaticExamByName);
+    // A celula pode listar mais de um exame (ex: "MORF.PRECOCE(11 a14 sem), OBST.INICIAL(4
+    // a 10 sem)") quando a paciente fez os dois na mesma visita. Resolvemos cada um e
+    // usamos o mais avancado do protocolo como "ultimo exame realizado" — o sistema ja
+    // marca automaticamente os exames anteriores a ele como realizados tambem.
+    const examEntries = splitExamEntries(lastCompletedExamRaw);
+    const shouldIgnoreExam = examEntries.length > 0 && examEntries.every((entry) => isIgnoredExamImport(entry));
+    const resolvedExamEntries = examEntries
+      .filter((entry) => !isIgnoredExamImport(entry))
+      .map((entry) => resolveImportedExam(entry, automaticExamByCode, automaticExamByName));
+    const matchedExams = resolvedExamEntries.filter(Boolean);
+    const hasUnresolvedExamEntry = resolvedExamEntries.length > matchedExams.length;
+    const matchedLastCompletedExam = shouldIgnoreExam ? null : pickMostAdvancedExam(matchedExams, automaticExamModels);
 
     if (lastCompletedExamRaw && !shouldIgnoreExam && !matchedLastCompletedExam) {
       errors.push("Exame nao encontrado. Confira o nome informado na planilha.");
+    } else if (hasUnresolvedExamEntry && matchedLastCompletedExam) {
+      errors.push(`Um dos exames listados nao foi reconhecido: "${lastCompletedExamRaw}". Confira antes de importar.`);
     }
 
     if (phone && existingPhoneSet.has(phone)) {
@@ -544,19 +723,26 @@ export async function previewPatientImportCore({
       importCompletedDate: scheduleDate || todayIso()
     };
 
-    const status = shouldIgnoreExam
+    const status = isCancelled
       ? "ignorada"
-      : errors.length
-        ? "erro"
-        : canUpdateExistingPatient
-          ? "atualizacao"
-          : duplicateMessages.length
-            ? "duplicada"
-            : "pronta";
+      : shouldIgnoreExam
+        ? "ignorada"
+        : errors.length
+          ? "erro"
+          : canUpdateExistingPatient
+            ? "atualizacao"
+            : duplicateMessages.length
+              ? "duplicada"
+              : "pronta";
     const informationalMessages = shouldIgnoreExam ? ["Exame fora do ciclo operacional. Linha ignorada sem bloquear a importacao."] : [];
     if (canUpdateExistingPatient) {
       informationalMessages.push("Paciente ja existe. O novo exame sera registrado na ficha dela.");
     }
+    // Atendimento cancelado: a linha e sempre ignorada, independente de outras
+    // pendencias de validacao (que deixam de fazer sentido para uma linha cancelada).
+    const rowMessages = isCancelled
+      ? ["Atendimento cancelado na planilha da recepcao. Linha ignorada."]
+      : [...errors, ...duplicateMessages, ...informationalMessages];
 
     return {
       lineNumber,
@@ -566,14 +752,14 @@ export async function previewPatientImportCore({
       clinicPatientId: normalizedData.clinicPatientId,
       physicianName: normalizedData.physicianName,
       clinicUnit: normalizedData.clinicUnit,
-      examName: matchedLastCompletedExam?.name || lastCompletedExamRaw || null,
+      examName: matchedExams.length ? matchedExams.map((exam) => exam.name).join(" + ") : (lastCompletedExamRaw || null),
       originalExamName: lastCompletedExamRaw || null,
       gestationalAgeOriginalLabel: formatGestationalAgeLabel(originalGestationalAge?.gestationalWeeks ?? null, originalGestationalAge?.gestationalDays ?? 0),
       gestationalAgeAdjustedLabel: formatGestationalAgeLabel(normalizedData.gestationalWeeks, normalizedData.gestationalDays),
       gestationalAgeLabel: formatGestationalAgeLabel(normalizedData.gestationalWeeks, normalizedData.gestationalDays),
       scheduleDateLabel: scheduleDate ? formatDatePtBr(scheduleDate) : "-",
       birthDateLabel: normalizedData.birthDate ? formatDatePtBr(normalizedData.birthDate) : "-",
-      messages: [...errors, ...duplicateMessages, ...informationalMessages],
+      messages: rowMessages,
       normalizedData
     };
   });
