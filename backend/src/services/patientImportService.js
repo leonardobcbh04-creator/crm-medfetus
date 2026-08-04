@@ -38,9 +38,6 @@ const COLUMN_ALIASES = {
   importStatus: ["observacao", "observacoes"]
 };
 
-const DEFAULT_PHYSICIAN_NAME = "Dr. Túlio";
-const DEFAULT_CLINIC_UNIT = "Medfetus";
-
 // Marcadores (na coluna de observacao da planilha de recepcao) que indicam que a
 // linha nao deve ser importada.
 const CANCELLED_STATUS_PATTERNS = [/cancel/];
@@ -549,8 +546,15 @@ export async function previewPatientImportCore({
 
   const hasPhysicianColumn = columnMap.has("physicianName");
   const hasClinicUnitColumn = columnMap.has("clinicUnit");
-  const unitsByName = buildLookupMap(units.filter((item) => item.active), (item) => item.name);
-  const physiciansByName = buildLookupMap(physicians.filter((item) => item.active), (item) => item.name);
+  const activePhysicians = physicians.filter((item) => item.active);
+  const activeUnits = units.filter((item) => item.active);
+  // Quando a planilha nao tem coluna de medico/unidade (caso da planilha de recepcao),
+  // so da pra preencher sozinho se houver exatamente 1 medico/unidade ativo cadastrado
+  // no sistema — assim nao dependemos de acertar o nome exato digitado no codigo.
+  const soleActivePhysician = activePhysicians.length === 1 ? activePhysicians[0] : null;
+  const soleActiveUnit = activeUnits.length === 1 ? activeUnits[0] : null;
+  const unitsByName = buildLookupMap(activeUnits, (item) => item.name);
+  const physiciansByName = buildLookupMap(activePhysicians, (item) => item.name);
   const automaticExamByCode = buildLookupMap(automaticExamModels, (item) => item.code);
   const automaticExamByName = buildLookupMap(automaticExamModels, (item) => item.name);
   const patientExamsMap = patientExams.reduce((map, exam) => {
@@ -595,14 +599,8 @@ export async function previewPatientImportCore({
     const clinicPatientId = sanitizeString(getCell(row, columnMap, "clinicPatientId"));
     const birthDateRaw = sanitizeString(getCell(row, columnMap, "birthDate"));
     const birthDate = parseDateValue(getCell(row, columnMap, "birthDate"));
-    // Quando a planilha nao tem coluna de medico/unidade (caso da planilha de
-    // recepcao, que hoje so opera com Dr. Tulio na unidade Medfetus), usamos o
-    // padrao da clinica em vez de exigir a coluna. Se a coluna existir mas a
-    // celula estiver vazia, continua sendo erro (igual ao modelo padrao).
-    const physicianNameInput =
-      sanitizeString(getCell(row, columnMap, "physicianName")) || (hasPhysicianColumn ? null : DEFAULT_PHYSICIAN_NAME);
-    const clinicUnitInput =
-      sanitizeString(getCell(row, columnMap, "clinicUnit")) || (hasClinicUnitColumn ? null : DEFAULT_CLINIC_UNIT);
+    const physicianNameInput = sanitizeString(getCell(row, columnMap, "physicianName"));
+    const clinicUnitInput = sanitizeString(getCell(row, columnMap, "clinicUnit"));
     const examNameInput = sanitizeString(getCell(row, columnMap, "examName") || getCell(row, columnMap, "lastCompletedExamCode"));
     const scheduleDateRaw = sanitizeString(getCell(row, columnMap, "scheduleDate"));
     const scheduleDate = parseDateValue(getCell(row, columnMap, "scheduleDate"));
@@ -622,25 +620,48 @@ export async function previewPatientImportCore({
     if (birthDateRaw && !birthDate) {
       errors.push("Data de nascimento invalida. Use DD-MM-YYYY, DD/MM/YYYY ou YYYY-MM-DD.");
     }
-    if (!physicianNameInput) {
-      errors.push("Medico nao informado.");
-    }
-    if (!clinicUnitInput) {
-      errors.push("Unidade nao informada.");
-    }
 
     if (scheduleDateRaw && !scheduleDate) {
       errors.push("Data da agenda invalida. Use DD-MM-YYYY, DD/MM/YYYY ou YYYY-MM-DD.");
     }
 
-    const matchedUnit = clinicUnitInput ? unitsByName.get(normalizeText(clinicUnitInput)) : null;
-    if (clinicUnitInput && !matchedUnit) {
-      errors.push("Unidade nao encontrada.");
+    // Unidade: usa a coluna da planilha se existir; senao, so preenche sozinho se
+    // houver exatamente 1 unidade ativa cadastrada no sistema.
+    let matchedUnit = null;
+    if (clinicUnitInput) {
+      matchedUnit = unitsByName.get(normalizeText(clinicUnitInput));
+      if (!matchedUnit) {
+        errors.push("Unidade nao encontrada.");
+      }
+    } else if (hasClinicUnitColumn) {
+      errors.push("Unidade nao informada.");
+    } else if (soleActiveUnit) {
+      matchedUnit = soleActiveUnit;
+    } else {
+      errors.push(
+        activeUnits.length === 0
+          ? "Nenhuma unidade ativa cadastrada no sistema. Cadastre uma unidade antes de importar."
+          : "Ha mais de uma unidade ativa cadastrada; inclua a coluna \"unidade\" na planilha para indicar qual usar."
+      );
     }
 
-    const matchedPhysician = physicianNameInput ? physiciansByName.get(normalizeText(physicianNameInput)) : null;
-    if (physicianNameInput && !matchedPhysician) {
-      errors.push("Medico nao encontrado.");
+    // Medico: mesma logica da unidade.
+    let matchedPhysician = null;
+    if (physicianNameInput) {
+      matchedPhysician = physiciansByName.get(normalizeText(physicianNameInput));
+      if (!matchedPhysician) {
+        errors.push("Medico nao encontrado.");
+      }
+    } else if (hasPhysicianColumn) {
+      errors.push("Medico nao informado.");
+    } else if (soleActivePhysician) {
+      matchedPhysician = soleActivePhysician;
+    } else {
+      errors.push(
+        activePhysicians.length === 0
+          ? "Nenhum medico ativo cadastrado no sistema. Cadastre um medico antes de importar."
+          : "Ha mais de um medico ativo cadastrado; inclua a coluna \"medico\" na planilha para indicar qual usar."
+      );
     }
 
     if (matchedUnit && matchedPhysician && matchedPhysician.clinicUnitName && matchedPhysician.clinicUnitName !== matchedUnit.name) {
