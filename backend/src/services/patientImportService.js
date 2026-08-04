@@ -219,7 +219,9 @@ async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
 
       if (isReceptionLayout && referenceDateIso && columnMap.has("scheduleDate")) {
         const rowDateIso = parseDateValue(getCell(row, columnMap, "scheduleDate"));
-        if (rowDateIso && rowDateIso !== referenceDateIso) {
+        // Linha sem data legivel nao pode ser confirmada como pertencente ao dia
+        // escolhido, entao e excluida por seguranca (em vez de deixar passar).
+        if (rowDateIso !== referenceDateIso) {
           continue;
         }
       }
