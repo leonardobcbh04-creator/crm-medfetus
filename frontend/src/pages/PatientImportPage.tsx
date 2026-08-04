@@ -318,6 +318,10 @@ export function PatientImportPage() {
                   {confirmingImport ? "Importando..." : "Confirmar importacao"}
                 </button>
               </div>
+            ) : preview ? (
+              <p className="empty-state">
+                Nenhuma linha pronta para importar ainda. Corrija os erros listados em "Linhas analisadas" abaixo e valide a planilha de novo — o botao de confirmar so aparece quando pelo menos uma linha estiver pronta ou for uma atualizacao.
+              </p>
             ) : null}
           </article>
 
