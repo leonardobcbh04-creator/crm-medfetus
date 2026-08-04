@@ -31,6 +31,14 @@ const PATIENT_IMPORT_TEMPLATE_EXAMPLE_ROW = {
 
 const PATIENT_IMPORT_TEMPLATE_FILE_NAME = "modelo-importacao-pacientes-v2.xlsx";
 
+function getTodayIsoDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 async function readFileAsBase64(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -58,7 +66,8 @@ function getStatusBadgeMeta(status: PatientImportPreview["rows"][number]["status
 
 export function PatientImportPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [filePayload, setFilePayload] = useState<{ fileName: string; fileBase64: string } | null>(null);
+  const [referenceDate, setReferenceDate] = useState<string>(getTodayIsoDate());
+  const [filePayload, setFilePayload] = useState<{ fileName: string; fileBase64: string; referenceDate: string } | null>(null);
   const [preview, setPreview] = useState<PatientImportPreview | null>(null);
   const [result, setResult] = useState<PatientImportConfirmResult | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -131,7 +140,8 @@ export function PatientImportPage() {
     try {
       const payload = {
         fileName: selectedFile.name,
-        fileBase64: await readFileAsBase64(selectedFile)
+        fileBase64: await readFileAsBase64(selectedFile),
+        referenceDate
       };
       setFilePayload(payload);
       const response = await api.previewPatientImport(payload);
@@ -237,7 +247,20 @@ export function PatientImportPage() {
               onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
             />
             <span className="field-hint">
-              Modelo padrao: nome, id_clinica, exame, telefone, data_nascimento, idade_gestacional, medico, unidade e data_agenda.
+              Aceita tanto o modelo padrao (nome, id_clinica, exame, telefone, data_nascimento, idade_gestacional, medico, unidade, data_agenda)
+              quanto a planilha ja usada pela recepcao (com uma aba por dia). O sistema detecta o formato automaticamente.
+            </span>
+          </label>
+
+          <label>
+            Data de referencia
+            <input
+              type="date"
+              value={referenceDate}
+              onChange={(event) => setReferenceDate(event.target.value)}
+            />
+            <span className="field-hint">
+              Usada apenas para a planilha da recepcao (varias abas): so as linhas dessa data serao importadas.
             </span>
           </label>
 
@@ -247,7 +270,8 @@ export function PatientImportPage() {
               <span><strong>data_nascimento:</strong> campo opcional. Se preencher, use DD-MM-YYYY, DD/MM/YYYY ou YYYY-MM-DD.</span>
               <span><strong>idade_gestacional:</strong> use formatos como 12s3d, 12+3 ou apenas 12.</span>
               <span><strong>data_agenda:</strong> use a data em que a idade gestacional foi registrada. O sistema ajusta a IG automaticamente ate hoje.</span>
-              <span><strong>exame:</strong> o importador tenta mapear automaticamente o nome da planilha para o exame cadastrado.</span>
+              <span><strong>exame:</strong> o importador tenta mapear automaticamente o nome da planilha para o exame cadastrado. Se a celula tiver mais de um exame, o mais avancado do protocolo e usado (os anteriores sao marcados como realizados junto).</span>
+              <span><strong>Planilha da recepcao:</strong> linhas marcadas como "CANCELOU" sao ignoradas automaticamente. Medico e unidade nao precisam estar na planilha (usa Dr. Túlio / Medfetus por padrao).</span>
               <span><strong>Seguranca:</strong> linhas duplicadas ou invalidas nao sao importadas sem revisao.</span>
             </div>
           </article>
