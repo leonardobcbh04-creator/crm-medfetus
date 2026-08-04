@@ -328,13 +328,13 @@ export const api = {
   getPatientDetails(id: number) {
     return request<PatientDetails>(`/patients/${id}`);
   },
-  previewPatientImport(payload: { fileName: string; fileBase64: string }) {
+  previewPatientImport(payload: { fileName: string; fileBase64: string; referenceDate?: string }) {
     return request<PatientImportPreview>("/patients/import/preview", {
       method: "POST",
       body: JSON.stringify(payload)
     });
   },
-  confirmPatientImport(payload: { fileName: string; fileBase64: string }) {
+  confirmPatientImport(payload: { fileName: string; fileBase64: string; referenceDate?: string }) {
     return request<PatientImportConfirmResult>("/patients/import/confirm", {
       method: "POST",
       body: JSON.stringify(payload)
