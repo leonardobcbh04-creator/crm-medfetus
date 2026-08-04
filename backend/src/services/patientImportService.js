@@ -30,7 +30,7 @@ const COLUMN_ALIASES = {
   // So entra em jogo via match exato, entao nao conflita com "data_agenda"/"data_nascimento".
   scheduleDate: ["data_agenda", "data agenda", "data da agenda", "agenda", "data"],
   dum: ["dum", "data da dum", "data da ultima menstruacao"],
-  notes: ["observacoes", "obs", "anotacoes"],
+  notes: ["observacoes", "anotacoes"],
   pregnancyType: ["tipo de gestacao"],
   highRisk: ["alto risco", "gestacao de alto risco"],
   lastCompletedExamCode: ["ultimo exame realizado", "ultimo exame"],
@@ -117,44 +117,43 @@ function findHeaderRowIndex(grid) {
   return -1;
 }
 
+// Aliases curtos (uma palavra, poucas letras) so podem casar por igualdade EXATA com
+// o cabecalho — nunca por trecho parcial. Sem essa trava, um alias como "ig" acaba
+// batendo por coincidencia dentro de palavras tipo "orIGem", e um alias como "data"
+// bate dentro de "data_nascimento" ou "agendamento", roubando a coluna errada.
+function isAliasEligibleForPartialMatch(normalizedAlias) {
+  return normalizedAlias.includes(" ") || normalizedAlias.length >= 9;
+}
+
 function buildColumnMapFromHeaderRow(headerRow) {
   const map = new Map();
 
-  // 1a passada: so aceita correspondencia EXATA do cabecalho normalizado com o alias.
-  // Garante que o modelo padrao (colunas com nomes limpos, tipo "data_agenda") nunca
-  // seja confundido com cabecalhos parecidos.
+  // Uma unica passada, coluna por coluna (esquerda para direita). Para cada coluna,
+  // verifica os campos ainda nao definidos e para no primeiro que encontrar. Isso
+  // garante que a PRIMEIRA coluna compativel sempre "ganha" — essencial quando a
+  // planilha tem colunas repetidas (ex: duas colunas "EXAME" ou "NOME"), situacao
+  // comum na planilha de recepcao por causa da area financeira duplicada.
   headerRow.forEach((headerText, columnIndex) => {
     const normalizedHeader = normalizeText(headerText);
     if (!normalizedHeader) {
       return;
     }
-    Object.entries(COLUMN_ALIASES).forEach(([targetKey, aliases]) => {
+    for (const [targetKey, aliases] of Object.entries(COLUMN_ALIASES)) {
       if (map.has(targetKey)) {
-        return;
+        continue;
       }
-      const isExactMatch = aliases.some((alias) => normalizeText(alias) === normalizedHeader);
-      if (isExactMatch) {
+      const matches = aliases.some((alias) => {
+        const normalizedAlias = normalizeText(alias);
+        if (normalizedHeader === normalizedAlias) {
+          return true;
+        }
+        return isAliasEligibleForPartialMatch(normalizedAlias) && normalizedHeader.includes(normalizedAlias);
+      });
+      if (matches) {
         map.set(targetKey, columnIndex);
+        break;
       }
-    });
-  });
-
-  // 2a passada (fallback): aceita o cabecalho CONTER o alias. Cobre cabecalhos com
-  // texto extra, como "NOME COMPLETO\nsem abreviacoes" ou "DATA DE NASCIMENTO (dd/mm/aaaa)".
-  headerRow.forEach((headerText, columnIndex) => {
-    const normalizedHeader = normalizeText(headerText);
-    if (!normalizedHeader) {
-      return;
     }
-    Object.entries(COLUMN_ALIASES).forEach(([targetKey, aliases]) => {
-      if (map.has(targetKey)) {
-        return;
-      }
-      const isPartialMatch = aliases.some((alias) => normalizedHeader.includes(normalizeText(alias)));
-      if (isPartialMatch) {
-        map.set(targetKey, columnIndex);
-      }
-    });
   });
 
   return map;
