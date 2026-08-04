@@ -183,18 +183,28 @@ async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
   let isReceptionLayout = false;
   const rows = [];
 
+  // A planilha da recepcao repete varias colunas mais a frente (area financeira e de
+  // endereco), incluindo cabecalhos duplicados como "NOME" e "EXAME". Em vez de tentar
+  // resolver essa ambiguidade por prioridade de coluna, simplesmente ignoramos tudo
+  // depois da coluna V (onde termina a parte que realmente usamos) quando esse layout
+  // e detectado — assim as colunas duplicadas nem chegam a ser consideradas.
+  const RECEPTION_LAYOUT_COLUMN_LIMIT = 22; // colunas A (indice 0) a V (indice 21)
+
   for (const sheetName of workbook.SheetNames) {
-    const grid = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+    const rawGrid = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
       header: 1,
       defval: "",
       raw: true,
       blankrows: true
     });
-    if (!grid.length) {
+    if (!rawGrid.length) {
       continue;
     }
 
-    const receptionHeaderIndex = findHeaderRowIndex(grid);
+    const receptionHeaderIndex = findHeaderRowIndex(rawGrid);
+    const grid = receptionHeaderIndex >= 0
+      ? rawGrid.map((row) => row.slice(0, RECEPTION_LAYOUT_COLUMN_LIMIT))
+      : rawGrid;
     const headerIndex = receptionHeaderIndex >= 0 ? receptionHeaderIndex : 0;
     const sheetColumnMap = buildColumnMapFromHeaderRow(grid[headerIndex] || []);
 
