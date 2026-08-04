@@ -2049,6 +2049,7 @@ export async function previewPatientImportDataCore(input) {
   return previewPatientImportRows({
     fileName: input.fileName,
     fileBase64: input.fileBase64,
+    referenceDate: input.referenceDate,
     units,
     physicians,
     patients,
