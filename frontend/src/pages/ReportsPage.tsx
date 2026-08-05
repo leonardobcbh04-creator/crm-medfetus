@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReportsData, ReportsFilters } from "../types";
 import { api } from "../services/api";
+import { PageSkeleton } from "../components/PageSkeleton";
 
 const DEFAULT_FILTERS: ReportsFilters = {
   period: "7d",
@@ -223,7 +224,7 @@ export function ReportsPage() {
   }
 
   if (loading && !reports) {
-    return <p className="loading-text">Carregando relatorios...</p>;
+    return <PageSkeleton cards={4} />;
   }
 
   if (!reports) {

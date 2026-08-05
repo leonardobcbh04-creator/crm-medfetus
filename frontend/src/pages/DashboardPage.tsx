@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatCard } from "../components/StatCard";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { api } from "../services/api";
 import type { DashboardData, DashboardFilters, Patient } from "../types";
 import { getPatientPriorityMeta } from "../utils/patientPriority";
@@ -228,7 +229,7 @@ export function DashboardPage() {
   }
 
   if (loading && !dashboard) {
-    return <p className="loading-text">Carregando dashboard...</p>;
+    return <PageSkeleton cards={6} />;
   }
 
   if (!dashboard) {
