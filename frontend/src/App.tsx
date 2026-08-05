@@ -7,11 +7,10 @@ import { ExamSettingsPage } from "./pages/ExamSettingsPage";
 import { GestationalBaseReviewPage } from "./pages/GestationalBaseReviewPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { LoginPage } from "./pages/LoginPage";
-import { MessagesPage } from "./pages/MessagesPage";
 import { PatientDetailPage } from "./pages/PatientDetailPage";
 import { PatientFormPage } from "./pages/PatientFormPage";
 import { PatientImportPage } from "./pages/PatientImportPage";
-import { ReminderCenterPage } from "./pages/ReminderCenterPage";
+import { ContactCenterPage } from "./pages/ContactCenterPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { getStoredToken, getStoredUser } from "./services/auth";
 
@@ -42,7 +41,9 @@ export default function App() {
         <Route path="/relatorios" element={<ReportsPage />} />
         <Route path="/clientes" element={<ClientsPage />} />
         <Route path="/revisao-base-gestacional" element={<GestationalBaseReviewPage />} />
-        <Route path="/lembretes" element={<ReminderCenterPage />} />
+        <Route path="/lembretes" element={<Navigate to="/contatos" replace />} />
+        <Route path="/mensagens" element={<Navigate to="/contatos" replace />} />
+        <Route path="/contatos" element={<ContactCenterPage />} />
         <Route path="/kanban" element={<KanbanPage />} />
         <Route path="/pacientes/novo" element={<PatientFormPage />} />
         <Route path="/pacientes/importar" element={<PatientImportPage />} />
@@ -64,7 +65,6 @@ export default function App() {
             </AdminRoute>
           }
         />
-        <Route path="/mensagens" element={<MessagesPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
