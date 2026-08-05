@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "../services/api";
+import { PageSkeleton } from "../components/PageSkeleton";
 import type {
   AdminPanelData,
   AppUser,
@@ -948,7 +949,7 @@ export function AdminPage() {
   }
 
   if (loading && !adminData) {
-    return <p className="loading-text">Carregando administracao...</p>;
+    return <PageSkeleton cards={4} />;
   }
 
   if (!adminData) {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { KanbanBoard } from "../components/KanbanBoard";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { api } from "../services/api";
 import type { KanbanColumn } from "../types";
 import { getPatientPriorityMeta, type PriorityFilter } from "../utils/patientPriority";
@@ -304,7 +305,7 @@ export function KanbanPage() {
       ) : null}
 
       {loading ? (
-        <p className="loading-text">Carregando fluxo de atendimento...</p>
+        <PageSkeleton cards={4} />
       ) : filteredColumns.every((column) => column.patients.length === 0) ? (
         <div className="stack-form">
           <p className="empty-state">

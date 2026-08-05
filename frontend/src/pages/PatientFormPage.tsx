@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../services/api";
+import { PageSkeleton } from "../components/PageSkeleton";
 import type { ClinicPhysician, ClinicUnit, ExamConfig, ExamProtocolPreset, PatientDetails } from "../types";
 import { formatBrazilPhone } from "../utils/phone";
 
@@ -374,7 +375,7 @@ export function PatientFormPage() {
   }
 
   if (loading) {
-      return <p className="loading-text">Carregando dados da paciente...</p>;
+      return <PageSkeleton cards={3} />;
   }
 
   return (
