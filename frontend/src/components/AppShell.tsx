@@ -13,8 +13,7 @@ export function AppShell() {
     { to: "/pacientes/novo", label: "Cadastrar paciente" },
     { to: "/clientes", label: "Pacientes" },
     { to: "/kanban", label: "Fluxo de atendimento" },
-    { to: "/lembretes", label: "Central de lembretes", badgeKey: "reminders" },
-    { to: "/mensagens", label: "Mensagens automaticas" },
+    { to: "/contatos", label: "Central de contatos", badgeKey: "reminders" },
     { to: "/revisao-base-gestacional", label: "Revisao da base gestacional" },
     { to: "/relatorios", label: "Relatorios" },
     ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Administracao" }] : [])

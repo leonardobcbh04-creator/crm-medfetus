@@ -286,10 +286,10 @@ export function DashboardPage() {
 
       <div className="stats-grid dashboard-stats-grid">
         <StatCard
-          label="Central de lembretes"
+          label="Central de contatos"
           value={dashboard.summary.remindersDueToday}
           description="Pacientes que precisam de contato hoje"
-          to="/lembretes"
+          to="/contatos"
         />
         <StatCard
           label="Revisao da base"
