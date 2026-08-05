@@ -39,7 +39,11 @@ function MiniPatientList({ title, patients, emptyMessage }: { title: string; pat
           const priority = getPatientPriorityMeta(patient);
 
           return (
-            <Link key={patient.id} to={`/pacientes/${patient.id}`} className="dashboard-patient-item">
+            <Link
+              key={patient.id}
+              to={`/pacientes/${patient.id}`}
+              className={`dashboard-patient-item dashboard-patient-item-${priority.color}`}
+            >
               <div>
                 <strong>{patient.name}</strong>
                 <p>{patient.nextExam.name}</p>
@@ -53,19 +57,31 @@ function MiniPatientList({ title, patients, emptyMessage }: { title: string; pat
   );
 }
 
-function CompactCountList({
+function getPriorityBarClassName(label: string) {
+  const normalized = label.toLowerCase();
+  if (normalized.includes("alta")) return "breakdown-bar-red";
+  if (normalized.includes("media") || normalized.includes("m\u00e9dia")) return "breakdown-bar-yellow";
+  if (normalized.includes("baixa")) return "breakdown-bar-green";
+  return "breakdown-bar-brand";
+}
+
+function BreakdownBarList({
   title,
   eyebrow,
   description,
   items,
-  emptyMessage
+  emptyMessage,
+  getBarClassName
 }: {
   title: string;
   eyebrow: string;
   description: string;
   items: Array<{ label: string; total: number }>;
   emptyMessage: string;
+  getBarClassName?: (label: string) => string;
 }) {
+  const maxValue = Math.max(1, ...items.map((item) => item.total));
+
   return (
     <article className="panel-card dashboard-list-card">
       <div className="page-header">
@@ -76,11 +92,19 @@ function CompactCountList({
         </div>
       </div>
 
-      <div className="list-grid">
+      <div className="breakdown-bar-list">
         {items.length ? items.map((item) => (
-          <div key={item.label} className="priority-item">
-            <strong>{item.label}</strong>
-            <span className="badge badge-soft badge-priority-blue">{item.total}</span>
+          <div key={item.label} className="breakdown-bar-row">
+            <div className="breakdown-bar-row-header">
+              <strong>{item.label}</strong>
+              <span>{item.total}</span>
+            </div>
+            <div className="breakdown-bar-track">
+              <div
+                className={`breakdown-bar-fill ${getBarClassName ? getBarClassName(item.label) : "breakdown-bar-brand"}`}
+                style={{ width: `${Math.max(4, (item.total / maxValue) * 100)}%` }}
+              />
+            </div>
           </div>
         )) : <p className="empty-state">{emptyMessage}</p>}
       </div>
@@ -290,14 +314,21 @@ export function DashboardPage() {
           value={dashboard.summary.remindersDueToday}
           description="Pacientes que precisam de contato hoje"
           to="/contatos"
+          severity={dashboard.summary.remindersDueToday > 0 ? "warning" : undefined}
         />
         <StatCard
           label="Revisao da base"
           value={dashboard.summary.gestationalBaseManualReview}
           description="Pacientes que precisam revisar a base gestacional"
           to="/revisao-base-gestacional"
+          severity={dashboard.summary.gestationalBaseManualReview > 0 ? "warning" : undefined}
         />
-        <StatCard label="Exame em atraso" value={dashboard.summary.overduePatients} description="Pacientes com exame fora do prazo" />
+        <StatCard
+          label="Exame em atraso"
+          value={dashboard.summary.overduePatients}
+          description="Pacientes com exame fora do prazo"
+          severity={dashboard.summary.overduePatients > 0 ? "danger" : undefined}
+        />
         <StatCard label="Aguardando agendamento" value={dashboard.summary.patientsAwaitingScheduling} description="Pacientes em retorno ou follow-up" />
         <StatCard label="Ja agendadas" value={dashboard.summary.scheduledPatients} description="Pacientes na etapa de agendamento" />
         <StatCard label="Exames nesta semana" value={dashboard.summary.examsThisWeek} description="Pacientes com janela ideal nos proximos 7 dias" />
@@ -310,7 +341,7 @@ export function DashboardPage() {
       </div>
 
       <div className="dashboard-grid">
-        <CompactCountList
+        <BreakdownBarList
           eyebrow="Fluxo"
           title="Pacientes por etapa"
           description="Distribuicao atual do fluxo de atendimento."
@@ -318,12 +349,13 @@ export function DashboardPage() {
             emptyMessage="Nenhuma etapa encontrada com os filtros atuais."
         />
 
-        <CompactCountList
+        <BreakdownBarList
           eyebrow="Prioridade"
           title="Pacientes por prioridade"
           description="Resumo rapido das prioridades operacionais."
           items={dashboard.breakdowns.patientsByPriority.map((item) => ({ label: item.label, total: item.total }))}
             emptyMessage="Nenhuma prioridade encontrada com os filtros atuais."
+          getBarClassName={getPriorityBarClassName}
         />
 
         <MiniPatientList

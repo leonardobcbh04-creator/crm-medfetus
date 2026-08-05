@@ -327,6 +327,22 @@ textarea {
   background: linear-gradient(180deg, var(--brand), #8bb8d5);
 }
 
+.stat-card-danger::before {
+  background: linear-gradient(180deg, var(--danger), #a13a2d);
+}
+
+.stat-card-danger .stat-value {
+  color: var(--danger);
+}
+
+.stat-card-warning::before {
+  background: linear-gradient(180deg, var(--warning), #b16f14);
+}
+
+.stat-card-warning .stat-value {
+  color: var(--warning);
+}
+
 .card-link-reset {
   text-decoration: none;
 }
@@ -1119,6 +1135,78 @@ textarea:focus {
 .dashboard-patient-item:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-soft);
+}
+
+.dashboard-patient-item-vermelho {
+  border-left: 4px solid var(--danger);
+}
+
+.dashboard-patient-item-laranja {
+  border-left: 4px solid var(--alert-orange);
+}
+
+.dashboard-patient-item-amarelo {
+  border-left: 4px solid var(--warning);
+}
+
+.dashboard-patient-item-verde {
+  border-left: 4px solid var(--success);
+}
+
+.breakdown-bar-list {
+  display: grid;
+  gap: 14px;
+}
+
+.breakdown-bar-row {
+  display: grid;
+  gap: 6px;
+}
+
+.breakdown-bar-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.92rem;
+}
+
+.breakdown-bar-row-header strong {
+  color: var(--brand-dark);
+  font-weight: 700;
+}
+
+.breakdown-bar-row-header span {
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.breakdown-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(47, 110, 148, 0.1);
+  overflow: hidden;
+}
+
+.breakdown-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 300ms ease;
+}
+
+.breakdown-bar-brand {
+  background: linear-gradient(90deg, var(--brand), var(--brand-dark));
+}
+
+.breakdown-bar-red {
+  background: linear-gradient(90deg, var(--danger), #a13a2d);
+}
+
+.breakdown-bar-yellow {
+  background: linear-gradient(90deg, var(--warning), #b16f14);
+}
+
+.breakdown-bar-green {
+  background: linear-gradient(90deg, var(--success), #1f6e4e);
 }
 
 .clients-list-card {
