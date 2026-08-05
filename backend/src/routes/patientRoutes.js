@@ -27,13 +27,7 @@ patientRoutes.get("/", async (_request, response) => {
   }
 });
 
-patientRoutes.get("/manual-review/gestational-base", (request, response) => {
-  void recordAuditEvent({
-    actorUserId: request.authUser?.id || null,
-    actionType: "visualizacao_fila_revisao_gestacional",
-    entityType: "patient_review_queue",
-    description: "Fila de revisao manual da base gestacional visualizada."
-  });
+patientRoutes.get("/manual-review/gestational-base", (_request, response) => {
   Promise.resolve(listGestationalBaseReviewsCore())
     .then((items) => response.json({ items }))
     .catch((error) => response.status(500).send(error instanceof Error ? error.message : "Nao foi possivel carregar a fila de revisao."));
@@ -250,14 +244,6 @@ patientRoutes.get("/:id", async (request, response) => {
       return;
     }
 
-    await recordAuditEvent({
-      actorUserId: request.authUser?.id || null,
-      actionType: "visualizacao_paciente",
-      entityType: "patient",
-      entityId: patientId,
-      patientId,
-      description: "Ficha detalhada da paciente visualizada."
-    });
     response.json(patientDetails);
   } catch (error) {
     response.status(500).send(error instanceof Error ? error.message : "Nao foi possivel carregar os detalhes da paciente.");

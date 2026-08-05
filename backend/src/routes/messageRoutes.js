@@ -5,13 +5,7 @@ import { recordAuditEvent } from "../services/auditService.js";
 
 export const messageRoutes = Router();
 
-messageRoutes.get("/", asyncRoute(async (request, response) => {
-  await recordAuditEvent({
-    actorUserId: request.authUser?.id || null,
-    actionType: "visualizacao_mensagens",
-    entityType: "messaging_queue",
-    description: "Fila de mensagens automaticas visualizada."
-  });
+messageRoutes.get("/", asyncRoute(async (_request, response) => {
   response.json({ items: await getMessagingOverviewCore() });
 }, "Nao foi possivel carregar a fila de mensagens."));
 

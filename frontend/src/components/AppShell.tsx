@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import { clearToken, getStoredUser } from "../services/auth";
+import { confirmDiscardChanges } from "../utils/formGuard";
 import {
   AdminIcon,
   ContactsIcon,
@@ -55,6 +56,9 @@ export function AppShell() {
   }, [location.pathname]);
 
   function handleLogout() {
+    if (!confirmDiscardChanges()) {
+      return;
+    }
     clearToken();
     navigate("/login");
   }
@@ -78,6 +82,11 @@ export function AppShell() {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) => (isActive ? "menu-link active" : "menu-link")}
+                onClick={(event) => {
+                  if (!confirmDiscardChanges()) {
+                    event.preventDefault();
+                  }
+                }}
               >
                 <span className="menu-link-content">
                   <Icon className="menu-link-icon" />
