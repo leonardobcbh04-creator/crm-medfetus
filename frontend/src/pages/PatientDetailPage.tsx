@@ -407,7 +407,9 @@ export function PatientDetailPage() {
           <p className="muted-label">Status atual</p>
           <div className="priority-badge-row">
             <span className={`badge ${priority.badgeClassName}`}>{priority.label}</span>
-            <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
+            {priority.badgeText !== priority.label ? (
+              <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
+            ) : null}
             {details.patient.gestationalBaseIsEstimated ? <span className="badge badge-priority-blue">Base estimada</span> : null}
             {details.patient.gestationalReviewRequired ? <span className="badge badge-priority-red">Revisao da base</span> : null}
             {priority.needsImmediateAction ? <span className="badge badge-attention">Prioridade imediata</span> : null}

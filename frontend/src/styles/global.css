@@ -2211,6 +2211,14 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.card-row-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
 .exam-warning-text {
   color: var(--danger);
   font-weight: 700;
