@@ -183,6 +183,61 @@ textarea {
   box-shadow: 0 12px 24px rgba(47, 110, 148, 0.22);
 }
 
+.menu-link-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.action-menu {
+  margin-top: 10px;
+}
+
+.action-menu-trigger {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+  width: fit-content;
+}
+
+.action-menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.action-menu-trigger::after {
+  content: "\25BE";
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.action-menu[open] .action-menu-trigger::after {
+  content: "\25B4";
+}
+
+.action-menu-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.menu-link-icon {
+  flex: 0 0 auto;
+  color: var(--brand);
+  opacity: 0.85;
+}
+
+.menu-link.active .menu-link-icon {
+  color: white;
+  opacity: 1;
+}
+
 .menu-badge {
   min-width: 28px;
   height: 28px;

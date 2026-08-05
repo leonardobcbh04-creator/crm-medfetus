@@ -474,9 +474,6 @@ export function ContactCenterPage() {
               </label>
 
               <div className="message-actions list-action-bar operational-action-bar">
-                <button className="secondary-button" type="button" onClick={() => void handleCopyMessage(item)}>
-                  Copiar mensagem
-                </button>
                 <a className="whatsapp-link" href={whatsappUrl} target="_blank" rel="noreferrer">
                   Abrir conversa no WhatsApp
                 </a>
@@ -488,44 +485,53 @@ export function ContactCenterPage() {
                 >
                   Registrar envio
                 </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-contacted`}
-                  onClick={() => void handleReminderAction(item, "contacted")}
-                >
-                  {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Registrar contato"}
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-snooze`}
-                  onClick={() => void handleReminderAction(item, "snooze")}
-                >
-                  {actingKey === `${item.patientId}-${item.examPatientId}-snooze` ? "Salvando..." : "Adiar lembrete"}
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
-                  onClick={() => void handleReminderAction(item, "scheduled")}
-                >
-                  {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Confirmar agendamento"}
-                </button>
-                {hasMessage ? (
-                  <>
-                    <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "respondida")}>
-                      Registrar resposta
-                    </button>
-                    <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "sem_resposta")}>
-                      Registrar sem resposta
-                    </button>
-                  </>
-                ) : null}
                 <Link className="secondary-button" to={`/pacientes/${item.patientId}`}>
                   Ver detalhes
                 </Link>
               </div>
+
+              <details className="action-menu">
+                <summary className="secondary-button action-menu-trigger">Mais acoes</summary>
+                <div className="action-menu-panel">
+                  <button className="secondary-button" type="button" onClick={() => void handleCopyMessage(item)}>
+                    Copiar mensagem
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-contacted`}
+                    onClick={() => void handleReminderAction(item, "contacted")}
+                  >
+                    {actingKey === `${item.patientId}-${item.examPatientId}-contacted` ? "Salvando..." : "Registrar contato"}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-snooze`}
+                    onClick={() => void handleReminderAction(item, "snooze")}
+                  >
+                    {actingKey === `${item.patientId}-${item.examPatientId}-snooze` ? "Salvando..." : "Adiar lembrete"}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={!item.examPatientId || actingKey === `${item.patientId}-${item.examPatientId}-scheduled`}
+                    onClick={() => void handleReminderAction(item, "scheduled")}
+                  >
+                    {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Confirmar agendamento"}
+                  </button>
+                  {hasMessage ? (
+                    <>
+                      <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "respondida")}>
+                        Registrar resposta
+                      </button>
+                      <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "sem_resposta")}>
+                        Registrar sem resposta
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </details>
 
               <div className="message-history-box">
                 <p className="muted-label">Historico de mensagens</p>
