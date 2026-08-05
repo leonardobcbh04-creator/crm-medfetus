@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../services/api";
+import { PageSkeleton } from "../components/PageSkeleton";
 import type { MessageRecord, MessagingItem } from "../types";
 import { getWhatsAppUrl } from "../utils/phone";
 
@@ -278,7 +279,7 @@ export function ContactCenterPage() {
   }
 
   if (loading) {
-    return <p className="loading-text">Carregando central de contatos...</p>;
+    return <PageSkeleton cards={4} />;
   }
 
   return (

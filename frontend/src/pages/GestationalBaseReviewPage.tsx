@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../services/api";
+import { PageSkeleton } from "../components/PageSkeleton";
 import type { GestationalBaseReviewItem } from "../types";
 import { formatBrazilPhone } from "../utils/phone";
 
@@ -74,7 +75,7 @@ export function GestationalBaseReviewPage() {
   }
 
   if (loading) {
-    return <p className="loading-text">Carregando fila de revisao manual...</p>;
+    return <PageSkeleton cards={3} />;
   }
 
   return (

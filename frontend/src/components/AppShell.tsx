@@ -64,7 +64,7 @@ export function AppShell() {
       <aside className="sidebar">
         <div className="sidebar-brand">
           <p className="sidebar-kicker">Plataforma clinica</p>
-          <h1>Medfetus</h1>
+          <img src="/medfetus-logo.png" alt="Medfetus" className="sidebar-logo" />
           <p className="sidebar-text">
             Organize pacientes, exames e alertas com uma base simples, limpa e pronta para crescer.
           </p>
