@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../services/api";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { getStoredUser } from "../services/auth";
 import type { Patient } from "../types";
 import { getPatientPriorityMeta, type PriorityFilter } from "../utils/patientPriority";
@@ -137,7 +138,7 @@ export function ClientsPage() {
   }, [patients]);
 
   if (loading) {
-    return <p className="loading-text">Carregando clientes...</p>;
+    return <PageSkeleton cards={5} />;
   }
 
   return (

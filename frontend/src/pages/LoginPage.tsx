@@ -29,6 +29,7 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-panel">
+        <img src="/medfetus-logo.png" alt="Medfetus" className="login-logo" />
         <div>
           <p className="eyebrow">CRM obstétrico</p>
           <h1>Entrar no sistema</h1>

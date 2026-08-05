@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../services/api";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { getStoredUser } from "../services/auth";
 import type { PatientDetails } from "../types";
 import { getPatientPriorityMeta } from "../utils/patientPriority";
@@ -298,7 +299,7 @@ export function PatientDetailPage() {
   }
 
   if (loading) {
-    return <p className="loading-text">Carregando detalhes da paciente...</p>;
+    return <PageSkeleton cards={4} />;
   }
 
   if (!details) {
