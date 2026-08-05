@@ -4,6 +4,7 @@ import { api } from "../services/api";
 import { PageSkeleton } from "../components/PageSkeleton";
 import type { ClinicPhysician, ClinicUnit, ExamConfig, ExamProtocolPreset, PatientDetails } from "../types";
 import { formatBrazilPhone } from "../utils/phone";
+import { confirmDiscardChanges, isFormDirty, setFormDirty } from "../utils/formGuard";
 
 type PatientFormState = {
   name: string;
@@ -211,8 +212,22 @@ export function PatientFormPage() {
 
     return () => {
       isMounted = false;
+      setFormDirty(false);
     };
   }, [id, isEditing]);
+
+  useEffect(() => {
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      if (!isFormDirty()) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   const baseDate = useMemo(
     () => getBaseDateFromGestationalAge(formData.gestationalWeeks, formData.gestationalDays),
@@ -284,10 +299,12 @@ export function PatientFormPage() {
   );
 
   function updateField<K extends keyof PatientFormState>(field: K, value: PatientFormState[K]) {
+    setFormDirty(true);
     setFormData((current) => ({ ...current, [field]: value }));
   }
 
   function handleClinicUnitChange(nextUnit: string) {
+    setFormDirty(true);
     setFormData((current) => {
       const physicianStillValid = physicians.some((physician) =>
         physician.name === current.physicianName && physician.clinicUnitName === nextUnit
@@ -302,6 +319,7 @@ export function PatientFormPage() {
   }
 
   function handlePhysicianChange(nextPhysician: string) {
+    setFormDirty(true);
     const selectedPhysician = physicians.find((physician) => physician.name === nextPhysician);
 
     setFormData((current) => ({
@@ -365,6 +383,7 @@ export function PatientFormPage() {
 
       setMessageType("success");
       setMessage(isEditing ? "Paciente atualizada com sucesso." : "Paciente cadastrada com sucesso.");
+      setFormDirty(false);
       navigate(`/pacientes/${response.patient.patient.id}`);
     } catch (error) {
       setMessageType("error");
@@ -389,9 +408,29 @@ export function PatientFormPage() {
           </p>
         </div>
         {isEditing && id ? (
-          <Link to={`/pacientes/${id}`} className="secondary-button">Voltar aos detalhes</Link>
+          <Link
+            to={`/pacientes/${id}`}
+            className="secondary-button"
+            onClick={(event) => {
+              if (!confirmDiscardChanges()) {
+                event.preventDefault();
+              }
+            }}
+          >
+            Voltar aos detalhes
+          </Link>
         ) : (
-          <Link to="/kanban" className="secondary-button">Voltar ao kanban</Link>
+          <Link
+            to="/kanban"
+            className="secondary-button"
+            onClick={(event) => {
+              if (!confirmDiscardChanges()) {
+                event.preventDefault();
+              }
+            }}
+          >
+            Voltar ao kanban
+          </Link>
         )}
       </div>
 

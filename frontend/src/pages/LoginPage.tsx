@@ -5,8 +5,8 @@ import { storeSession } from "../services/auth";
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@clinica.com");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,7 +34,7 @@ export function LoginPage() {
           <p className="eyebrow">CRM obstétrico</p>
           <h1>Entrar no sistema</h1>
           <p className="page-description">
-            Esta é a primeira base do projeto, com login de teste para validar todo o fluxo localmente.
+            Informe seu e-mail e senha para acessar o sistema.
           </p>
         </div>
 
