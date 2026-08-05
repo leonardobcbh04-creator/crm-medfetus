@@ -6,12 +6,6 @@ import { recordAuditEvent } from "../services/auditService.js";
 export const reminderRoutes = Router();
 
 reminderRoutes.get("/", asyncRoute(async (request, response) => {
-  await recordAuditEvent({
-    actorUserId: request.authUser?.id || null,
-    actionType: "visualizacao_central_lembretes",
-    entityType: "reminder_queue",
-    description: "Central de lembretes visualizada."
-  });
   response.json(await getRemindersCenterDataCore(request.query));
 }, "Nao foi possivel carregar a central de lembretes."));
 
