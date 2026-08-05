@@ -108,7 +108,7 @@ textarea {
   max-width: 168px;
   height: auto;
   display: block;
-  margin: 2px 0 4px;
+  margin: 2px auto 4px;
 }
 
 .login-logo {
