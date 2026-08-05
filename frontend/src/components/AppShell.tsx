@@ -2,6 +2,16 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import { clearToken, getStoredUser } from "../services/auth";
+import {
+  AdminIcon,
+  ContactsIcon,
+  DashboardIcon,
+  FlowIcon,
+  PatientAddIcon,
+  PatientsIcon,
+  ReportsIcon,
+  ReviewIcon
+} from "./NavIcons";
 
 export function AppShell() {
   const navigate = useNavigate();
@@ -9,14 +19,14 @@ export function AppShell() {
   const [remindersCount, setRemindersCount] = useState(0);
   const storedUser = getStoredUser();
   const menuItems = [
-    { to: "/dashboard", label: "Dashboard" },
-    { to: "/pacientes/novo", label: "Cadastrar paciente" },
-    { to: "/clientes", label: "Pacientes" },
-    { to: "/kanban", label: "Fluxo de atendimento" },
-    { to: "/contatos", label: "Central de contatos", badgeKey: "reminders" },
-    { to: "/revisao-base-gestacional", label: "Revisao da base gestacional" },
-    { to: "/relatorios", label: "Relatorios" },
-    ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Administracao" }] : [])
+    { to: "/dashboard", label: "Dashboard", icon: DashboardIcon },
+    { to: "/pacientes/novo", label: "Cadastrar paciente", icon: PatientAddIcon },
+    { to: "/clientes", label: "Pacientes", icon: PatientsIcon },
+    { to: "/kanban", label: "Fluxo de atendimento", icon: FlowIcon },
+    { to: "/contatos", label: "Central de contatos", badgeKey: "reminders", icon: ContactsIcon },
+    { to: "/revisao-base-gestacional", label: "Revisao da base gestacional", icon: ReviewIcon },
+    { to: "/relatorios", label: "Relatorios", icon: ReportsIcon },
+    ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Administracao", icon: AdminIcon }] : [])
   ];
 
   useEffect(() => {
@@ -61,18 +71,24 @@ export function AppShell() {
         </div>
 
         <nav className="menu sidebar-nav">
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => (isActive ? "menu-link active" : "menu-link")}
-            >
-              <span>{item.label}</span>
-              {item.badgeKey === "reminders" && remindersCount > 0 ? (
-                <span className="menu-badge">{remindersCount}</span>
-              ) : null}
-            </NavLink>
-          ))}
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => (isActive ? "menu-link active" : "menu-link")}
+              >
+                <span className="menu-link-content">
+                  <Icon className="menu-link-icon" />
+                  <span>{item.label}</span>
+                </span>
+                {item.badgeKey === "reminders" && remindersCount > 0 ? (
+                  <span className="menu-badge">{remindersCount}</span>
+                ) : null}
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="sidebar-footer">
