@@ -585,7 +585,7 @@ export function PatientFormPage() {
             </label>
           </div>
 
-          <div className="form-section-header">
+          <div className="form-section-header form-section-divider">
             <p className="muted-label">Perfil obstetrico</p>
             <p className="field-hint">Esses dados ajudam a equipe a adaptar o protocolo e a prioridade do acompanhamento.</p>
           </div>
@@ -625,7 +625,7 @@ export function PatientFormPage() {
             </label>
           </div>
 
-          <div className="form-section-header">
+          <div className="form-section-header form-section-divider">
             <p className="muted-label">Observacoes de atendimento</p>
             <p className="field-hint">Use este campo para preferencia de contato, combinados e observacoes clinicas relevantes.</p>
           </div>
@@ -696,15 +696,22 @@ export function PatientFormPage() {
 
           <article className="panel-card">
             <p className="muted-label">Previsao inicial dos exames</p>
-            <div className="message-history-list">
-              {examPreview.length ? examPreview.map((exam) => (
-                <div key={exam.id} className="message-history-item">
-                  <span><strong>{exam.name}</strong></span>
-                  <span><strong>Janela recomendada:</strong> {formatGestationalWeekRange(exam.startWeek, exam.endWeek)} semanas</span>
-                  <span><strong>Data prevista:</strong> {formatDate(exam.predictedDate)}</span>
+            {examPreview.length ? (
+              <details className="action-menu">
+                <summary className="action-menu-trigger">
+                  {examPreview.length} {examPreview.length === 1 ? "exame previsto" : "exames previstos"} - ver cronograma completo
+                </summary>
+                <div className="action-menu-panel message-history-list">
+                  {examPreview.map((exam) => (
+                    <div key={exam.id} className="message-history-item">
+                      <span><strong>{exam.name}</strong></span>
+                      <span><strong>Janela recomendada:</strong> {formatGestationalWeekRange(exam.startWeek, exam.endWeek)} semanas</span>
+                      <span><strong>Data prevista:</strong> {formatDate(exam.predictedDate)}</span>
+                    </div>
+                  ))}
                 </div>
-              )) : <p className="empty-state">Informe a idade gestacional para visualizar a previsao dos exames futuros.</p>}
-            </div>
+              </details>
+            ) : <p className="empty-state">Informe a idade gestacional para visualizar a previsao dos exames futuros.</p>}
           </article>
 
           <article className="panel-card">

@@ -146,7 +146,7 @@ export function ClientsPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">Cadastro</p>
-          <h2>Clientes</h2>
+          <h2>Pacientes</h2>
           <p className="page-description">
             Lista operacional das pacientes cadastradas, com acesso rapido aos dados principais e aos detalhes.
           </p>
@@ -156,7 +156,7 @@ export function ClientsPage() {
             Importar planilha
           </Link>
           <Link to="/pacientes/novo" className="secondary-button">
-            Novo cliente
+            Nova paciente
           </Link>
         </div>
       </div>
@@ -164,7 +164,7 @@ export function ClientsPage() {
       {feedback ? <div className="form-alert form-alert-success"><span>{feedback}</span></div> : null}
       {errorMessage ? <div className="form-alert form-alert-error"><span>{errorMessage}</span></div> : null}
 
-      <div className="toolbar-row">
+      <div className="toolbar-row clients-filters-grid">
         <input
           type="search"
           placeholder="Buscar por nome, telefone ou ID da clinica"

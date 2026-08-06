@@ -2359,6 +2359,17 @@ textarea:focus {
   max-width: 420px;
 }
 
+.clients-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  align-items: start;
+}
+
+.clients-filters-grid input[type="search"] {
+  grid-column: 1 / -1;
+  max-width: none;
+}
+
 .priority-filter-bar {
   display: flex;
   gap: 10px;
@@ -2590,6 +2601,12 @@ textarea:focus {
 .form-section-header {
   display: grid;
   gap: 4px;
+}
+
+.form-section-divider {
+  margin-top: 10px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
 }
 
 .form-section-header h3 {
@@ -2923,6 +2940,10 @@ textarea:focus {
   .toolbar-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .clients-filters-grid {
+    grid-template-columns: 1fr;
   }
 
   .stats-grid,
