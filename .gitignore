@@ -4,7 +4,13 @@ build
 .DS_Store
 *.log
 .env
-backend/data/*.db
-backend/data/*.db-journal
-backend/data/*.db-shm
-backend/data/*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+.checkpoints/**/data/
