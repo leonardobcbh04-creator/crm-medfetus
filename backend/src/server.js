@@ -21,6 +21,11 @@ await getDatabaseRuntime();
 
 const app = express();
 
+// Render (e a maioria dos provedores de hospedagem) coloca a aplicacao atras de um proxy reverso.
+// Sem isso, o Express nao consegue identificar o IP real de quem faz a requisicao (necessario
+// para o rate limiting do login funcionar corretamente por IP, e nao globalmente).
+app.set("trust proxy", 1);
+
 const allowedOrigins = [
   "https://crm-medfetus-frontend.onrender.com",
   "http://localhost:5173",
