@@ -227,6 +227,11 @@ export function ClientsPage() {
                         <strong>{patient.name}</strong>
                         {patient.clinicPatientId ? <span className="field-hint">ID da clinica: {patient.clinicPatientId}</span> : null}
                         <div className="clients-badge-row">
+                          {patient.status === "encerrada" ? (
+                            <span className="badge badge-soft badge-priority-red clients-status-badge">
+                              Encerrada{patient.closureReasonLabel ? ` - ${patient.closureReasonLabel}` : ""}
+                            </span>
+                          ) : null}
                           {patient.gestationalBaseIsEstimated ? (
                             <span className="badge badge-soft badge-priority-blue clients-status-badge">Base estimada</span>
                           ) : null}

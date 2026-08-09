@@ -1,58 +1,74 @@
-# CRM Obstétrico
+# CRM Obstétrico (Medfetus)
 
-Primeira versão completa de um sistema web para clínica obstétrica, com frontend em React, backend em Node.js e banco local SQLite.
+Sistema web para gestão de acompanhamento obstétrico, com frontend em React e backend em Node.js/Express, banco de dados PostgreSQL.
 
 ## Estrutura do projeto
 
 ```text
-crm-obstetrico/
-  frontend/   -> interface React
-  backend/    -> API Node.js + SQLite
+crm-medfetus/
+  frontend/   -> interface React (Vite + TypeScript)
+  backend/    -> API Node.js/Express + PostgreSQL
+  docs/       -> documentação de segurança, LGPD, integrações e deploy
+  scripts/    -> scripts auxiliares (importação, validação, restauração de checkpoint)
 ```
 
-## O que já está pronto
+## Funcionalidades principais
 
-- tela de login simples;
-- dashboard inicial;
-- tela principal com kanban;
-- tela de cadastro de paciente;
-- tela de configuração de exames;
-- API local funcionando com rotas básicas;
-- banco SQLite com seed automático;
-- pacientes e exames de exemplo para teste.
+- login com sessão por token e controle de acesso por perfil (`admin`, `recepcao`, `atendimento`);
+- limite de tentativas de login (rate limiting) contra força bruta;
+- dashboard com indicadores e gráfico de acompanhamento;
+- pipeline (kanban) de contato com pacientes;
+- cadastro, edição e ficha detalhada de paciente, com importação em lote via planilha;
+- motor de cálculo de base gestacional (prioriza dado informado pela equipe > dado estruturado do Shosp > estimativa por exame da clínica > revisão manual), com detecção de conflitos entre fontes;
+- configuração de protocolos de exame e vacinas por semana gestacional, com central de lembretes;
+- central de contatos unificando mensagens e lembretes;
+- integração com o sistema Shosp (agenda/prontuário mestre), com sincronização e modo mock;
+- camada de mensageria via WhatsApp preparada na arquitetura, ainda em modo `dry run` (sem envio real ativo);
+- auditoria de ações sensíveis (`audit_logs`) e política de retenção de logs configurável.
 
-## Tecnologias escolhidas
+## Tecnologias
 
 - frontend: React + TypeScript + Vite;
 - backend: Node.js + Express;
-- banco de dados: SQLite com `better-sqlite3`.
+- banco de dados: **PostgreSQL** (via `pg`), com migrações versionadas em `backend/src/database/postgres/migrations`;
+- proteção de login: `express-rate-limit`.
+
+> O projeto usou SQLite na fase inicial, mas o backend hoje é **exclusivamente PostgreSQL** — não há mais suporte a SQLite no código.
 
 ## Como rodar localmente
 
-Antes de tudo, você precisa ter o `Node.js` instalado no computador.
+Antes de tudo, você precisa ter `Node.js` e acesso a um banco `PostgreSQL` (local ou na nuvem, ex.: Render, Supabase, Neon).
 
 ### 1. Verificar se o Node está instalado
-
-Abra o terminal e rode:
 
 ```bash
 node -v
 npm -v
 ```
 
-Se aparecer uma versão, pode continuar.
+### 2. Configurar variáveis de ambiente
 
-### 2. Instalar dependências
+Copie `.env.example` para `.env` na raiz do projeto e preencha `DATABASE_URL` com a string de conexão do seu Postgres, por exemplo:
 
-Na pasta do projeto:
-
-```bash
-npm install
+```text
+DATABASE_URL=postgresql://usuario:senha@host:5432/nome_do_banco
 ```
 
-### 3. Rodar o backend
+### 3. Instalar dependências
 
-Em um terminal:
+```bash
+npm run install:all
+```
+
+### 4. Rodar as migrações e popular dados iniciais
+
+```bash
+npm run seed --workspace backend
+```
+
+Isso roda as migrações do Postgres e cria os dados de exemplo (usuários, unidades, médicos, modelos de exame).
+
+### 5. Rodar o backend
 
 ```bash
 npm run dev:backend
@@ -60,7 +76,7 @@ npm run dev:backend
 
 O backend deve subir em `http://localhost:4000`.
 
-### 4. Rodar o frontend
+### 6. Rodar o frontend
 
 Em outro terminal:
 
@@ -75,30 +91,36 @@ O frontend deve abrir em `http://localhost:5173`.
 - e-mail: `admin@clinica.com`
 - senha: `123456`
 
-## Seed do banco
+(usuário criado pelo seed; troque a senha antes de usar em produção)
 
-O banco é criado automaticamente ao iniciar o backend pela primeira vez.
+## Segurança do login
 
-Se quiser resetar os dados de exemplo:
+O endpoint de login tem limite de 10 tentativas a cada 15 minutos por IP (tentativas bem-sucedidas não contam para o limite). Isso reduz o risco de ataques de força bruta contra as contas dos usuários.
 
-```bash
-npm run seed
-```
+## Arquitetura de mensageria (WhatsApp)
 
-## Arquitetura pronta para WhatsApp Business API
-
-O sistema ja ficou preparado para uma integracao futura, sem envio real ativo neste momento.
-
-Ja existem:
+O sistema está preparado para uma integração futura com WhatsApp Business API, mas o envio real ainda não está ativo (`dryRun: true`). Já existem:
 
 - camada separada de mensageria;
 - tabela de templates;
 - tabela de logs de envio;
-- configuracao central para provider externo futuro.
+- configuração central para provedor externo futuro.
 
-Documentacao simples:
+Documentação: [docs/whatsapp-business-integration.md](docs/whatsapp-business-integration.md)
 
-- [docs/whatsapp-business-integration.md](C:\Users\Léo\Desktop\Projetos\docs\whatsapp-business-integration.md)
+## Integração com o Shosp
+
+O Shosp é tratado como sistema mestre de cadastro, agenda e exames realizados. A integração é opcional (`SHOSP_ENABLED`), tem modo mock para testes sem credenciais reais, e possui timeout, retry e worker de sincronização isolado — falhas no Shosp não derrubam o CRM.
+
+Documentação: [docs/shosp-integration.md](docs/shosp-integration.md)
+
+## Segurança e LGPD
+
+O tratamento de dados de pacientes, política de retenção de logs, controle de acesso e minimização de dados sensíveis estão documentados em [docs/security-lgpd.md](docs/security-lgpd.md). Vale revisar esse documento antes de qualquer uso em produção.
+
+## Deploy
+
+Há um `render.yaml` de referência para publicar no Render (backend como Web Service, frontend como Static Site). **Atenção:** esse arquivo e `docs/deploy-render.md` ainda referenciam SQLite — como o backend agora exige PostgreSQL, revise `DATABASE_URL` nas variáveis de ambiente do serviço antes de publicar.
 
 ## Fluxo sugerido para testar
 
@@ -109,9 +131,4 @@ Documentacao simples:
 5. Abra a tela de configuração de exames.
 6. Edite uma janela de exame.
 7. Volte ao kanban e veja os alertas.
-
-## Observação importante
-
-Neste ambiente em que estou trabalhando, o `Node.js` não está instalado, então eu consegui montar toda a estrutura e os arquivos do projeto, mas não consegui executar `npm install`, subir o servidor nem validar o build automaticamente daqui.
-
-Assim que você instalar o Node na sua máquina, eu consigo te ajudar no próximo passo com qualquer erro de dependência, execução ou build que aparecer.
+8. Confira a central de contatos (mensagens + lembretes unificados).

@@ -309,6 +309,9 @@ export type Patient = {
   importedFromShosp?: boolean;
   syncStatus?: string | null;
   status?: string;
+  closureReason?: string | null;
+  closureReasonLabel?: string | null;
+  closedAt?: string | null;
   stage: string;
   stageTitle?: string;
   notes: string;

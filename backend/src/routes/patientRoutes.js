@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAdmin } from "../middleware/requireAdmin.js";
 import {
+  closePatientTrackingCore,
   confirmGestationalBaseEstimateCore,
   createPatientCore,
   deletePatientCore,
@@ -11,6 +12,7 @@ import {
   listGestationalBaseReviewsCore,
   listPatientsCore,
   previewPatientImportDataCore,
+  reopenPatientTrackingCore,
   updatePatientCore,
   updatePatientNotesCore,
   updatePatientExamStatusCore
@@ -232,6 +234,48 @@ patientRoutes.patch("/:id/exams/:examId", async (request, response) => {
     response.json({ patient });
   } catch (error) {
     response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel atualizar o exame.");
+  }
+});
+
+patientRoutes.post("/:id/close", async (request, response) => {
+  try {
+    const patientId = Number(request.params.id);
+    const details = await closePatientTrackingCore(patientId, {
+      reason: request.body?.reason,
+      actorUserId: request.authUser?.id || 1
+    });
+    await recordAuditEvent({
+      actorUserId: request.authUser?.id || null,
+      actionType: "encerramento_acompanhamento_paciente",
+      entityType: "patient",
+      entityId: patientId,
+      patientId,
+      description: "Acompanhamento da paciente encerrado.",
+      details: { reason: request.body?.reason }
+    });
+    response.json(details);
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel encerrar o acompanhamento.");
+  }
+});
+
+patientRoutes.post("/:id/reopen", async (request, response) => {
+  try {
+    const patientId = Number(request.params.id);
+    const details = await reopenPatientTrackingCore(patientId, {
+      actorUserId: request.authUser?.id || 1
+    });
+    await recordAuditEvent({
+      actorUserId: request.authUser?.id || null,
+      actionType: "reativacao_acompanhamento_paciente",
+      entityType: "patient",
+      entityId: patientId,
+      patientId,
+      description: "Acompanhamento da paciente reativado."
+    });
+    response.json(details);
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel reativar o acompanhamento.");
   }
 });
 

@@ -311,8 +311,36 @@ function buildPatientUpdatePayload(patient, overrides = {}) {
     highRisk: overrides.highRisk ?? (patient.highRisk ? 1 : 0),
     notes: overrides.notes ?? patient.notes ?? "",
     status: overrides.status ?? patient.status ?? "ativa",
+    closureReason: overrides.closureReason !== undefined ? overrides.closureReason : (patient.closureReason ?? null),
+    closedAt: overrides.closedAt !== undefined ? overrides.closedAt : (patient.closedAt ?? null),
+    closedByUserId: overrides.closedByUserId !== undefined ? overrides.closedByUserId : (patient.closedByUserId ?? null),
     updatedAt: overrides.updatedAt ?? todayIso()
   };
+}
+
+export const PATIENT_CLOSURE_REASONS = {
+  PREGNANCY_LOSS: "perda_gestacional",
+  BIRTH: "parto_realizado",
+  TRANSFER: "transferencia",
+  WITHDRAWAL: "desistencia"
+};
+
+const PATIENT_CLOSURE_REASON_LABELS = {
+  [PATIENT_CLOSURE_REASONS.PREGNANCY_LOSS]: "Perda gestacional",
+  [PATIENT_CLOSURE_REASONS.BIRTH]: "Parto realizado",
+  [PATIENT_CLOSURE_REASONS.TRANSFER]: "Transferencia para outro servico",
+  [PATIENT_CLOSURE_REASONS.WITHDRAWAL]: "Desistencia do acompanhamento"
+};
+
+function getClosureReasonLabel(reason) {
+  return PATIENT_CLOSURE_REASON_LABELS[reason] || null;
+}
+
+// Pacientes com acompanhamento encerrado (perda gestacional, parto, transferencia, etc.)
+// nao devem mais receber sugestoes automaticas de mensagem nem aparecer nas telas de
+// contato ativo (fluxo de atendimento, central de contatos, central de lembretes).
+function isPatientTrackingClosed(patient) {
+  return patient.status === "encerrada";
 }
 
 function validatePatientInput(input, automaticExamCodes = []) {
@@ -595,7 +623,7 @@ function getDashboardPriorityBucket(patient) {
 }
 
 function shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters = null) {
-  if (isMessagingBlockedByGestationalBase(patient) || !nextExamRow) {
+  if (isPatientTrackingClosed(patient) || isMessagingBlockedByGestationalBase(patient) || !nextExamRow) {
     return false;
   }
 
@@ -789,7 +817,8 @@ function enrichPatient(patient, patientExamsMap, latestMessagesMap) {
     },
     priorityScore: messagePriority.score,
     latestMessage,
-    stageTitle: getStageTitle(normalizedStage)
+    stageTitle: getStageTitle(normalizedStage),
+    closureReasonLabel: getClosureReasonLabel(patient.closureReason)
   };
 }
 
@@ -904,12 +933,14 @@ export async function getKanbanDataCore() {
 
   const visibleStageIds = new Set(KANBAN_STAGES.map((stage) => stage.id));
 
+  const activePatients = patients.filter((patient) => !isPatientTrackingClosed(patient));
+
   return columns
     .filter((stage) => visibleStageIds.has(stage.id))
     .map((stage) => ({
     ...stage,
     isSystem: Boolean(stage.isSystem),
-    patients: sortPatientsByPriority(patients.filter((patient) => patient.stage === stage.id))
+    patients: sortPatientsByPriority(activePatients.filter((patient) => patient.stage === stage.id))
   }));
 }
 
@@ -1493,6 +1524,48 @@ export async function updatePatientNotesCore(patientId, input) {
 
   await updatePatientRecord(patientId, buildPatientUpdatePayload(patient, {
     notes,
+    updatedAt: todayIso()
+  }));
+
+  return getPatientDetailsCore(patientId);
+}
+
+export async function closePatientTrackingCore(patientId, input = {}) {
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+
+  const reason = String(input.reason || "").trim();
+  if (!Object.values(PATIENT_CLOSURE_REASONS).includes(reason)) {
+    throw new Error("Selecione um motivo valido para encerrar o acompanhamento.");
+  }
+
+  const actorUserId = await resolveActorUserId(input.actorUserId);
+  const now = todayIso();
+
+  await updatePatientRecord(patientId, buildPatientUpdatePayload(patient, {
+    status: "encerrada",
+    closureReason: reason,
+    closedAt: now,
+    closedByUserId: actorUserId,
+    updatedAt: now
+  }));
+
+  return getPatientDetailsCore(patientId);
+}
+
+export async function reopenPatientTrackingCore(patientId, input = {}) {
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+
+  await updatePatientRecord(patientId, buildPatientUpdatePayload(patient, {
+    status: "ativa",
+    closureReason: null,
+    closedAt: null,
+    closedByUserId: null,
     updatedAt: todayIso()
   }));
 

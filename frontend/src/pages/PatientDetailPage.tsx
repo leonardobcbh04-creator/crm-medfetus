@@ -130,6 +130,10 @@ export function PatientDetailPage() {
   const [notesDraft, setNotesDraft] = useState("");
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [isClosingTracking, setIsClosingTracking] = useState(false);
+  const [isSavingClosure, setIsSavingClosure] = useState(false);
+  const [isReopeningTracking, setIsReopeningTracking] = useState(false);
+  const [closureReasonDraft, setClosureReasonDraft] = useState("");
 
   useEffect(() => {
     if (!id) {
@@ -193,6 +197,46 @@ export function PatientDetailPage() {
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel salvar as observacoes.");
     } finally {
       setIsSavingNotes(false);
+    }
+  }
+
+  async function handleConfirmCloseTracking() {
+    if (!id || !closureReasonDraft) {
+      return;
+    }
+
+    setIsSavingClosure(true);
+    try {
+      const response = await api.closePatientTracking(Number(id), closureReasonDraft);
+      setDetails(response);
+      setIsClosingTracking(false);
+      setClosureReasonDraft("");
+      setFeedbackType("success");
+      setFeedback("Acompanhamento encerrado. A paciente nao vai mais receber mensagens ou lembretes automaticos.");
+    } catch (error) {
+      setFeedbackType("error");
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel encerrar o acompanhamento.");
+    } finally {
+      setIsSavingClosure(false);
+    }
+  }
+
+  async function handleReopenTracking() {
+    if (!id) {
+      return;
+    }
+
+    setIsReopeningTracking(true);
+    try {
+      const response = await api.reopenPatientTracking(Number(id));
+      setDetails(response);
+      setFeedbackType("success");
+      setFeedback("Acompanhamento reativado. A paciente volta a aparecer no fluxo de atendimento.");
+    } catch (error) {
+      setFeedbackType("error");
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel reativar o acompanhamento.");
+    } finally {
+      setIsReopeningTracking(false);
     }
   }
 
@@ -358,6 +402,15 @@ export function PatientDetailPage() {
             <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar agendamento</button>
             <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar exame realizado</button>
           <a href={whatsappUrl} target="_blank" rel="noreferrer" className="whatsapp-link">Abrir WhatsApp</a>
+          {details.patient.status !== "encerrada" ? (
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => setIsClosingTracking((current) => !current)}
+            >
+              Encerrar acompanhamento
+            </button>
+          ) : null}
           <Link to="/kanban" className="secondary-button">Voltar ao fluxo</Link>
         </div>
       </div>
@@ -366,6 +419,65 @@ export function PatientDetailPage() {
         <div className={feedbackType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
           <strong>{feedbackType === "error" ? "Atenção" : "Sucesso"}</strong>
           <span>{feedback}</span>
+        </div>
+      ) : null}
+
+      {details.patient.status === "encerrada" ? (
+        <div className="form-alert form-alert-error">
+          <strong>Acompanhamento encerrado{details.patient.closureReasonLabel ? ` - ${details.patient.closureReasonLabel}` : ""}</strong>
+          <span>
+            Esta paciente nao aparece mais no fluxo de atendimento, na central de contatos nem nos lembretes
+            automaticos de exame.
+          </span>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={isReopeningTracking}
+            onClick={handleReopenTracking}
+          >
+            {isReopeningTracking ? "Reativando..." : "Reativar acompanhamento"}
+          </button>
+        </div>
+      ) : isClosingTracking ? (
+        <div className="panel-card">
+          <p className="muted-label">Encerrar acompanhamento</p>
+          <p className="field-hint">
+            A paciente para de receber mensagens e lembretes automaticos de exame, e sai do fluxo de atendimento e da
+            central de contatos. O historico dela continua acessivel por aqui.
+          </p>
+          <div className="two-columns">
+            <label className="field inline-field">
+              <span>Motivo</span>
+              <select value={closureReasonDraft} onChange={(event) => setClosureReasonDraft(event.target.value)}>
+                <option value="">Selecione um motivo</option>
+                <option value="perda_gestacional">Perda gestacional</option>
+                <option value="parto_realizado">Parto realizado</option>
+                <option value="transferencia">Transferencia para outro servico</option>
+                <option value="desistencia">Desistencia do acompanhamento</option>
+              </select>
+            </label>
+          </div>
+          <div className="inline-actions">
+            <button
+              type="button"
+              className="primary-button"
+              disabled={!closureReasonDraft || isSavingClosure}
+              onClick={handleConfirmCloseTracking}
+            >
+              {isSavingClosure ? "Salvando..." : "Confirmar encerramento"}
+            </button>
+            <button
+              type="button"
+              className="ghost-button"
+              disabled={isSavingClosure}
+              onClick={() => {
+                setIsClosingTracking(false);
+                setClosureReasonDraft("");
+              }}
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -419,7 +531,12 @@ export function PatientDetailPage() {
             <span><strong>Proximo exame:</strong> {details.patient.nextExam.name}</span>
             <span><strong>Classificacao do exame:</strong> {details.patient.nextExam.required ? "Obrigatorio" : "Recomendado"}</span>
             <span><strong>Janela atual:</strong> {details.patient.nextExam.deadlineStatusLabel || "Nao definida"}</span>
-            <span><strong>Status:</strong> {details.patient.status || "ativa"}</span>
+            <span>
+              <strong>Status:</strong>{" "}
+              {details.patient.status === "encerrada"
+                ? `Encerrado${details.patient.closureReasonLabel ? ` - ${details.patient.closureReasonLabel}` : ""}`
+                : "Ativo"}
+            </span>
             <span><strong>Coluna atual:</strong> {details.patient.stageTitle || details.patient.stage}</span>
             <span><strong>Base gestacional:</strong> {details.patient.gestationalBaseSourceLabel || "Nao definida"}</span>
             {details.patient.nextExam.overdueExam ? (

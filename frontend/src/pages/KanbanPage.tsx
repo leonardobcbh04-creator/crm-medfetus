@@ -281,21 +281,24 @@ export function KanbanPage() {
       <div className="kanban-legend">
         <span className="kanban-legend-item kanban-legend-green">
           <strong>Verde</strong>
-          <span>Dentro do prazo</span>
+          <span>Dentro do prazo (fora das janelas de aviso abaixo)</span>
         </span>
         <span className="kanban-legend-item kanban-legend-yellow">
           <strong>Amarelo</strong>
-          <span>Janela proxima</span>
+          <span>Janela proxima (a partir de ~10 dias antes da data ideal, conforme configuracao de cada exame)</span>
         </span>
         <span className="kanban-legend-item kanban-legend-orange">
           <strong>Laranja</strong>
-          <span>Precisa de contato</span>
+          <span>Precisa de contato (a partir de ~2 dias antes da data ideal, ou no proprio dia)</span>
         </span>
         <span className="kanban-legend-item kanban-legend-red">
           <strong>Vermelho</strong>
-          <span>Exame em atraso</span>
+          <span>Atrasado (passou da data ideal e o exame ainda nao foi realizado)</span>
         </span>
       </div>
+      <p className="field-hint kanban-legend-note">
+        Os prazos de aviso (amarelo/laranja) podem variar por tipo de exame — ajuste em Configuracao de exames.
+      </p>
 
       {feedback ? (
         <div className={feedbackType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>

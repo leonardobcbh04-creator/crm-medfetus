@@ -80,6 +80,9 @@ export async function listPatientsBaseRows() {
       sync_status AS "syncStatus",
       notes,
       status,
+      closure_reason AS "closureReason",
+      closed_at AS "closedAt",
+      closed_by_user_id AS "closedByUserId",
       stage,
       created_at AS "createdAt",
       updated_at AS "updatedAt"
@@ -538,8 +541,11 @@ export async function updatePatientRecord(patientId, payload) {
       high_risk = $19,
       notes = $20,
       status = $21,
-      updated_at = $22
-    WHERE id = $23
+      closure_reason = $22,
+      closed_at = $23,
+      closed_by_user_id = $24,
+      updated_at = $25
+    WHERE id = $26
   `, [
     payload.name,
     payload.phone,
@@ -562,6 +568,9 @@ export async function updatePatientRecord(patientId, payload) {
     Boolean(payload.highRisk),
     payload.notes,
     payload.status,
+    payload.closureReason ?? null,
+    payload.closedAt ?? null,
+    payload.closedByUserId ?? null,
     payload.updatedAt,
     patientId
   ]);

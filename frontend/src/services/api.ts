@@ -328,6 +328,17 @@ export const api = {
   getPatientDetails(id: number) {
     return request<PatientDetails>(`/patients/${id}`);
   },
+  closePatientTracking(id: number, reason: string) {
+    return request<PatientDetails>(`/patients/${id}/close`, {
+      method: "POST",
+      body: JSON.stringify({ reason })
+    });
+  },
+  reopenPatientTracking(id: number) {
+    return request<PatientDetails>(`/patients/${id}/reopen`, {
+      method: "POST"
+    });
+  },
   previewPatientImport(payload: { fileName: string; fileBase64: string; referenceDate?: string }) {
     return request<PatientImportPreview>("/patients/import/preview", {
       method: "POST",

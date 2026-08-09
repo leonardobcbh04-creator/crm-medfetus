@@ -229,6 +229,11 @@ export function KanbanBoard({ columns, onMove, onRenameColumn, onDeleteColumn, o
                         </div>
                         <h3>{patient.name}</h3>
                         <p className="kanban-card-exam-label">{patient.nextExam.name}</p>
+                        {patient.nextExam.dateLabel ? (
+                          <p className="kanban-card-exam-date">
+                            <strong>Data sugerida:</strong> {patient.nextExam.dateLabel}
+                          </p>
+                        ) : null}
                         {patient.nextExam.detectedInShosp ? (
                           <p className="kanban-followup-label">
                             Exame ja agendado no Shosp{patient.nextExam.scheduledDateLabel ? ` • ${patient.nextExam.scheduledDateLabel}` : ""}
