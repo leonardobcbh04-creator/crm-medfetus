@@ -61,6 +61,17 @@ function InfoIcon() {
   );
 }
 
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="icon-button-svg">
+      <path
+        fill="currentColor"
+        d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1.2A1.8 1.8 0 0 1 21 5.8v13.4A1.8 1.8 0 0 1 19.2 21H4.8A1.8 1.8 0 0 1 3 19.2V5.8A1.8 1.8 0 0 1 4.8 4H6V3a1 1 0 0 1 1-1Zm12 8H5v9.2c0 .11.09.2.2.2h13.6a.2.2 0 0 0 .2-.2V10ZM8.5 12.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.5 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"
+      />
+    </svg>
+  );
+}
+
 export function KanbanBoard({ columns, onMove, onRenameColumn, onDeleteColumn, onRegisterMessage }: KanbanBoardProps) {
   const [draggingPatientId, setDraggingPatientId] = useState<number | null>(null);
   const [draggingFromStage, setDraggingFromStage] = useState<string | null>(null);
@@ -203,6 +214,9 @@ export function KanbanBoard({ columns, onMove, onRenameColumn, onDeleteColumn, o
                     `Se quiser, podemos ajudar com o agendamento.`
                 );
                 const whatsappUrl = getWhatsAppUrl(patient.phone, whatsappMessage);
+                const [examDatePart, examWindowPart] = patient.nextExam.dateLabel
+                  ? patient.nextExam.dateLabel.split(" \u2022 ")
+                  : [null, null];
 
                 return (
                   <article
@@ -229,10 +243,16 @@ export function KanbanBoard({ columns, onMove, onRenameColumn, onDeleteColumn, o
                         </div>
                         <h3>{patient.name}</h3>
                         <p className="kanban-card-exam-label">{patient.nextExam.name}</p>
-                        {patient.nextExam.dateLabel ? (
-                          <p className="kanban-card-exam-date">
-                            <strong>Data sugerida:</strong> {patient.nextExam.dateLabel}
-                          </p>
+                        {examDatePart ? (
+                          <div className="kanban-card-exam-date">
+                            <span className="kanban-exam-date-chip" title="Data sugerida para o proximo exame">
+                              <CalendarIcon />
+                              {examDatePart}
+                            </span>
+                            {examWindowPart ? (
+                              <span className="kanban-exam-date-window">{examWindowPart}</span>
+                            ) : null}
+                          </div>
                         ) : null}
                         {patient.nextExam.detectedInShosp ? (
                           <p className="kanban-followup-label">
