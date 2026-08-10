@@ -367,9 +367,6 @@ function validatePatientInput(input, automaticExamCodes = []) {
   if (!input.pregnancyType?.trim()) {
     throw new Error("Informe o tipo de gestacao.");
   }
-  if (!input.notes?.trim()) {
-    throw new Error("Preencha as observacoes.");
-  }
   if (input.clinicPatientId != null && String(input.clinicPatientId).trim().length > 80) {
     throw new Error("O ID da clinica deve ter no maximo 80 caracteres.");
   }

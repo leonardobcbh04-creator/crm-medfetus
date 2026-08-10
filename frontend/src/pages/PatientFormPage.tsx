@@ -350,12 +350,6 @@ export function PatientFormPage() {
       return;
     }
 
-    if (!formData.notes.trim()) {
-      setMessageType("error");
-        setMessage("Preencha as observacoes para concluir o cadastro.");
-      return;
-    }
-
     setMessage("");
     setIsSaving(true);
 
@@ -631,13 +625,12 @@ export function PatientFormPage() {
           </div>
 
           <label>
-            Observacoes
+            Observacoes (opcional)
             <textarea
               value={formData.notes}
               onChange={(event) => updateField("notes", event.target.value)}
               rows={5}
               placeholder="Ex.: prefere contato por WhatsApp, periodo melhor para atendimento, observacoes clinicas."
-              required
             />
           </label>
 
