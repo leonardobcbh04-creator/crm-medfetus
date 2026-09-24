@@ -25,7 +25,8 @@ import type {
   ShospCacheClearResult,
   ShospExamMapping,
   ShospIntegrationStatus,
-  ShospSyncResult
+  ShospSyncResult,
+  VaccineNeed
 } from "../types";
 import { clearToken, getStoredToken } from "./auth";
 
@@ -327,6 +328,15 @@ export const api = {
   },
   getPatientDetails(id: number) {
     return request<PatientDetails>(`/patients/${id}`);
+  },
+  getPatientVaccines(patientId: number) {
+    return request<{ vaccineNeeds: VaccineNeed[] }>(`/patients/${patientId}/vaccines`);
+  },
+  updatePatientVaccineStatus(patientId: number, vaccineCode: string, status: string) {
+    return request<{ vaccineNeeds: VaccineNeed[] }>(`/patients/${patientId}/vaccines/${vaccineCode}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
   },
   closePatientTracking(id: number, reason: string) {
     return request<PatientDetails>(`/patients/${id}/close`, {
