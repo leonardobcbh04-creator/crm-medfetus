@@ -281,6 +281,18 @@ export type PatientExamRecord = {
   idealDateLabel?: string;
 };
 
+export type VaccineNeed = {
+  code: string;
+  name: string;
+  status: "pendente" | "tomada" | "nao_se_aplica";
+  statusLabel: string;
+  actionable: boolean;
+  windowOpen: boolean;
+  isInIdealWindow: boolean;
+  needsAttention: boolean;
+  reminderPhrase: string;
+};
+
 export type Patient = {
   id: number;
   name: string;
@@ -321,6 +333,7 @@ export type Patient = {
   estimatedDueDate: string;
   priorityScore?: number;
   latestMessage?: MessageRecord | null;
+  vaccineNeeds?: VaccineNeed[];
   nextExam: {
     id?: number;
     code?: string | null;
@@ -349,6 +362,7 @@ export type Patient = {
 };
 
 export type MessagingItem = {
+  kind?: "exame" | "vacina";
   patientId: number;
   patientName: string;
   phone: string;
@@ -357,6 +371,7 @@ export type MessagingItem = {
   stage: string;
   gestationalAgeLabel: string;
   nextExam: Patient["nextExam"];
+  pendingVaccines?: VaccineNeed[];
   suggestedMessage: string;
   reminderLabel: string;
   examPatientId: number | null;
