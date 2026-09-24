@@ -830,3 +830,59 @@ export async function updatePatientStage(patientId, stage, updatedAt) {
   const runtime = await getDatabaseRuntime();
   await runtime.query("UPDATE patients SET stage = $1, updated_at = $2 WHERE id = $3", [stage, updatedAt, patientId]);
 }
+
+// ---- Vacinas da gestante (gripe, dTpa, VSR) ----
+
+export async function listPatientVaccineRows() {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      id,
+      patient_id AS "patientId",
+      vaccine_code AS "vaccineCode",
+      status,
+      updated_by_user_id AS "updatedByUserId",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM vacinas_paciente
+  `);
+  return result.rows;
+}
+
+export async function listPatientVaccineRowsForPatient(patientId) {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      id,
+      patient_id AS "patientId",
+      vaccine_code AS "vaccineCode",
+      status,
+      updated_by_user_id AS "updatedByUserId",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+    FROM vacinas_paciente
+    WHERE patient_id = $1
+  `, [patientId]);
+  return result.rows;
+}
+
+// Cria ou atualiza o status de uma vacina para a paciente (uma linha por
+// paciente+vacina, controlado pela constraint UNIQUE (patient_id, vaccine_code)).
+export async function upsertPatientVaccineStatus({ patientId, vaccineCode, status, updatedByUserId, now }) {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    INSERT INTO vacinas_paciente (patient_id, vaccine_code, status, updated_by_user_id, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $5)
+    ON CONFLICT (patient_id, vaccine_code)
+    DO UPDATE SET status = $3, updated_by_user_id = $4, updated_at = $5
+    RETURNING
+      id,
+      patient_id AS "patientId",
+      vaccine_code AS "vaccineCode",
+      status,
+      updated_by_user_id AS "updatedByUserId",
+      created_at AS "createdAt",
+      updated_at AS "updatedAt"
+  `, [patientId, vaccineCode, status, updatedByUserId, now]);
+  return result.rows[0];
+}
