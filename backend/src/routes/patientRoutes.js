@@ -9,13 +9,15 @@ import {
   editGestationalBaseManuallyCore,
   confirmPatientImportCore,
   getPatientDetailsCore,
+  getPatientVaccinesCore,
   listGestationalBaseReviewsCore,
   listPatientsCore,
   previewPatientImportDataCore,
   reopenPatientTrackingCore,
   updatePatientCore,
   updatePatientNotesCore,
-  updatePatientExamStatusCore
+  updatePatientExamStatusCore,
+  updatePatientVaccineStatusCore
 } from "../services/coreMigrationService.js";
 import { recordAuditEvent } from "../services/auditService.js";
 
@@ -234,6 +236,41 @@ patientRoutes.patch("/:id/exams/:examId", async (request, response) => {
     response.json({ patient });
   } catch (error) {
     response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel atualizar o exame.");
+  }
+});
+
+patientRoutes.get("/:id/vaccines", async (request, response) => {
+  try {
+    const patientId = Number(request.params.id);
+    const data = await getPatientVaccinesCore(patientId);
+    response.json(data);
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel carregar as vacinas da paciente.");
+  }
+});
+
+patientRoutes.patch("/:id/vaccines/:vaccineCode", async (request, response) => {
+  try {
+    const patientId = Number(request.params.id);
+    const vaccineCode = String(request.params.vaccineCode);
+    const data = await updatePatientVaccineStatusCore(
+      patientId,
+      vaccineCode,
+      request.body?.status,
+      request.authUser?.id || 1
+    );
+    await recordAuditEvent({
+      actorUserId: request.authUser?.id || null,
+      actionType: "atualizacao_vacina_paciente",
+      entityType: "patient_vaccine",
+      entityId: patientId,
+      patientId,
+      description: "Status de vacina da paciente foi atualizado.",
+      details: { vaccineCode, status: request.body?.status }
+    });
+    response.json(data);
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel atualizar a vacina da paciente.");
   }
 });
 
