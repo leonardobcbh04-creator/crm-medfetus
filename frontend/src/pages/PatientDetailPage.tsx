@@ -134,6 +134,7 @@ export function PatientDetailPage() {
   const [isSavingClosure, setIsSavingClosure] = useState(false);
   const [isReopeningTracking, setIsReopeningTracking] = useState(false);
   const [closureReasonDraft, setClosureReasonDraft] = useState("");
+  const [savingVaccineCode, setSavingVaccineCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -339,6 +340,32 @@ export function PatientDetailPage() {
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar o exame.");
     } finally {
       setSavingExamId(null);
+    }
+  }
+
+  async function handleVaccineStatusUpdate(vaccineCode: string, status: "pendente" | "tomada" | "nao_se_aplica") {
+    if (!id) {
+      return;
+    }
+
+    setSavingVaccineCode(vaccineCode);
+    setFeedbackType("success");
+    setFeedback("");
+
+    try {
+      const response = await api.updatePatientVaccineStatus(Number(id), vaccineCode, status);
+      setDetails((current) =>
+        current
+          ? { ...current, patient: { ...current.patient, vaccineNeeds: response.vaccineNeeds } }
+          : current
+      );
+      setFeedbackType("success");
+      setFeedback("Status da vacina atualizado.");
+    } catch (error) {
+      setFeedbackType("error");
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a vacina.");
+    } finally {
+      setSavingVaccineCode(null);
     }
   }
 
@@ -620,6 +647,64 @@ export function PatientDetailPage() {
                 Editar observacoes
               </button>
             </>
+          )}
+        </article>
+
+        <article className="panel-card">
+          <p className="muted-label">Vacinas da gestante</p>
+          {(details.patient.vaccineNeeds || []).length ? (
+            <div className="vaccine-list">
+              {(details.patient.vaccineNeeds || []).map((vaccine) => (
+                <div key={vaccine.code} className="vaccine-row">
+                  <div className="vaccine-row-info">
+                    <strong>{vaccine.name}</strong>
+                    <span
+                      className={`badge-priority-${
+                        vaccine.status === "tomada" ? "green" : vaccine.needsAttention ? "yellow" : "blue"
+                      }`}
+                    >
+                      {vaccine.statusLabel}
+                    </span>
+                    {!vaccine.actionable ? <span className="muted-label">Aviso apenas (SUS oferece)</span> : null}
+                    {vaccine.needsAttention ? (
+                      <span className="muted-label">
+                        {vaccine.isInIdealWindow ? "Dentro da janela ideal agora" : "Dentro da janela recomendada"}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="inline-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={savingVaccineCode === vaccine.code || vaccine.status === "tomada"}
+                      onClick={() => handleVaccineStatusUpdate(vaccine.code, "tomada")}
+                    >
+                      {savingVaccineCode === vaccine.code ? "Salvando..." : "Marcar como tomada"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={savingVaccineCode === vaccine.code || vaccine.status === "nao_se_aplica"}
+                      onClick={() => handleVaccineStatusUpdate(vaccine.code, "nao_se_aplica")}
+                    >
+                      Nao se aplica
+                    </button>
+                    {vaccine.status !== "pendente" ? (
+                      <button
+                        type="button"
+                        className="ghost-button"
+                        disabled={savingVaccineCode === vaccine.code}
+                        onClick={() => handleVaccineStatusUpdate(vaccine.code, "pendente")}
+                      >
+                        Voltar para pendente
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">Sem dados de vacina para esta paciente.</p>
           )}
         </article>
 
