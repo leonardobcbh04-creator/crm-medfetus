@@ -3041,3 +3041,37 @@ textarea:focus {
   }
 }
 
+
+/* Vacinas da gestante (ficha da paciente) */
+.vaccine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.vaccine-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.vaccine-row:last-child {
+  border-bottom: none;
+}
+
+.vaccine-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.action-menu-vaccine-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
