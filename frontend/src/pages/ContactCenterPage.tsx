@@ -57,6 +57,9 @@ function sanitizeSuggestedMessage(message: string) {
 }
 
 function isOperationallyScheduled(item: MessagingItem) {
+  if (item.kind === "vacina") {
+    return false;
+  }
   return item.stage === "agendada" || item.nextExam?.status === "agendado" || Boolean(item.nextExam?.scheduledDate);
 }
 
@@ -175,6 +178,28 @@ export function ContactCenterPage() {
     } catch (error) {
       setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a lista operacional.");
+    } finally {
+      setActingKey(null);
+    }
+  }
+
+  async function handleVaccineAction(item: MessagingItem, vaccineCode: string, status: "tomada" | "nao_se_aplica") {
+    const key = `${item.patientId}-vacina-${vaccineCode}-${status}`;
+    setActingKey(key);
+    setFeedback("");
+
+    try {
+      await api.updatePatientVaccineStatus(item.patientId, vaccineCode, status);
+      await loadContactQueue();
+      setFeedbackType("success");
+      setFeedback(
+        status === "tomada"
+          ? `Vacina marcada como tomada para ${item.patientName}.`
+          : `Vacina marcada como nao aplicavel para ${item.patientName}.`
+      );
+    } catch (error) {
+      setFeedbackType("error");
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a vacina.");
     } finally {
       setActingKey(null);
     }
@@ -422,6 +447,9 @@ export function ContactCenterPage() {
                   <p>{item.gestationalAgeLabel}</p>
                 </div>
                 <div className="card-row-badges">
+                  {item.kind === "vacina" ? (
+                    <span className="badge badge-soft badge-priority-blue">Vacina</span>
+                  ) : null}
                   <span className={`badge ${getMessageTypeBadgeClass(item.messageType)}`}>{primaryStatusLabel}</span>
                   <span className={`badge badge-soft ${hasMessage ? "badge-priority-blue" : "badge-priority-orange"}`}>
                     {hasMessage ? "Mensagem enviada" : "Nunca contatada"}
@@ -442,8 +470,15 @@ export function ContactCenterPage() {
 
               <div className="message-metadata">
                 <span><strong>Telefone:</strong> {item.phone || "Nao informado"}</span>
-                <span><strong>Proximo exame:</strong> {item.nextExam.name}</span>
-                <span><strong>Previsao:</strong> {item.nextExam.dateLabel}</span>
+                {item.kind === "vacina" ? null : (
+                  <>
+                    <span><strong>Proximo exame:</strong> {item.nextExam.name}</span>
+                    <span><strong>Previsao:</strong> {item.nextExam.dateLabel}</span>
+                  </>
+                )}
+                {item.pendingVaccines?.length ? (
+                  <span><strong>Vacinas pendentes:</strong> {item.pendingVaccines.map((vaccine) => vaccine.name).join(", ")}</span>
+                ) : null}
                 <span><strong>Motivo da mensagem:</strong> {item.messageOriginLabel || "Acompanhamento da jornada"}</span>
                 <span><strong>Base do calculo:</strong> {item.gestationalBaseSourceLabel}</span>
                 <span><strong>Confiabilidade:</strong> {item.gestationalBaseConfidenceLabel}</span>
@@ -521,6 +556,32 @@ export function ContactCenterPage() {
                   >
                     {actingKey === `${item.patientId}-${item.examPatientId}-scheduled` ? "Salvando..." : "Confirmar agendamento"}
                   </button>
+                  {item.pendingVaccines?.map((vaccine) => (
+                    <div key={vaccine.code} className="action-menu-vaccine-group">
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={actingKey === `${item.patientId}-vacina-${vaccine.code}-tomada`}
+                        onClick={() => void handleVaccineAction(item, vaccine.code, "tomada")}
+                      >
+                        {actingKey === `${item.patientId}-vacina-${vaccine.code}-tomada`
+                          ? "Salvando..."
+                          : `Marcar tomada: ${vaccine.name}`}
+                      </button>
+                      {vaccine.actionable ? (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={actingKey === `${item.patientId}-vacina-${vaccine.code}-nao_se_aplica`}
+                          onClick={() => void handleVaccineAction(item, vaccine.code, "nao_se_aplica")}
+                        >
+                          {actingKey === `${item.patientId}-vacina-${vaccine.code}-nao_se_aplica`
+                            ? "Salvando..."
+                            : `Nao se aplica: ${vaccine.name}`}
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
                   {hasMessage ? (
                     <>
                       <button className="secondary-button" type="button" onClick={() => void handleUpdateResponse(item, "respondida")}>
