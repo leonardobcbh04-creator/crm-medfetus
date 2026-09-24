@@ -27,6 +27,9 @@ import {
   listMovementRowsByPatient,
   listPatientExamRows,
   listPatientsBaseRows,
+  listPatientVaccineRows,
+  listPatientVaccineRowsForPatient,
+  upsertPatientVaccineStatus,
   listPhysiciansRows,
   listRecentAuditLogRows,
   replacePatientExams,
@@ -38,6 +41,7 @@ import {
   updateUserPasswordHash
 } from "../database/repositories/coreRepository.js";
 import { analyzePatientExamTimeline, calculateExamScheduleDates, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
+import { VACCINE_DEFINITIONS, VACCINE_STATUS, resolvePatientVaccineNeeds, buildVaccineReminderBlurb } from "../domain/vaccines.js";
 import { listExamProtocolPresets } from "./examProtocolPresets.js";
 import {
   buildSessionExpiry,
@@ -757,7 +761,16 @@ function getStageTitle(stageId) {
   return KANBAN_STAGES.find((stage) => stage.id === stageId)?.title || stageId;
 }
 
-function enrichPatient(patient, patientExamsMap, latestMessagesMap) {
+function buildPatientVaccinesMap(rows) {
+  return rows.reduce((map, row) => {
+    const current = map.get(row.patientId) ?? [];
+    current.push(row);
+    map.set(row.patientId, current);
+    return map;
+  }, new Map());
+}
+
+function enrichPatient(patient, patientExamsMap, latestMessagesMap, patientVaccinesMap = new Map()) {
   const patientExams = patientExamsMap.get(patient.id) ?? [];
   const snapshot = resolvePregnancySnapshot(patient, todayIso(), { patientExams });
   const latestMessage = latestMessagesMap.get(patient.id) ?? null;
@@ -815,7 +828,15 @@ function enrichPatient(patient, patientExamsMap, latestMessagesMap) {
     priorityScore: messagePriority.score,
     latestMessage,
     stageTitle: getStageTitle(normalizedStage),
-    closureReasonLabel: getClosureReasonLabel(patient.closureReason)
+    closureReasonLabel: getClosureReasonLabel(patient.closureReason),
+    vaccineNeeds: resolvePatientVaccineNeeds(
+      {
+        gestationalWeeks: snapshot.currentGestationalWeeks,
+        gestationalDays: snapshot.currentGestationalDays,
+        gestationalReviewRequired: Boolean(patient.gestationalReviewRequired) || snapshot.gestationalBaseRequiresManualReview
+      },
+      patientVaccinesMap.get(patient.id) ?? []
+    )
   };
 }
 
@@ -910,15 +931,17 @@ export async function getAuthenticatedUserByTokenCore(token) {
 
 export async function listPatientsCore() {
 
-  const [patients, patientExamRows, latestMessageRows] = await Promise.all([
+  const [patients, patientExamRows, latestMessageRows, patientVaccineRows] = await Promise.all([
     listPatientsBaseRows(),
     listPatientExamRows(),
-    listLatestMessageRows()
+    listLatestMessageRows(),
+    listPatientVaccineRows()
   ]);
   const patientExamsMap = buildPatientExamsMap(patientExamRows);
   const latestMessagesMap = buildLatestMessageMap(latestMessageRows);
+  const patientVaccinesMap = buildPatientVaccinesMap(patientVaccineRows);
 
-  return patients.map((patient) => enrichPatient(patient, patientExamsMap, latestMessagesMap));
+  return patients.map((patient) => enrichPatient(patient, patientExamsMap, latestMessagesMap, patientVaccinesMap));
 }
 
 export async function getKanbanDataCore() {
@@ -1841,7 +1864,7 @@ export async function getRemindersCenterDataCore(inputFilters = {}) {
 export async function getRemindersCountCore() {
 
   return {
-    count: (await getRemindersCenterDataCore()).items.length
+    count: (await getMessagingOverviewCore()).length
   };
 }
 
@@ -1933,6 +1956,42 @@ export async function updateReminderStatusCore(patientId, examPatientId, action)
   return getRemindersCenterDataCore();
 }
 
+export async function getPatientVaccinesCore(patientId) {
+
+  const patient = (await listPatientsCore()).find((item) => item.id === Number(patientId));
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+  return { vaccineNeeds: patient.vaccineNeeds };
+}
+
+export async function updatePatientVaccineStatusCore(patientId, vaccineCode, status, actorUserId) {
+
+  const definition = VACCINE_DEFINITIONS.find((item) => item.code === vaccineCode);
+  if (!definition) {
+    throw new Error("Vacina nao reconhecida.");
+  }
+  if (!Object.values(VACCINE_STATUS).includes(status)) {
+    throw new Error("Status de vacina invalido.");
+  }
+
+  const patient = (await listPatientsCore()).find((item) => item.id === Number(patientId));
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+
+  const resolvedActorUserId = await resolveActorUserId(actorUserId);
+  await upsertPatientVaccineStatus({
+    patientId: Number(patientId),
+    vaccineCode,
+    status,
+    updatedByUserId: resolvedActorUserId,
+    now: todayIso()
+  });
+
+  return getPatientVaccinesCore(patientId);
+}
+
 export async function getMessagingOverviewCore() {
 
   const [patients, patientExamRows, latestMessages, messageRows] = await Promise.all([
@@ -1944,8 +2003,9 @@ export async function getMessagingOverviewCore() {
   const patientExamsMap = buildPatientExamsMap(patientExamRows);
   const latestMessagesMap = buildLatestMessageMap(latestMessages);
   const messageHistoryByPatient = buildMessageHistoryMap(messageRows);
+  const patientsWithExamItem = new Set();
 
-  return sortPatientsByPriority(
+  const examItems = sortPatientsByPriority(
     patients
       .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
       .map((patient) => {
@@ -1956,16 +2016,23 @@ export async function getMessagingOverviewCore() {
         const latestMessage = latestMessagesMap.get(patient.id) ?? null;
         const messagePriority = getOperationalMessagePriority(patient.nextExam.deadlineStatus);
         const messageType = getOperationalMessageType(patient.nextExam.deadlineStatus);
-        const suggestedMessage = buildOperationalSuggestedMessage(
-          nextPendingExam?.defaultMessage,
-          patient,
-          nextPendingExam,
-          `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com seu acompanhamento?`,
-          patient.nextExam.deadlineStatus
-        );
+        const pendingVaccines = (patient.vaccineNeeds || []).filter((item) => item.needsAttention);
+        const vaccineBlurb = buildVaccineReminderBlurb(patient.vaccineNeeds || []);
+        const suggestedMessage = [
+          buildOperationalSuggestedMessage(
+            nextPendingExam?.defaultMessage,
+            patient,
+            nextPendingExam,
+            `Ola, ${patient.name}. Aqui e da clinica obstetrica. Podemos ajudar com seu acompanhamento?`,
+            patient.nextExam.deadlineStatus
+          ),
+          vaccineBlurb
+        ].filter(Boolean).join(" ");
         const gestationalMessagingAlert = buildGestationalMessagingAlert(patient);
+        patientsWithExamItem.add(patient.id);
 
         return {
+          kind: "exame",
           patientId: patient.id,
           patientName: patient.name,
           phone: patient.phone,
@@ -1974,6 +2041,7 @@ export async function getMessagingOverviewCore() {
           stage: patient.stage,
           gestationalAgeLabel: patient.gestationalAgeLabel,
           nextExam: patient.nextExam,
+          pendingVaccines,
           priorityScore: messagePriority.score,
           priorityLevel: messagePriority.level,
           priorityLabel: messagePriority.label,
@@ -1999,6 +2067,59 @@ export async function getMessagingOverviewCore() {
       })
       .filter(Boolean)
   );
+
+  // Pacientes que tem vacina pendente na janela, mas que nao entraram na lista acima
+  // porque nao tem exame proximo pendente (ex: entre exames, ou exame ja agendado).
+  // Ainda assim precisam aparecer na Central de Lembretes para a recepcao avisar.
+  const vaccineOnlyItems = patients
+    .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
+    .filter((patient) => !patientsWithExamItem.has(patient.id))
+    .map((patient) => {
+      const pendingVaccines = (patient.vaccineNeeds || []).filter((item) => item.needsAttention);
+      if (!pendingVaccines.length) {
+        return null;
+      }
+      const vaccineBlurb = buildVaccineReminderBlurb(patient.vaccineNeeds || []);
+      const suggestedMessage = `Ola, ${patient.name}. Aqui e da clinica obstetrica. ${vaccineBlurb}`.trim();
+      const hasActionable = pendingVaccines.some((item) => item.actionable);
+
+      return {
+        kind: "vacina",
+        patientId: patient.id,
+        patientName: patient.name,
+        phone: patient.phone,
+        physicianName: patient.physicianName,
+        clinicUnit: patient.clinicUnit,
+        stage: patient.stage,
+        gestationalAgeLabel: patient.gestationalAgeLabel,
+        nextExam: patient.nextExam,
+        pendingVaccines,
+        priorityScore: hasActionable ? 2 : 3,
+        priorityLevel: hasActionable ? "baixa" : "baixa",
+        priorityLabel: hasActionable ? "Vacina pendente" : "Aviso de vacina",
+        messageType: "vacina",
+        messageTypeLabel: "Vacina",
+        messageOrigin: "vacina",
+        messageOriginLabel: "Janela de vacina",
+        suggestedMessage,
+        reminderLabel: pendingVaccines.map((item) => item.name).join(", "),
+        examPatientId: null,
+        examModelId: null,
+        whatsappUrl: `https://wa.me/${toWhatsAppPhone(patient.phone)}?text=${encodeURIComponent(suggestedMessage)}`,
+        latestMessage: latestMessagesMap.get(patient.id) ?? null,
+        messageHistory: messageHistoryByPatient.get(patient.id) ?? [],
+        gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
+        gestationalBaseConfidenceLabel: patient.gestationalBaseConfidenceLabel || "Nao avaliada",
+        gestationalBaseIsEstimated: Boolean(patient.gestationalBaseIsEstimated),
+        gestationalReviewRequired: Boolean(patient.gestationalReviewRequired),
+        gestationalBaseExplanation: patient.gestationalBaseExplanation || null,
+        gestationalMessagingAlertLevel: "ok",
+        gestationalMessagingAlertMessage: null
+      };
+    })
+    .filter(Boolean);
+
+  return sortPatientsByPriority([...examItems, ...vaccineOnlyItems]);
 }
 
 export async function createMessageCore(input) {
