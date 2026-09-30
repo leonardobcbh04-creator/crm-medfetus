@@ -897,3 +897,40 @@ export async function upsertPatientVaccineStatus({ patientId, vaccineCode, statu
   `, [patientId, vaccineCode, status, updatedByUserId, now]);
   return result.rows[0];
 }
+
+// ---- Tela Vacinas: marca "Contatada" (campanha dTpa) ----
+
+export async function listVaccineContactRows() {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      vc.patient_id AS "patientId",
+      vc.contacted_at AS "contactedAt",
+      vc.contacted_by_user_id AS "contactedByUserId",
+      u.name AS "contactedByName"
+    FROM vacinas_contato vc
+    LEFT JOIN users u ON u.id = vc.contacted_by_user_id
+  `);
+  return result.rows;
+}
+
+export async function upsertVaccineContact({ patientId, contactedByUserId, contactedAt }) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query(`
+    INSERT INTO vacinas_contato (patient_id, contacted_at, contacted_by_user_id, created_at)
+    VALUES ($1, $2, $3, $2)
+    ON CONFLICT (patient_id)
+    DO UPDATE SET contacted_at = $2, contacted_by_user_id = $3
+  `, [patientId, contactedAt, contactedByUserId]);
+}
+
+export async function deleteVaccineContact(patientId) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query("DELETE FROM vacinas_contato WHERE patient_id = $1", [patientId]);
+}
+
+// Apaga a marca "Contatada" de quem nao esta mais na tela Vacinas.
+export async function deleteVaccineContactsExcept(patientIds) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query("DELETE FROM vacinas_contato WHERE NOT (patient_id = ANY($1::int[]))", [patientIds]);
+}

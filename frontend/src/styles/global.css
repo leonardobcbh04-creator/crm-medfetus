@@ -3075,3 +3075,56 @@ textarea:focus {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* Tela Vacinas (campanha dTpa) */
+.vaccine-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.vaccine-status-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.vaccine-status-group-label {
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 0.85rem;
+  min-width: 42px;
+}
+
+.vaccine-status-group .secondary-button {
+  padding: 7px 12px;
+  font-size: 0.85rem;
+  box-shadow: none;
+}
+
+.vaccine-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.vaccine-filter-toggle input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.vaccine-filter-toggle {
+  white-space: nowrap;
+}

@@ -28,6 +28,10 @@ import {
   listPatientExamRows,
   listPatientsBaseRows,
   listPatientVaccineRows,
+  listVaccineContactRows,
+  upsertVaccineContact,
+  deleteVaccineContact,
+  deleteVaccineContactsExcept,
   listPatientVaccineRowsForPatient,
   upsertPatientVaccineStatus,
   listPhysiciansRows,
@@ -42,6 +46,7 @@ import {
 } from "../database/repositories/coreRepository.js";
 import { analyzePatientExamTimeline, calculateExamScheduleDates, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
 import { VACCINE_DEFINITIONS, VACCINE_STATUS, resolvePatientVaccineNeeds, buildVaccineReminderBlurb } from "../domain/vaccines.js";
+import { buildDtpaCampaign } from "../domain/vaccineCampaign.js";
 import { listExamProtocolPresets } from "./examProtocolPresets.js";
 import {
   buildSessionExpiry,
@@ -1995,6 +2000,63 @@ export async function updatePatientVaccineStatusCore(patientId, vaccineCode, sta
   });
 
   return getPatientVaccinesCore(patientId);
+}
+
+// Tela "Vacinas" (campanha dTpa): secao A (entram na janela nos proximos 15 dias)
+// e secao B (ja podem vacinar). A marca "Contatada" vale enquanto a paciente estiver
+// na tela; quem saiu da tela tem a marca apagada aqui.
+export async function getDtpaCampaignCore() {
+  const [patients, patientExamRows, patientVaccineRows, contactRows] = await Promise.all([
+    listPatientsCore(),
+    listPatientExamRows(),
+    listPatientVaccineRows(),
+    listVaccineContactRows()
+  ]);
+  const campaign = buildDtpaCampaign({
+    patients,
+    patientExamsMap: buildPatientExamsMap(patientExamRows),
+    vaccineRowsMap: buildPatientVaccinesMap(patientVaccineRows),
+    contactsMap: new Map(contactRows.map((row) => [row.patientId, row])),
+    todayIso: todayIsoInTimeZone("America/Sao_Paulo")
+  });
+
+  const onScreenIds = [...campaign.entering, ...campaign.eligible].map((item) => item.patientId);
+  const onScreen = new Set(onScreenIds);
+  if (contactRows.some((row) => !onScreen.has(row.patientId))) {
+    await deleteVaccineContactsExcept(onScreenIds);
+  }
+
+  const items = [...campaign.entering, ...campaign.eligible];
+  return {
+    ...campaign,
+    summary: {
+      total: items.length,
+      notContacted: items.filter((item) => !item.contacted).length
+    }
+  };
+}
+
+export async function getDtpaCampaignCountCore() {
+  const campaign = await getDtpaCampaignCore();
+  return { count: campaign.summary.notContacted, total: campaign.summary.total };
+}
+
+export async function setVaccineContactCore(patientId, contacted, actorUserId) {
+  const normalizedPatientId = Number(patientId);
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === normalizedPatientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+  if (contacted) {
+    await upsertVaccineContact({
+      patientId: normalizedPatientId,
+      contactedByUserId: await resolveActorUserId(actorUserId),
+      contactedAt: new Date().toISOString()
+    });
+  } else {
+    await deleteVaccineContact(normalizedPatientId);
+  }
+  return getDtpaCampaignCore();
 }
 
 export async function getMessagingOverviewCore() {

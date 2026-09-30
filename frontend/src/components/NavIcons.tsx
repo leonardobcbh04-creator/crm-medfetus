@@ -94,3 +94,14 @@ export function AdminIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function VaccineIcon({ className }: IconProps) {
+  return (
+    <svg {...baseProps} className={className} aria-hidden="true">
+      <path d="M17.5 3.5l3 3M19 5l-3.5 3.5" />
+      <path d="M15.5 8.5l-8.5 8.5-2.5.5.5-2.5 8.5-8.5z" />
+      <path d="M11 10l3 3M9 12l3 3" />
+      <path d="M4.5 19.5l-1 1" />
+    </svg>
+  );
+}
