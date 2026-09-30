@@ -51,12 +51,16 @@ import {
   isPasswordHashed,
   verifyPassword
 } from "../security/auth.js";
-import { addDays, formatDatePtBr, todayIso } from "../utils/date.js";
+import { addDays, formatDatePtBr, todayIso, todayIsoInTimeZone } from "../utils/date.js";
 import { normalizeBrazilPhone, toWhatsAppPhone } from "../utils/phone.js";
 import { getMessagingRuntimeConfig } from "./messaging/messagingService.js";
 import { lookupFutureScheduledExamInShosp } from "./shospIntegration/shospIntegrationService.js";
 import { recordAuditEvent } from "./auditService.js";
-import { previewPatientImportCore as previewPatientImportRows } from "./patientImportService.js";
+import {
+  FUTURE_SCHEDULE_SOURCE,
+  previewFutureScheduleImportCore as previewFutureScheduleImportRows,
+  previewPatientImportCore as previewPatientImportRows
+} from "./patientImportService.js";
 
 
 async function resolveActorUserId(preferredUserId = null) {
@@ -868,6 +872,7 @@ function buildExamScheduleRows(patientId, automaticExamModels, snapshot, preserv
       scheduledDate: historicalCompleted ? null : previous?.scheduledDate ?? null,
       scheduledTime: historicalCompleted ? null : previous?.scheduledTime ?? null,
       schedulingNotes: historicalCompleted ? null : previous?.schedulingNotes ?? null,
+      schedulingSource: historicalCompleted ? null : previous?.schedulingSource ?? null,
       scheduledByUserId: historicalCompleted ? null : previous?.scheduledByUserId ?? null,
       lastContactedAt: historicalCompleted ? null : previous?.lastContactedAt ?? null,
       reminderSnoozedUntil: historicalCompleted ? null : previous?.reminderSnoozedUntil ?? null,
@@ -2307,6 +2312,7 @@ async function applyPatientImportUpdateCore(row, actorUserId) {
     scheduledTime: null,
     schedulingNotes: "Exame registrado por importacao de planilha.",
     scheduledByUserId: null,
+    schedulingSource: null,
     lastContactedAt: resolvedExam.lastContactedAt ?? null,
     reminderSnoozedUntil: null,
     completedDate: row.normalizedData.importCompletedDate || now,
@@ -2379,6 +2385,224 @@ export async function confirmPatientImportCore(input) {
     },
     imported: [...imported, ...updated],
     skipped: preview.rows.filter((row) => !["pronta", "atualizacao"].includes(row.status))
+  };
+}
+
+export async function previewFutureScheduleImportDataCore(input) {
+  const [patients, patientExams, automaticExamModels] = await Promise.all([
+    listPatientsBaseRows(),
+    listPatientExamRows(),
+    listAutomaticExamModels()
+  ]);
+
+  return previewFutureScheduleImportRows({
+    fileName: input.fileName,
+    fileBase64: input.fileBase64,
+    todayIso: todayIsoInTimeZone("America/Sao_Paulo"),
+    patients,
+    patientExams,
+    automaticExamModels
+  });
+}
+
+function buildExamRecordPayload(exam, overrides) {
+  return {
+    scheduledDate: exam.scheduledDate ?? null,
+    scheduledTime: exam.scheduledTime ?? null,
+    schedulingNotes: exam.schedulingNotes ?? null,
+    scheduledByUserId: exam.scheduledByUserId ?? null,
+    lastContactedAt: exam.lastContactedAt ?? null,
+    reminderSnoozedUntil: exam.reminderSnoozedUntil ?? null,
+    completedDate: exam.completedDate ?? null,
+    completedByUserId: exam.completedByUserId ?? null,
+    completedOutsideClinic: Boolean(exam.completedOutsideClinic),
+    status: exam.status,
+    ...overrides
+  };
+}
+
+// Grava a agenda futura. Reenviar o arquivo substitui os agendamentos que vieram de
+// uma importacao anterior nas datas presentes no arquivo (remarcacoes/cancelamentos);
+// agendamentos feitos manualmente ou detectados no Shosp nao sao tocados. Linhas
+// "confirmar" so sao gravadas se o rowKey vier em confirmedRowKeys.
+export async function confirmFutureScheduleImportCore(input) {
+  const preview = await previewFutureScheduleImportDataCore(input);
+  const actorUserId = await resolveActorUserId(input.actorUserId);
+  const confirmedRowKeys = new Set(Array.isArray(input.confirmedRowKeys) ? input.confirmedRowKeys.map(String) : []);
+  const now = todayIso();
+  const scheduleDates = new Set(preview.scheduleDates);
+
+  const rowsToSchedule = preview.rows.filter(
+    (row) => row.status === "agendamento" || (row.status === "confirmar" && confirmedRowKeys.has(row.rowKey))
+  );
+  const cancelRows = preview.rows.filter((row) => row.status === "cancelamento");
+
+  // Estado desejado: exame (paciente + codigo) -> data/horario da planilha.
+  const desired = new Map();
+  for (const row of rowsToSchedule) {
+    for (const exam of row.exams) {
+      desired.set(`${row.registeredPatientId}:${exam.code}`, { row, exam });
+    }
+  }
+
+  const currentExams = await listPatientExamRows();
+  const touchedPatients = new Map();
+  const movements = [];
+  const result = { scheduled: [], unchanged: 0, removed: [], cancelled: [] };
+
+  const markTouched = (patientId) => {
+    if (!touchedPatients.has(patientId)) {
+      touchedPatients.set(patientId, null);
+    }
+  };
+
+  // 1) Remove agendamentos importados antes, nas datas do arquivo, que nao estao mais nele.
+  for (const exam of currentExams) {
+    const key = `${exam.patientId}:${exam.code}`;
+    if (
+      exam.status !== "agendado" ||
+      exam.schedulingSource !== FUTURE_SCHEDULE_SOURCE ||
+      !scheduleDates.has(exam.scheduledDate) ||
+      desired.has(key)
+    ) {
+      continue;
+    }
+    await updatePatientExamRecord(exam.patientId, exam.id, buildExamRecordPayload(exam, {
+      scheduledDate: null,
+      scheduledTime: null,
+      schedulingNotes: null,
+      scheduledByUserId: null,
+      status: "pendente",
+      updatedAt: now
+    }));
+    markTouched(exam.patientId);
+    result.removed.push({ patientId: exam.patientId, examName: exam.name, scheduledDate: exam.scheduledDate });
+    movements.push({
+      patientId: exam.patientId,
+      actionType: "agendamento_removido_importacao",
+      description: `Agendamento do exame ${exam.name} em ${formatDatePtBr(exam.scheduledDate)} removido: nao consta mais na agenda importada.`,
+      metadata: { origem: FUTURE_SCHEDULE_SOURCE, examId: exam.id, examCode: exam.code, scheduledDate: exam.scheduledDate }
+    });
+  }
+
+  // 2) Cancelamentos ("CANCELOU" na observacao): tira o agendamento daquela data.
+  for (const row of cancelRows) {
+    for (const target of row.exams) {
+      const key = `${row.registeredPatientId}:${target.code}`;
+      const exam = currentExams.find((item) => item.patientId === row.registeredPatientId && item.code === target.code);
+      if (!exam || desired.has(key) || exam.status !== "agendado" || exam.scheduledDate !== row.scheduleDate) {
+        continue;
+      }
+      if (result.removed.some((item) => item.patientId === exam.patientId && item.examName === exam.name)) {
+        continue;
+      }
+      await updatePatientExamRecord(exam.patientId, exam.id, buildExamRecordPayload(exam, {
+        scheduledDate: null,
+        scheduledTime: null,
+        schedulingNotes: null,
+        scheduledByUserId: null,
+        status: "pendente",
+        updatedAt: now
+      }));
+      markTouched(exam.patientId);
+      result.cancelled.push({ patientId: exam.patientId, examName: exam.name, scheduledDate: exam.scheduledDate });
+      movements.push({
+        patientId: exam.patientId,
+        actionType: "agendamento_cancelado_importacao",
+        description: `Agendamento do exame ${exam.name} em ${formatDatePtBr(exam.scheduledDate)} cancelado (agenda da recepcao).`,
+        metadata: { origem: FUTURE_SCHEDULE_SOURCE, examId: exam.id, examCode: exam.code, scheduledDate: exam.scheduledDate }
+      });
+    }
+  }
+
+  // 3) Grava os agendamentos da planilha.
+  for (const { row, exam: target } of desired.values()) {
+    const exam = currentExams.find((item) => item.patientId === row.registeredPatientId && item.code === target.code);
+    if (!exam || exam.status === "realizado") {
+      continue;
+    }
+    const alreadyScheduled =
+      exam.status === "agendado" &&
+      exam.schedulingSource === FUTURE_SCHEDULE_SOURCE &&
+      exam.scheduledDate === row.scheduleDate &&
+      (exam.scheduledTime ?? null) === (row.scheduleTime ?? null);
+    if (alreadyScheduled) {
+      result.unchanged += 1;
+      continue;
+    }
+    await updatePatientExamRecord(exam.patientId, exam.id, buildExamRecordPayload(exam, {
+      scheduledDate: row.scheduleDate,
+      scheduledTime: row.scheduleTime,
+      schedulingNotes: "Agendamento importado da agenda da recepcao.",
+      scheduledByUserId: actorUserId,
+      completedDate: null,
+      completedByUserId: null,
+      completedOutsideClinic: false,
+      status: "agendado",
+      schedulingSource: FUTURE_SCHEDULE_SOURCE,
+      updatedAt: now
+    }));
+    markTouched(exam.patientId);
+    result.scheduled.push({
+      rowKey: row.rowKey,
+      patientId: exam.patientId,
+      patientName: row.registeredPatientName,
+      examName: exam.name,
+      scheduledDate: row.scheduleDate,
+      scheduledTime: row.scheduleTime
+    });
+    movements.push({
+      patientId: exam.patientId,
+      actionType: "exame_agendado",
+      description: `Exame ${exam.name} agendado para ${formatDatePtBr(row.scheduleDate)}${row.scheduleTime ? ` as ${row.scheduleTime}` : ""} (agenda da recepcao).`,
+      metadata: {
+        origem: FUTURE_SCHEDULE_SOURCE,
+        examId: exam.id,
+        examCode: exam.code,
+        scheduledDate: row.scheduleDate,
+        scheduledTime: row.scheduleTime
+      }
+    });
+  }
+
+  // 4) Atualiza a etapa (kanban) das pacientes afetadas e registra o historico.
+  const patientsBefore = new Map((await listPatientsBaseRows()).map((patient) => [patient.id, patient]));
+  for (const patientId of touchedPatients.keys()) {
+    const details = await getPatientDetailsCore(patientId);
+    const fromStage = patientsBefore.get(patientId)?.stage ?? null;
+    const toStage = details.patient.stage;
+    await updatePatientStage(patientId, toStage, now);
+    for (const movement of movements.filter((item) => item.patientId === patientId)) {
+      await insertMovementRecord({
+        patientId,
+        fromStage,
+        toStage,
+        actionType: movement.actionType,
+        description: movement.description,
+        metadataJson: JSON.stringify(movement.metadata),
+        createdByUserId: actorUserId,
+        createdAt: now
+      });
+    }
+  }
+
+  const pendingConfirmation = preview.rows.filter((row) => row.status === "confirmar" && !confirmedRowKeys.has(row.rowKey));
+  return {
+    preview,
+    summary: {
+      totalRows: preview.summary.totalRows,
+      scheduledExams: result.scheduled.length,
+      unchangedExams: result.unchanged,
+      removedSchedules: result.removed.length,
+      cancelledSchedules: result.cancelled.length,
+      pendingConfirmationRows: pendingConfirmation.length,
+      notRegisteredRows: preview.summary.notRegisteredRows,
+      errorRows: preview.summary.errorRows,
+      ignoredRows: preview.summary.ignoredRows
+    },
+    scheduled: result.scheduled,
+    removed: result.removed,
+    cancelled: result.cancelled
   };
 }
 

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import ExcelJS from "exceljs";
+import { FutureScheduleImportPanel } from "../components/FutureScheduleImportPanel";
 import { api } from "../services/api";
 import type { PatientImportConfirmResult, PatientImportPreview } from "../types";
 import { formatBrazilPhone } from "../utils/phone";
@@ -65,6 +66,7 @@ function getStatusBadgeMeta(status: PatientImportPreview["rows"][number]["status
 }
 
 export function PatientImportPage() {
+  const [importMode, setImportMode] = useState<"dia" | "agenda">("dia");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [referenceDate, setReferenceDate] = useState<string>(getTodayIsoDate());
   const [filePayload, setFilePayload] = useState<{ fileName: string; fileBase64: string; referenceDate: string } | null>(null);
@@ -207,6 +209,31 @@ export function PatientImportPage() {
         </div>
       </div>
 
+      <div className="patient-tabs-bar" role="tablist" aria-label="Tipo de importacao">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={importMode === "dia"}
+          className={`patient-tab-button ${importMode === "dia" ? "active" : ""}`}
+          onClick={() => setImportMode("dia")}
+        >
+          <span>Atendimentos do dia (realizados)</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={importMode === "agenda"}
+          className={`patient-tab-button ${importMode === "agenda" ? "active" : ""}`}
+          onClick={() => setImportMode("agenda")}
+        >
+          <span>Agenda futura</span>
+        </button>
+      </div>
+
+      {importMode === "agenda" ? (
+        <FutureScheduleImportPanel readFileAsBase64={readFileAsBase64} />
+      ) : (
+      <>
       {feedback ? (
         <div className={feedbackType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
           <span>{feedback}</span>
@@ -396,6 +423,8 @@ export function PatientImportPage() {
           </p>
         )}
       </article>
+      </>
+      )}
     </section>
   );
 }
