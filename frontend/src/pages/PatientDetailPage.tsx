@@ -127,9 +127,6 @@ export function PatientDetailPage() {
   const [schedulingNotes, setSchedulingNotes] = useState<Record<number, string>>({});
   const [completedDates, setCompletedDates] = useState<Record<number, string>>({});
   const [highlightedExamId, setHighlightedExamId] = useState<number | null>(null);
-  const [notesDraft, setNotesDraft] = useState("");
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [isClosingTracking, setIsClosingTracking] = useState(false);
   const [isSavingClosure, setIsSavingClosure] = useState(false);
   const [isReopeningTracking, setIsReopeningTracking] = useState(false);
@@ -173,31 +170,8 @@ export function PatientDetailPage() {
           return accumulator;
         }, {})
       );
-      setNotesDraft(response.patient.notes || "");
-      setIsEditingNotes(false);
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleSaveNotes() {
-    if (!id) {
-      return;
-    }
-
-    setIsSavingNotes(true);
-    try {
-      const response = await api.updatePatientNotes(Number(id), notesDraft);
-      setDetails(response.patient);
-      setNotesDraft(response.patient.patient.notes || "");
-      setIsEditingNotes(false);
-      setFeedbackType("success");
-      setFeedback("Observacoes salvas com sucesso.");
-    } catch (error) {
-      setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel salvar as observacoes.");
-    } finally {
-      setIsSavingNotes(false);
     }
   }
 
@@ -424,10 +398,10 @@ export function PatientDetailPage() {
               Acompanhe exames, contatos e historico operacional da paciente em um unico lugar.
             </p>
         </div>
-        <div className="inline-actions list-action-bar detail-action-bar">
+        <div className="detail-header-actions">
           <Link to={`/pacientes/${details.patient.id}/editar`} className="secondary-button">Editar paciente</Link>
-            <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar agendamento</button>
-            <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar exame realizado</button>
+          <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar agendamento</button>
+          <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar exame realizado</button>
           <a href={whatsappUrl} target="_blank" rel="noreferrer" className="whatsapp-link">Abrir WhatsApp</a>
           {details.patient.status !== "encerrada" ? (
             <button
@@ -595,59 +569,9 @@ export function PatientDetailPage() {
             <span><strong>Idade gestacional informada:</strong> {details.patient.gestationalAgeLabel}</span>
             <span><strong>DPP:</strong> {details.patient.estimatedDueDate}</span>
             <span><strong>Origem da base:</strong> {details.patient.gestationalBaseSourceLabel || "Nao definida"}</span>
-            <span><strong>Confianca:</strong> {details.patient.gestationalBaseConfidenceLabel || "Nao definida"}</span>
             <span><strong>Tipo de gestacao:</strong> {details.patient.pregnancyType || "Nao informado"}</span>
             <span><strong>Alto risco:</strong> {details.patient.highRisk ? "Sim" : "Nao"}</span>
-            {details.patient.gestationalBaseExplanation ? (
-              <span><strong>Observacao da base:</strong> {details.patient.gestationalBaseExplanation}</span>
-            ) : null}
           </div>
-        </article>
-
-        <article className="panel-card">
-          <p className="muted-label">Observacoes</p>
-          {isEditingNotes ? (
-            <>
-              <textarea
-                rows={5}
-                value={notesDraft}
-                onChange={(event) => setNotesDraft(event.target.value)}
-                placeholder="Registre combinados, contexto clinico e observacoes da equipe."
-              />
-              <div className="inline-actions list-action-bar">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={handleSaveNotes}
-                  disabled={isSavingNotes}
-                >
-                  {isSavingNotes ? "Salvando..." : "Salvar observacoes"}
-                </button>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => {
-                    setNotesDraft(details.patient.notes || "");
-                    setIsEditingNotes(false);
-                  }}
-                  disabled={isSavingNotes}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="admin-notes-text">{details.patient.notes || "Sem observacoes."}</p>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setIsEditingNotes(true)}
-              >
-                Editar observacoes
-              </button>
-            </>
-          )}
         </article>
 
         <article className="panel-card">
