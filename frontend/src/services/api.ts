@@ -1,4 +1,5 @@
 import type {
+  DtpaCampaign,
   FutureScheduleImportConfirmResult,
   FutureScheduleImportPreview,
   AdminPanelData,
@@ -418,6 +419,18 @@ export const api = {
         ).toString()}`
       : "";
     return request<ReminderCenterData>(`/reminders${query}`);
+  },
+  getDtpaCampaign() {
+    return request<DtpaCampaign>("/vaccines/dtpa");
+  },
+  getDtpaCampaignCount() {
+    return request<{ count: number; total: number }>("/vaccines/dtpa/count");
+  },
+  setDtpaContact(patientId: number, contacted: boolean) {
+    return request<DtpaCampaign>(`/vaccines/dtpa/${patientId}/contact`, {
+      method: "PUT",
+      body: JSON.stringify({ contacted })
+    });
   },
   getRemindersCount() {
     return request<{ count: number }>("/reminders/count");

@@ -12,8 +12,8 @@ const VACCINE_STATUS_LABELS = {
 
 // Regras clinicas (ver conversa com a clinica):
 // - Gripe: sem janela especifica, vale a gestacao inteira.
-// - dTpa: a partir da 20a semana, ideal entre a 27a e a 36a (mas ainda vale a pena
-//   depois disso se a paciente perdeu a janela ideal, ate o parto).
+// - dTpa: janela ideal da 20a a 36a semana (mas ainda vale a pena depois disso se a
+//   paciente perdeu a janela ideal, ate o parto).
 // - VSR (Abrysvo): janela da 28a a 36a semana. E so um AVISO — o SUS oferece a
 //   vacina, entao a clinica nao tenta agendar/aplicar, so orienta a gestante.
 export const VACCINE_DEFINITIONS = [
@@ -32,10 +32,10 @@ export const VACCINE_DEFINITIONS = [
     name: "Vacina dTpa (difteria, tetano e coqueluche)",
     startWeek: 20,
     endWeek: null,
-    idealStartWeek: 27,
+    idealStartWeek: 20,
     idealEndWeek: 36,
     actionable: true,
-    reminderPhrase: "a vacina dTpa (ideal entre a 27a e a 36a semana de gestacao)"
+    reminderPhrase: "a vacina dTpa (a partir da 20ª semana de gestação)"
   },
   {
     code: "vsr",

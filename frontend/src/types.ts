@@ -293,6 +293,32 @@ export type VaccineNeed = {
   reminderPhrase: string;
 };
 
+export type DtpaCampaignItem = {
+  patientId: number;
+  patientName: string;
+  phone: string;
+  section: "entrando" | "janela";
+  gestationalDaysToday: number;
+  gestationalAgeLabel: string;
+  fluPending: boolean;
+  nextExam: { id: number; name: string; scheduledDate: string; scheduledTime: string | null } | null;
+  contacted: boolean;
+  contactedAt: string | null;
+  contactedByName: string | null;
+  whatsappMessage: string;
+  daysUntilWindow?: number;
+  windowStartDate?: string;
+  daysUntilWindowEnd?: number;
+  windowEndDate?: string;
+};
+
+export type DtpaCampaign = {
+  today: string;
+  entering: DtpaCampaignItem[];
+  eligible: DtpaCampaignItem[];
+  summary: { total: number; notContacted: number };
+};
+
 export type Patient = {
   id: number;
   name: string;

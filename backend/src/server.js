@@ -14,6 +14,7 @@ import { patientRoutes } from "./routes/patientRoutes.js";
 import { reportRoutes } from "./routes/reportRoutes.js";
 import { reminderRoutes } from "./routes/reminderRoutes.js";
 import { shospRoutes } from "./routes/shospRoutes.js";
+import { vaccineRoutes } from "./routes/vaccineRoutes.js";
 import { startLogRetentionWorker, stopLogRetentionWorker } from "./services/logRetentionService.js";
 import { startShospSyncWorker, stopShospSyncWorker } from "./services/shospIntegration/shospSyncWorker.js";
 
@@ -76,6 +77,7 @@ app.use("/api/reports", requireAuth, reportRoutes);
 app.use("/api/exam-configs", requireAuth, examRoutes);
 app.use("/api/messages", requireAuth, messageRoutes);
 app.use("/api/reminders", requireAuth, reminderRoutes);
+app.use("/api/vaccines", requireAuth, vaccineRoutes);
 
 if (RUN_BACKGROUND_WORKERS_IN_API && SHOSP_ENABLED) {
   startShospSyncWorker();

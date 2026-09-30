@@ -11,13 +11,15 @@ import {
   PatientAddIcon,
   PatientsIcon,
   ReportsIcon,
-  ReviewIcon
+  ReviewIcon,
+  VaccineIcon
 } from "./NavIcons";
 
 export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [remindersCount, setRemindersCount] = useState(0);
+  const [vaccinesCount, setVaccinesCount] = useState(0);
   const storedUser = getStoredUser();
   const menuItems = [
     { to: "/dashboard", label: "Dashboard", icon: DashboardIcon },
@@ -25,6 +27,7 @@ export function AppShell() {
     { to: "/clientes", label: "Pacientes", icon: PatientsIcon },
     { to: "/kanban", label: "Fluxo de atendimento", icon: FlowIcon },
     { to: "/contatos", label: "Central de contatos", badgeKey: "reminders", icon: ContactsIcon },
+    { to: "/vacinas", label: "Vacinas", badgeKey: "vaccines", icon: VaccineIcon },
     { to: "/revisao-base-gestacional", label: "Revisao da base gestacional", icon: ReviewIcon },
     { to: "/relatorios", label: "Relatorios", icon: ReportsIcon },
     ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Administracao", icon: AdminIcon }] : [])
@@ -46,12 +49,32 @@ export function AppShell() {
       }
     }
 
-    loadRemindersCount();
-    const intervalId = window.setInterval(loadRemindersCount, 60000);
+    async function loadVaccinesCount() {
+      try {
+        const data = await api.getDtpaCampaignCount();
+        if (!cancelled) {
+          setVaccinesCount(data.count);
+        }
+      } catch {
+        if (!cancelled) {
+          setVaccinesCount(0);
+        }
+      }
+    }
+
+    function loadCounts() {
+      loadRemindersCount();
+      loadVaccinesCount();
+    }
+
+    loadCounts();
+    const intervalId = window.setInterval(loadCounts, 60000);
+    window.addEventListener("vacinas:changed", loadVaccinesCount);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      window.removeEventListener("vacinas:changed", loadVaccinesCount);
     };
   }, [location.pathname]);
 
@@ -94,6 +117,9 @@ export function AppShell() {
                 </span>
                 {item.badgeKey === "reminders" && remindersCount > 0 ? (
                   <span className="menu-badge">{remindersCount}</span>
+                ) : null}
+                {item.badgeKey === "vaccines" && vaccinesCount > 0 ? (
+                  <span className="menu-badge" title="Pacientes ainda nao contatadas">{vaccinesCount}</span>
                 ) : null}
               </NavLink>
             );

@@ -12,6 +12,7 @@ import { PatientFormPage } from "./pages/PatientFormPage";
 import { PatientImportPage } from "./pages/PatientImportPage";
 import { ContactCenterPage } from "./pages/ContactCenterPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { VaccinesPage } from "./pages/VaccinesPage";
 import { getStoredToken, getStoredUser } from "./services/auth";
 
 function PrivateRoute({ children }: { children: JSX.Element }) {
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/lembretes" element={<Navigate to="/contatos" replace />} />
         <Route path="/mensagens" element={<Navigate to="/contatos" replace />} />
         <Route path="/contatos" element={<ContactCenterPage />} />
+        <Route path="/vacinas" element={<VaccinesPage />} />
         <Route path="/kanban" element={<KanbanPage />} />
         <Route path="/pacientes/novo" element={<PatientFormPage />} />
         <Route path="/pacientes/importar" element={<PatientImportPage />} />
