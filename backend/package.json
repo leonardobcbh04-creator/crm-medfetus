@@ -12,6 +12,8 @@
     "seed:postgres-core": "node src/database/postgres/seedCoreData.js",
     "seed": "npm run migrate:postgres && npm run seed:postgres-core",
     "clear:patients": "node src/clearPatientData.js",
+    "test:unit": "node --test",
+    "test:agenda": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-agenda-import.mjs",
     "test": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-core-postgres.mjs"
   },
   "dependencies": {

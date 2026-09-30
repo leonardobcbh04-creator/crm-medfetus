@@ -35,7 +35,9 @@ const COLUMN_ALIASES = {
   highRisk: ["alto risco", "gestacao de alto risco"],
   lastCompletedExamCode: ["ultimo exame realizado", "ultimo exame"],
   // Usada so na planilha de recepcao, para identificar e ignorar atendimentos cancelados.
-  importStatus: ["observacao", "observacoes"]
+  importStatus: ["observacao", "observacoes"],
+  // Horario do atendimento (coluna B da planilha de recepcao). Usado na agenda futura.
+  scheduleTime: ["horario", "hora"]
 };
 
 // Marcadores (na coluna de observacao da planilha de recepcao) que indicam que a
@@ -160,7 +162,10 @@ function isRowEmpty(row) {
   return !Array.isArray(row) || row.every((cell) => cell === "" || cell === null || cell === undefined);
 }
 
-async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
+// Le as abas da planilha e devolve, para cada aba, o mapa de colunas DELA. Cada aba
+// tem o proprio mapa porque o layout da planilha de recepcao pode variar de um dia
+// para outro (ex: na aba 01-10 o CELULAR esta na coluna P e nas demais na Q).
+async function readWorkbookSheets(fileName, fileBase64) {
   const extension = ACCEPTED_EXTENSIONS.find((item) => String(fileName || "").toLowerCase().endsWith(item));
   if (!extension) {
     throw new Error("Formato nao suportado. Envie uma planilha .xlsx, .xls ou .csv.");
@@ -176,10 +181,6 @@ async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
     throw new Error("Nao foi encontrada nenhuma aba na planilha.");
   }
 
-  let columnMap = null;
-  let isReceptionLayout = false;
-  const rows = [];
-
   // A planilha da recepcao repete varias colunas mais a frente (area financeira e de
   // endereco), incluindo cabecalhos duplicados como "NOME" e "EXAME". Em vez de tentar
   // resolver essa ambiguidade por prioridade de coluna, simplesmente ignoramos tudo
@@ -187,6 +188,7 @@ async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
   // e detectado — assim as colunas duplicadas nem chegam a ser consideradas.
   const RECEPTION_LAYOUT_COLUMN_LIMIT = 22; // colunas A (indice 0) a V (indice 21)
 
+  const sheets = [];
   for (const sheetName of workbook.SheetNames) {
     const rawGrid = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
       header: 1,
@@ -199,20 +201,37 @@ async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
     }
 
     const receptionHeaderIndex = findHeaderRowIndex(rawGrid);
-    const grid = receptionHeaderIndex >= 0
+    const isReceptionSheet = receptionHeaderIndex >= 0;
+    const grid = isReceptionSheet
       ? rawGrid.map((row) => row.slice(0, RECEPTION_LAYOUT_COLUMN_LIMIT))
       : rawGrid;
-    const headerIndex = receptionHeaderIndex >= 0 ? receptionHeaderIndex : 0;
-    const sheetColumnMap = buildColumnMapFromHeaderRow(grid[headerIndex] || []);
+    const headerIndex = isReceptionSheet ? receptionHeaderIndex : 0;
+    // O grid comeca na primeira linha usada da aba (nem sempre a linha 1 do Excel);
+    // guardamos o deslocamento para mostrar o numero real da linha na previa.
+    const worksheetRef = workbook.Sheets[sheetName]["!ref"];
+    const firstRowOffset = worksheetRef ? XLSX.utils.decode_range(worksheetRef).s.r : 0;
+    sheets.push({
+      sheetName,
+      grid,
+      firstRowOffset,
+      headerIndex,
+      isReceptionSheet,
+      columnMap: buildColumnMapFromHeaderRow(grid[headerIndex] || [])
+    });
+  }
 
-    // O mapa de colunas e definido pela primeira aba com cabecalho reconhecivel e
-    // reaproveitado nas demais (todas as abas da planilha de recepcao seguem o
-    // mesmo layout, uma por dia).
-    if (!columnMap) {
-      columnMap = sheetColumnMap;
-      isReceptionLayout = receptionHeaderIndex >= 0;
-    }
+  // Se alguma aba segue o layout da recepcao, abas sem esse cabecalho (capa, resumo
+  // etc.) nao sao lidas: nao da para saber com seguranca onde estao as colunas.
+  const isReceptionLayout = sheets.some((sheet) => sheet.isReceptionSheet);
+  const usableSheets = isReceptionLayout ? sheets.filter((sheet) => sheet.isReceptionSheet) : sheets;
+  return { sheets: usableSheets, isReceptionLayout };
+}
 
+async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
+  const { sheets, isReceptionLayout } = await readWorkbookSheets(fileName, fileBase64);
+  const rows = [];
+
+  for (const { grid, headerIndex, columnMap } of sheets) {
     for (let rowIndex = headerIndex + 1; rowIndex < grid.length; rowIndex += 1) {
       const row = grid[rowIndex];
       if (isRowEmpty(row)) {
@@ -232,11 +251,11 @@ async function parseWorkbookRows(fileName, fileBase64, referenceDateIso) {
         }
       }
 
-      rows.push(row);
+      rows.push({ cells: row, columnMap });
     }
   }
 
-  return { columnMap: columnMap || new Map(), rows, isReceptionLayout };
+  return { columnMap: sheets[0]?.columnMap || new Map(), rows, isReceptionLayout };
 }
 
 function getCell(row, columnMap, key) {
@@ -398,7 +417,7 @@ function adjustGestationalAgeByScheduleDate(gestationalAge, scheduleDateIso, err
 
   const adjustmentDays = daysBetween(scheduleDateIso, todayIso());
   if (adjustmentDays < 0) {
-    errors.push("Data da agenda invalida. A data informada esta no futuro.");
+    errors.push("Data da agenda invalida. A data informada esta no futuro. Para agendamentos, use a opcao \"Agenda futura\".");
     return null;
   }
 
@@ -477,6 +496,16 @@ function resolveImportedExam(value, automaticExamByCode, automaticExamByName) {
   }
 
   return automaticExamByName.get(normalizeText(aliasMatch.targetName)) || null;
+}
+
+// Nome do exame (do mapeamento EXAM_IMPORT_ALIASES) que corresponde a celula, mesmo
+// que esse exame nao esteja entre os modelos automaticos carregados.
+function resolveExamAliasTargetName(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return null;
+  }
+  return EXAM_IMPORT_ALIASES.find(({ matchers }) => matchers.some((matcher) => matcher.test(normalized)))?.targetName ?? null;
 }
 
 function buildLookupMap(items, keySelector) {
@@ -588,7 +617,7 @@ export async function previewPatientImportCore({
   const importPhonesSeen = new Set();
   const importClinicIdsSeen = new Set();
 
-  const previewRows = rows.map((row, index) => {
+  const previewRows = rows.map(({ cells: row, columnMap }, index) => {
     const lineNumber = index + 2;
     const errors = [];
     const duplicateMessages = [];
@@ -807,6 +836,291 @@ export async function previewPatientImportCore({
       duplicateRows: previewRows.filter((row) => row.status === "duplicada").length,
       errorRows: previewRows.filter((row) => row.status === "erro").length,
       ignoredRows: previewRows.filter((row) => row.status === "ignorada").length
+    },
+    rows: previewRows
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Agenda futura
+// ---------------------------------------------------------------------------
+// O mesmo arquivo mensal da recepcao, mas lido "para frente": cada aba com data
+// futura vira agendamento (status "agendado") do exame em exames_paciente. A agenda
+// futura nunca cria nem altera o cadastro da paciente — so identifica quem ja esta
+// cadastrada (pelo celular, conferindo o nome) e marca o exame como agendado.
+
+export const FUTURE_SCHEDULE_SOURCE = "importacao_agenda";
+
+const NAME_CONNECTOR_WORDS = new Set(["de", "da", "do", "das", "dos", "e"]);
+
+function tokenizePersonName(value) {
+  return normalizeText(value)
+    .split(" ")
+    .filter((token) => token && !NAME_CONNECTOR_WORDS.has(token));
+}
+
+// Nome da planilha "bate" com o cadastro quando e igual (sem acento/caixa/conectivos)
+// ou quando primeiro nome e ultimo sobrenome sao iguais (a recepcao as vezes omite
+// um sobrenome do meio). Qualquer outra diferenca vai para confirmacao manual.
+export function namesMatch(spreadsheetName, registeredName) {
+  const left = tokenizePersonName(spreadsheetName);
+  const right = tokenizePersonName(registeredName);
+  if (!left.length || !right.length) {
+    return false;
+  }
+  if (left.join(" ") === right.join(" ")) {
+    return true;
+  }
+  return left.length >= 2 && right.length >= 2 && left[0] === right[0] && left.at(-1) === right.at(-1);
+}
+
+// Horario da coluna HORARIO. O Excel guarda horario como fracao do dia; com
+// cellDates o xlsx entrega um Date em 30/12/1899. Tambem aceita texto "8:30"/"08h30".
+export function parseTimeValue(value) {
+  let totalMinutes = null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    totalMinutes = Math.round((value.getTime() - Date.UTC(1899, 11, 30)) / 60000);
+  } else if (typeof value === "number" && Number.isFinite(value)) {
+    totalMinutes = Math.round((value % 1) * 24 * 60);
+  } else {
+    const match = /^(\d{1,2})\s*[:hH]\s*(\d{2})?/.exec(String(value ?? "").trim());
+    if (!match) {
+      return null;
+    }
+    const hours = Number(match[1]);
+    const minutes = Number(match[2] || 0);
+    if (hours > 23 || minutes > 59) {
+      return null;
+    }
+    totalMinutes = hours * 60 + minutes;
+  }
+  const minutesOfDay = ((totalMinutes % 1440) + 1440) % 1440;
+  const hours = String(Math.floor(minutesOfDay / 60)).padStart(2, "0");
+  const minutes = String(minutesOfDay % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+// Nome da aba = dia e mes ("01-10" = 01/10). O ano vem da coluna DATA das linhas
+// (ou do rotulo "OUTUBRO/26" acima dos dados), ja que o nome da aba nao tem ano.
+function resolveSheetDate(sheet) {
+  const match = /^\s*(\d{1,2})\s*[-/.]\s*(\d{1,2})\s*$/.exec(sheet.sheetName);
+  if (!match) {
+    return null;
+  }
+  const day = match[1].padStart(2, "0");
+  const month = match[2].padStart(2, "0");
+
+  let year = null;
+  for (let rowIndex = sheet.headerIndex + 1; rowIndex < sheet.grid.length && !year; rowIndex += 1) {
+    const cellValue = getCell(sheet.grid[rowIndex], sheet.columnMap, "scheduleDate");
+    const iso = parseDateValue(cellValue);
+    if (iso && iso.slice(5) === `${month}-${day}`) {
+      year = iso.slice(0, 4);
+      continue;
+    }
+    const labelMatch = /\/\s*(\d{2}|\d{4})\s*$/.exec(String(cellValue ?? ""));
+    if (labelMatch) {
+      year = labelMatch[1].length === 2 ? `20${labelMatch[1]}` : labelMatch[1];
+    }
+  }
+  if (!year || !isValidIsoDateParts(year, month, day)) {
+    return null;
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function isActivePatient(patient) {
+  return (patient.status || "ativa") === "ativa" && !patient.closedAt;
+}
+
+export async function previewFutureScheduleImportCore({
+  fileName,
+  fileBase64,
+  todayIso: todayReferenceIso,
+  patients,
+  patientExams = [],
+  automaticExamModels = []
+}) {
+  if (!sanitizeString(fileName) || !sanitizeString(fileBase64)) {
+    throw new Error("Selecione uma planilha para continuar.");
+  }
+  const referenceToday = todayReferenceIso || todayIso();
+
+  const { sheets, isReceptionLayout } = await readWorkbookSheets(fileName, fileBase64);
+  if (!isReceptionLayout) {
+    throw new Error("A agenda futura precisa estar no formato da planilha da recepcao (uma aba por dia, com as colunas NOME COMPLETO e CELULAR).");
+  }
+
+  const automaticExamByCode = buildLookupMap(automaticExamModels, (item) => item.code);
+  const automaticExamByName = buildLookupMap(automaticExamModels, (item) => item.name);
+  const patientsByPhone = new Map();
+  patients.filter(isActivePatient).forEach((patient) => {
+    const phone = normalizeBrazilPhone(patient.phone);
+    if (!phone) {
+      return;
+    }
+    const current = patientsByPhone.get(phone) ?? [];
+    current.push(patient);
+    patientsByPhone.set(phone, current);
+  });
+  const patientExamsMap = patientExams.reduce((map, exam) => {
+    const current = map.get(exam.patientId) ?? [];
+    current.push(exam);
+    map.set(exam.patientId, current);
+    return map;
+  }, new Map());
+
+  const ignoredSheets = [];
+  const scheduleDates = [];
+  const previewRows = [];
+
+  for (const sheet of sheets) {
+    const sheetDate = resolveSheetDate(sheet);
+    if (!sheetDate) {
+      ignoredSheets.push({ sheetName: sheet.sheetName, reason: "Nome da aba nao e uma data (esperado dd-mm) ou ano nao encontrado." });
+      continue;
+    }
+    if (sheetDate <= referenceToday) {
+      ignoredSheets.push({ sheetName: sheet.sheetName, reason: "Data de hoje ou passada (use a importacao de atendimentos do dia)." });
+      continue;
+    }
+    scheduleDates.push(sheetDate);
+
+    const { grid, headerIndex, columnMap } = sheet;
+    for (let rowIndex = headerIndex + 1; rowIndex < grid.length; rowIndex += 1) {
+      const row = grid[rowIndex];
+      const name = sanitizeString(getCell(row, columnMap, "name"));
+      if (isRowEmpty(row) || !name) {
+        continue;
+      }
+
+      const errors = [];
+      const messages = [];
+      const rawPhone = sanitizeString(getCell(row, columnMap, "phone"));
+      const phone = normalizeBrazilPhone(rawPhone);
+      const rowDate = parseDateValue(getCell(row, columnMap, "scheduleDate"));
+      const scheduleTime = parseTimeValue(getCell(row, columnMap, "scheduleTime"));
+      const examRaw = sanitizeString(getCell(row, columnMap, "examName"));
+      const isCancelled = isCancelledStatus(getCell(row, columnMap, "importStatus"));
+
+      if (rowDate && rowDate !== sheetDate) {
+        errors.push(`A data da linha (${formatDatePtBr(rowDate)}) e diferente da data da aba (${formatDatePtBr(sheetDate)}).`);
+      }
+
+      // Exame: mesmo mapeamento de nomes da importacao do dia. Uma celula pode
+      // listar mais de um exame; cada exame reconhecido vira um agendamento.
+      const examEntries = splitExamEntries(examRaw);
+      const relevantEntries = examEntries.filter((entry) => !isIgnoredExamImport(entry));
+      const resolvedEntries = relevantEntries.map((entry) => resolveImportedExam(entry, automaticExamByCode, automaticExamByName));
+      const matchedExams = [...new Map(resolvedEntries.filter(Boolean).map((exam) => [exam.code, exam])).values()];
+      // Exames reconhecidos pelo nome mas que nao fazem parte da jornada automatica
+      // (ex: Obstetrico simples, Morfologico 3o trimestre sao "avulsos"): a paciente
+      // nao tem linha desse exame em exames_paciente, entao nao ha o que agendar.
+      const standaloneExamNames = relevantEntries
+        .filter((entry, index) => !resolvedEntries[index])
+        .map(resolveExamAliasTargetName)
+        .filter(Boolean);
+      const unknownEntries = relevantEntries.filter((entry, index) => !resolvedEntries[index] && !resolveExamAliasTargetName(entry));
+      const onlyIgnoredExams = examEntries.length > 0 && relevantEntries.length === 0;
+      const onlyStandaloneExams = !onlyIgnoredExams && !matchedExams.length && !unknownEntries.length && standaloneExamNames.length > 0;
+      if (!examRaw) {
+        errors.push("Exame nao informado.");
+      } else if (unknownEntries.length) {
+        errors.push(`Exame nao reconhecido: "${examRaw}". Confira a planilha.`);
+      }
+
+      // Paciente: pelo celular, conferindo o nome.
+      let patient = null;
+      let nameConfirmed = false;
+      if (!phone) {
+        errors.push("Celular nao informado na planilha.");
+      } else {
+        const candidates = patientsByPhone.get(phone) ?? [];
+        patient = candidates.find((candidate) => namesMatch(name, candidate.name)) ?? candidates[0] ?? null;
+        nameConfirmed = Boolean(patient) && namesMatch(name, patient.name);
+      }
+
+      const existingExams = patient ? patientExamsMap.get(patient.id) ?? [] : [];
+      const examTargets = matchedExams.map((exam) => {
+        const patientExam = existingExams.find((item) => item.code === exam.code) ?? null;
+        return {
+          code: exam.code,
+          name: exam.name,
+          examPatientId: patientExam?.id ?? null,
+          currentStatus: patientExam?.status ?? null,
+          currentScheduledDate: patientExam?.scheduledDate ?? null
+        };
+      });
+
+      let status;
+      if (errors.length) {
+        status = "erro";
+      } else if (onlyIgnoredExams) {
+        status = "ignorada";
+        messages.push("Exame fora do ciclo operacional. Linha ignorada.");
+      } else if (onlyStandaloneExams) {
+        status = "ignorada";
+        messages.push(`Exame avulso (${standaloneExamNames.join(", ")}): nao faz parte da jornada automatica da paciente, entao nao e agendado no sistema.`);
+      } else if (!patient) {
+        status = "nao_cadastrada";
+        messages.push("Nenhuma paciente ativa cadastrada com esse celular. Linha ignorada.");
+      } else if (isCancelled) {
+        status = "cancelamento";
+        messages.push(`Agendamento cancelado na planilha: sera removido do dia ${formatDatePtBr(sheetDate)}.`);
+      } else if (examTargets.some((target) => !target.examPatientId)) {
+        status = "erro";
+        errors.push("Esse exame nao faz parte da jornada da paciente no sistema.");
+      } else if (examTargets.every((target) => target.currentStatus === "realizado")) {
+        status = "ignorada";
+        messages.push("Esse exame ja consta como realizado para a paciente. Linha ignorada.");
+      } else {
+        status = nameConfirmed ? "agendamento" : "confirmar";
+        if (!nameConfirmed) {
+          messages.push(`Nome diferente do cadastro ("${patient.name}"). Confira e marque a linha para gravar.`);
+        }
+        if (examTargets.some((target) => target.currentStatus === "realizado")) {
+          messages.push("Um dos exames ja consta como realizado e nao sera agendado.");
+        }
+        if (standaloneExamNames.length) {
+          messages.push(`Exame avulso (${standaloneExamNames.join(", ")}) nao e agendado no sistema; os demais exames da linha sim.`);
+        }
+      }
+
+      const excelRowNumber = rowIndex + 1 + sheet.firstRowOffset;
+      previewRows.push({
+        rowKey: `${sheet.sheetName}:${excelRowNumber}`,
+        sheetName: sheet.sheetName,
+        lineNumber: excelRowNumber,
+        status,
+        patientName: name,
+        phone: rawPhone || "",
+        registeredPatientId: patient?.id ?? null,
+        registeredPatientName: patient?.name ?? null,
+        scheduleDate: sheetDate,
+        scheduleDateLabel: formatDatePtBr(sheetDate),
+        scheduleTime,
+        examName: matchedExams.length ? matchedExams.map((exam) => exam.name).join(" + ") : examRaw,
+        originalExamName: examRaw,
+        exams: examTargets.filter((target) => target.currentStatus !== "realizado" || status === "cancelamento"),
+        messages: [...errors, ...messages]
+      });
+    }
+  }
+
+  const countStatus = (status) => previewRows.filter((row) => row.status === status).length;
+  return {
+    mode: "agenda_futura",
+    today: referenceToday,
+    scheduleDates,
+    ignoredSheets,
+    summary: {
+      totalRows: previewRows.length,
+      scheduleRows: countStatus("agendamento"),
+      confirmRows: countStatus("confirmar"),
+      cancelRows: countStatus("cancelamento"),
+      notRegisteredRows: countStatus("nao_cadastrada"),
+      errorRows: countStatus("erro"),
+      ignoredRows: countStatus("ignorada")
     },
     rows: previewRows
   };

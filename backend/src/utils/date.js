@@ -28,3 +28,14 @@ export function formatDatePtBr(isoDate) {
     year: "numeric"
   }).format(new Date(`${isoDate}T12:00:00`));
 }
+
+// Data de "hoje" (YYYY-MM-DD) num fuso especifico. O servidor pode rodar em UTC
+// (Render), entao regras que dependem do dia da clinica usam America/Sao_Paulo.
+export function todayIsoInTimeZone(timeZone = "America/Sao_Paulo", now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(now);
+}

@@ -7,11 +7,13 @@ import {
   deletePatientCore,
   discardGestationalBaseEstimateCore,
   editGestationalBaseManuallyCore,
+  confirmFutureScheduleImportCore,
   confirmPatientImportCore,
   getPatientDetailsCore,
   getPatientVaccinesCore,
   listGestationalBaseReviewsCore,
   listPatientsCore,
+  previewFutureScheduleImportDataCore,
   previewPatientImportDataCore,
   reopenPatientTrackingCore,
   updatePatientCore,
@@ -104,6 +106,33 @@ patientRoutes.post("/import/preview", async (request, response) => {
     response.json(preview);
   } catch (error) {
     response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel validar a planilha.");
+  }
+});
+
+patientRoutes.post("/import/agenda/preview", async (request, response) => {
+  try {
+    response.json(await previewFutureScheduleImportDataCore(request.body || {}));
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel validar a agenda.");
+  }
+});
+
+patientRoutes.post("/import/agenda/confirm", async (request, response) => {
+  try {
+    const result = await confirmFutureScheduleImportCore({
+      ...request.body,
+      actorUserId: request.authUser?.id || 1
+    });
+    await recordAuditEvent({
+      actorUserId: request.authUser?.id || null,
+      actionType: "importacao_agenda_futura",
+      entityType: "patient_import",
+      description: "Importacao da agenda futura da recepcao executada.",
+      details: result.summary
+    });
+    response.status(201).json(result);
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel importar a agenda.");
   }
 });
 

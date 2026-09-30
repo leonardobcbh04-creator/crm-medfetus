@@ -105,6 +105,7 @@ export async function listPatientExamRows() {
       ep.scheduled_date AS "scheduledDate",
       ep.scheduled_time AS "scheduledTime",
       ep.scheduling_notes AS "schedulingNotes",
+      ep.scheduling_source AS "schedulingSource",
       ep.scheduled_by_user_id AS "scheduledByUserId",
       ep.last_contacted_at AS "lastContactedAt",
       ep.reminder_snoozed_until AS "reminderSnoozedUntil",
@@ -586,9 +587,9 @@ export async function replacePatientExams(patientId, exams, createdAt) {
           patient_id, exam_model_id, predicted_date, reminder_date_1, reminder_date_2,
           scheduled_date, scheduled_time, scheduling_notes, scheduled_by_user_id, last_contacted_at,
           reminder_snoozed_until, completed_date, completed_by_user_id, completed_outside_clinic,
-          status, created_at, updated_at
+          status, created_at, updated_at, scheduling_source
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       `, [
         patientId,
         exam.examModelId,
@@ -606,7 +607,8 @@ export async function replacePatientExams(patientId, exams, createdAt) {
         Boolean(exam.completedOutsideClinic),
         exam.status,
         createdAt,
-        createdAt
+        createdAt,
+        exam.status === "agendado" ? exam.schedulingSource ?? null : null
       ]);
     }
   });
@@ -772,6 +774,7 @@ export async function getPatientExamRow(patientId, examId) {
       ep.scheduled_date AS "scheduledDate",
       ep.scheduled_time AS "scheduledTime",
       ep.scheduling_notes AS "schedulingNotes",
+      ep.scheduling_source AS "schedulingSource",
       ep.scheduled_by_user_id AS "scheduledByUserId",
       ep.last_contacted_at AS "lastContactedAt",
       ep.reminder_snoozed_until AS "reminderSnoozedUntil",
@@ -807,7 +810,14 @@ export async function updatePatientExamRecord(patientId, examId, payload) {
       completed_by_user_id = $8,
       completed_outside_clinic = $9,
       status = $10,
-      updated_at = $11
+      updated_at = $11,
+      -- Origem do agendamento: usa a informada; senao so preserva a atual enquanto o
+      -- exame continuar agendado na mesma data (qualquer outra mudanca a descarta).
+      scheduling_source = CASE
+        WHEN $14::text IS NOT NULL THEN $14::text
+        WHEN $10 = 'agendado' AND scheduled_date IS NOT DISTINCT FROM $1 THEN scheduling_source
+        ELSE NULL
+      END
     WHERE id = $12 AND patient_id = $13
   `, [
     payload.scheduledDate,
@@ -822,7 +832,8 @@ export async function updatePatientExamRecord(patientId, examId, payload) {
     payload.status,
     payload.updatedAt,
     examId,
-    patientId
+    patientId,
+    payload.schedulingSource ?? null
   ]);
 }
 

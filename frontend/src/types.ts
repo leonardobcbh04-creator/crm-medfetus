@@ -518,6 +518,63 @@ export type PatientImportConfirmResult = {
   skipped: PatientImportPreviewRow[];
 };
 
+export type FutureScheduleImportRowStatus =
+  | "agendamento"
+  | "confirmar"
+  | "nao_cadastrada"
+  | "cancelamento"
+  | "erro"
+  | "ignorada";
+
+export type FutureScheduleImportRow = {
+  rowKey: string;
+  sheetName: string;
+  lineNumber: number;
+  status: FutureScheduleImportRowStatus;
+  patientName: string;
+  phone: string;
+  registeredPatientId: number | null;
+  registeredPatientName: string | null;
+  scheduleDate: string;
+  scheduleDateLabel: string;
+  scheduleTime: string | null;
+  examName: string | null;
+  originalExamName: string | null;
+  messages: string[];
+};
+
+export type FutureScheduleImportPreview = {
+  mode: "agenda_futura";
+  today: string;
+  scheduleDates: string[];
+  ignoredSheets: Array<{ sheetName: string; reason: string }>;
+  summary: {
+    totalRows: number;
+    scheduleRows: number;
+    confirmRows: number;
+    cancelRows: number;
+    notRegisteredRows: number;
+    errorRows: number;
+    ignoredRows: number;
+  };
+  rows: FutureScheduleImportRow[];
+};
+
+export type FutureScheduleImportConfirmResult = {
+  preview: FutureScheduleImportPreview;
+  summary: {
+    totalRows: number;
+    scheduledExams: number;
+    unchangedExams: number;
+    removedSchedules: number;
+    cancelledSchedules: number;
+    pendingConfirmationRows: number;
+    notRegisteredRows: number;
+    errorRows: number;
+    ignoredRows: number;
+  };
+};
+
 export type GestationalBaseReviewItem = {
   patientId: number;
   patientName: string;

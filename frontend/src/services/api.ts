@@ -1,4 +1,6 @@
 import type {
+  FutureScheduleImportConfirmResult,
+  FutureScheduleImportPreview,
   AdminPanelData,
   AppUser,
   ClinicPhysician,
@@ -357,6 +359,18 @@ export const api = {
   },
   confirmPatientImport(payload: { fileName: string; fileBase64: string; referenceDate?: string }) {
     return request<PatientImportConfirmResult>("/patients/import/confirm", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  previewFutureScheduleImport(payload: { fileName: string; fileBase64: string }) {
+    return request<FutureScheduleImportPreview>("/patients/import/agenda/preview", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  confirmFutureScheduleImport(payload: { fileName: string; fileBase64: string; confirmedRowKeys: string[] }) {
+    return request<FutureScheduleImportConfirmResult>("/patients/import/agenda/confirm", {
       method: "POST",
       body: JSON.stringify(payload)
     });
