@@ -3128,3 +3128,52 @@ textarea:focus {
 .vaccine-filter-toggle {
   white-space: nowrap;
 }
+
+/* Botoes do topo da ficha da paciente: cada um separado, com o mesmo contorno
+   do "Encerrar acompanhamento" (fundo branco, borda suave e sombra leve). */
+.detail-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: center;
+  max-width: 660px;
+}
+
+.detail-header-actions > .secondary-button,
+.detail-header-actions > .ghost-button,
+.detail-header-actions > .whatsapp-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  font-size: 0.92rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.detail-header-actions > .secondary-button,
+.detail-header-actions > .ghost-button {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.detail-header-actions > .secondary-button:hover,
+.detail-header-actions > .ghost-button:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+
+.detail-header-actions > .whatsapp-link {
+  border-color: transparent;
+}
+
+@media (max-width: 980px) {
+  .detail-header-actions {
+    justify-content: flex-start;
+    max-width: 100%;
+  }
+}

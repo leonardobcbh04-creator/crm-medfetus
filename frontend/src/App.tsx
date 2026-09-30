@@ -10,7 +10,6 @@ import { PatientDetailPage } from "./pages/PatientDetailPage";
 import { PatientFormPage } from "./pages/PatientFormPage";
 import { PatientImportPage } from "./pages/PatientImportPage";
 import { ContactCenterPage } from "./pages/ContactCenterPage";
-import { ReportsPage } from "./pages/ReportsPage";
 import { VaccinesPage } from "./pages/VaccinesPage";
 import { getStoredToken, getStoredUser } from "./services/auth";
 import { HOME_PATH } from "./utils/routes";
@@ -39,7 +38,8 @@ export default function App() {
       >
         <Route index element={<Navigate to={HOME_PATH} replace />} />
         <Route path="/dashboard" element={<Navigate to={HOME_PATH} replace />} />
-        <Route path="/relatorios" element={<ReportsPage />} />
+        {/* Relatorios retirado do menu por enquanto; pages/ReportsPage.tsx continua no projeto. */}
+        <Route path="/relatorios" element={<Navigate to={HOME_PATH} replace />} />
         <Route path="/clientes" element={<ClientsPage />} />
         <Route path="/revisao-base-gestacional" element={<GestationalBaseReviewPage />} />
         <Route path="/lembretes" element={<Navigate to="/contatos" replace />} />
