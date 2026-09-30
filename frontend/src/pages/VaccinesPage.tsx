@@ -143,6 +143,8 @@ export function VaccinesPage() {
             <p className="field-hint">{formatBrazilPhone(item.phone) || "Sem telefone"}</p>
           </div>
           <div className="card-row-badges">
+            {/* Toda paciente desta tela esta com a dTpa pendente (criterio de entrada). */}
+            <span className="badge badge-soft badge-priority-orange">dTpa pendente</span>
             {item.fluPending ? <span className="badge badge-soft badge-priority-orange">Gripe pendente</span> : null}
             {item.contacted ? <span className="badge badge-soft badge-priority-green">Contatada</span> : null}
           </div>

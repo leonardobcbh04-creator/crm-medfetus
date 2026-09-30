@@ -6,7 +6,6 @@ import { confirmDiscardChanges } from "../utils/formGuard";
 import {
   AdminIcon,
   ContactsIcon,
-  DashboardIcon,
   FlowIcon,
   PatientAddIcon,
   PatientsIcon,
@@ -22,7 +21,6 @@ export function AppShell() {
   const [vaccinesCount, setVaccinesCount] = useState(0);
   const storedUser = getStoredUser();
   const menuItems = [
-    { to: "/dashboard", label: "Dashboard", icon: DashboardIcon },
     { to: "/pacientes/novo", label: "Cadastrar paciente", icon: PatientAddIcon },
     { to: "/clientes", label: "Pacientes", icon: PatientsIcon },
     { to: "/kanban", label: "Fluxo de atendimento", icon: FlowIcon },

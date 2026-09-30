@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { AdminPage } from "./pages/AdminPage";
 import { ClientsPage } from "./pages/ClientsPage";
-import { DashboardPage } from "./pages/DashboardPage";
 import { ExamSettingsPage } from "./pages/ExamSettingsPage";
 import { GestationalBaseReviewPage } from "./pages/GestationalBaseReviewPage";
 import { KanbanPage } from "./pages/KanbanPage";
@@ -14,6 +13,7 @@ import { ContactCenterPage } from "./pages/ContactCenterPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { VaccinesPage } from "./pages/VaccinesPage";
 import { getStoredToken, getStoredUser } from "./services/auth";
+import { HOME_PATH } from "./utils/routes";
 
 function PrivateRoute({ children }: { children: JSX.Element }) {
   const token = getStoredToken();
@@ -22,7 +22,7 @@ function PrivateRoute({ children }: { children: JSX.Element }) {
 
 function AdminRoute({ children }: { children: JSX.Element }) {
   const user = getStoredUser();
-  return user?.role === "admin" ? children : <Navigate to="/dashboard" replace />;
+  return user?.role === "admin" ? children : <Navigate to={HOME_PATH} replace />;
 }
 
 export default function App() {
@@ -37,8 +37,8 @@ export default function App() {
           </PrivateRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route index element={<Navigate to={HOME_PATH} replace />} />
+        <Route path="/dashboard" element={<Navigate to={HOME_PATH} replace />} />
         <Route path="/relatorios" element={<ReportsPage />} />
         <Route path="/clientes" element={<ClientsPage />} />
         <Route path="/revisao-base-gestacional" element={<GestationalBaseReviewPage />} />
@@ -68,7 +68,7 @@ export default function App() {
           }
         />
       </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to={HOME_PATH} replace />} />
     </Routes>
   );
 }

@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import { storeSession } from "../services/auth";
+import { HOME_PATH } from "../utils/routes";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export function LoginPage() {
     try {
       const response = await api.login(email, password);
       storeSession(response.token, response.user);
-      navigate("/dashboard");
+      navigate(HOME_PATH);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Não foi possível entrar.");
     } finally {

@@ -118,7 +118,14 @@ try {
   assert.equal(remindersAfter.items.some((item) => item.patientId === createdPatientId), false, "Paciente agendada continuou na Central de lembretes.");
 
   const messagingAfter = await getMessagingOverviewCore();
-  assert.equal(messagingAfter.some((item) => item.patientId === createdPatientId), false, "Paciente agendada continuou em Mensagens automaticas.");
+  // Com o exame agendado, o lembrete DE EXAME sai de Mensagens automaticas. A paciente
+  // pode continuar la com um cartao de vacina (kind "vacina"), porque agendar o
+  // exame nao significa que ela ja tomou dTpa/gripe.
+  assert.equal(
+    messagingAfter.some((item) => item.patientId === createdPatientId && item.kind === "exame"),
+    false,
+    "Paciente agendada continuou com lembrete de exame em Mensagens automaticas."
+  );
 
   const dashboard = await getDashboardDataCore();
   assert.ok(dashboard?.summary, "Dashboard nao retornou summary.");
