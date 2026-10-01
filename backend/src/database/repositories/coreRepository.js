@@ -949,3 +949,65 @@ export async function updatePatientAutoCloseFlags(patientId, { closureIsAutomati
     WHERE id = $1
   `, [patientId, closureIsAutomatic ?? null, autoCloseDisabled ?? null]);
 }
+
+// ---- Vacinas do bebe (calendario SBIm ate 2 anos) ----
+
+export async function listBabyVaccineCatalogRows() {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      id,
+      age_months AS "ageMonths",
+      vaccine_name AS "vaccineName",
+      dose_label AS "doseLabel",
+      availability,
+      active,
+      sort_order AS "sortOrder"
+    FROM vacinas_bebe_catalogo
+    ORDER BY age_months, sort_order, id
+  `);
+  return result.rows;
+}
+
+export async function updateBabyVaccineCatalogRow(id, { availability, active, updatedAt }) {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    UPDATE vacinas_bebe_catalogo
+    SET
+      availability = COALESCE($2, availability),
+      active = COALESCE($3, active),
+      updated_at = $4
+    WHERE id = $1
+    RETURNING id
+  `, [id, availability ?? null, typeof active === "boolean" ? active : null, updatedAt]);
+  return result.rows[0] || null;
+}
+
+export async function listBabyVaccineContactRows() {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      c.patient_id AS "patientId",
+      c.age_months AS "ageMonths",
+      c.contacted_at AS "contactedAt",
+      u.name AS "contactedByName"
+    FROM vacinas_bebe_contato c
+    LEFT JOIN users u ON u.id = c.contacted_by_user_id
+  `);
+  return result.rows;
+}
+
+export async function upsertBabyVaccineContact({ patientId, ageMonths, contactedByUserId, contactedAt }) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query(`
+    INSERT INTO vacinas_bebe_contato (patient_id, age_months, contacted_at, contacted_by_user_id)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (patient_id, age_months)
+    DO UPDATE SET contacted_at = $3, contacted_by_user_id = $4
+  `, [patientId, ageMonths, contactedAt, contactedByUserId]);
+}
+
+export async function deleteBabyVaccineContact(patientId, ageMonths) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query("DELETE FROM vacinas_bebe_contato WHERE patient_id = $1 AND age_months = $2", [patientId, ageMonths]);
+}

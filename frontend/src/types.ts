@@ -312,6 +312,42 @@ export type DtpaCampaignItem = {
   windowEndDate?: string;
 };
 
+export type BabyVaccineAvailability = "clinica" | "posto";
+
+export type BabyVaccineReminderItem = {
+  patientId: number;
+  patientName: string;
+  phone: string;
+  dpp: string;
+  ageMonths: number;
+  ageLabel: string;
+  targetDate: string;
+  targetDateLabel: string;
+  daysUntilTarget: number;
+  vaccines: Array<{ id: number; vaccineName: string; doseLabel: string; availability: BabyVaccineAvailability }>;
+  hasClinicVaccines: boolean;
+  contacted: boolean;
+  contactedAt: string | null;
+  contactedByName: string | null;
+  whatsappMessage: string;
+};
+
+export type BabyVaccineReminders = {
+  today: string;
+  items: BabyVaccineReminderItem[];
+  summary: { total: number; notContacted: number };
+};
+
+export type BabyVaccineCatalogRow = {
+  id: number;
+  ageMonths: number;
+  vaccineName: string;
+  doseLabel: string;
+  availability: BabyVaccineAvailability;
+  active: boolean;
+  sortOrder: number;
+};
+
 export type DtpaCampaign = {
   today: string;
   entering: DtpaCampaignItem[];

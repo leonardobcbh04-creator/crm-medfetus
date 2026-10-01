@@ -16,6 +16,7 @@
     "test:agenda": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-agenda-import.mjs",
     "test:vaccines": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-vaccines.mjs",
     "test:auto-close": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-auto-close.mjs",
+    "test:baby-vaccines": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-baby-vaccines.mjs",
     "test": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-core-postgres.mjs"
   },
   "dependencies": {

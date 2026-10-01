@@ -47,7 +47,7 @@ export function AppShell() {
 
     async function loadVaccinesCount() {
       try {
-        const data = await api.getDtpaCampaignCount();
+        const data = await api.getVaccinesMenuCount();
         if (!cancelled) {
           setVaccinesCount(data.count);
         }
@@ -115,7 +115,7 @@ export function AppShell() {
                   <span className="menu-badge">{remindersCount}</span>
                 ) : null}
                 {item.badgeKey === "vaccines" && vaccinesCount > 0 ? (
-                  <span className="menu-badge" title="Pacientes ainda nao contatadas">{vaccinesCount}</span>
+                  <span className="menu-badge" title="Gestantes (dTpa) e maes (vacinas do bebe) ainda nao contatadas">{vaccinesCount}</span>
                 ) : null}
               </NavLink>
             );

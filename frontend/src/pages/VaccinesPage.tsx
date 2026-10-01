@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { BabyVaccinesPanel } from "../components/BabyVaccinesPanel";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { api } from "../services/api";
-import type { DtpaCampaign, DtpaCampaignItem } from "../types";
+import type { BabyVaccineReminders, DtpaCampaign, DtpaCampaignItem } from "../types";
 import { formatBrazilPhone, getWhatsAppUrl } from "../utils/phone";
 
 const HIDE_CONTACTED_STORAGE_KEY = "vacinas.ocultarContatadas";
+const ACTIVE_TAB_STORAGE_KEY = "vacinas.abaAtiva";
+
+type VaccinesTab = "gestantes" | "bebes";
+
+function readActiveTabPreference(): VaccinesTab {
+  try {
+    return window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) === "bebes" ? "bebes" : "gestantes";
+  } catch {
+    return "gestantes";
+  }
+}
 
 function formatDate(isoDate: string) {
   const [year, month, day] = isoDate.slice(0, 10).split("-");
@@ -50,6 +62,8 @@ function pluralDays(days: number) {
 
 export function VaccinesPage() {
   const [campaign, setCampaign] = useState<DtpaCampaign | null>(null);
+  const [babyReminders, setBabyReminders] = useState<BabyVaccineReminders | null>(null);
+  const [activeTab, setActiveTab] = useState<VaccinesTab>(readActiveTabPreference);
   const [loading, setLoading] = useState(true);
   const [hideContacted, setHideContacted] = useState(readHideContactedPreference);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -58,7 +72,9 @@ export function VaccinesPage() {
 
   const loadCampaign = useCallback(async () => {
     try {
-      setCampaign(await api.getDtpaCampaign());
+      const [campaignResponse, babyResponse] = await Promise.all([api.getDtpaCampaign(), api.getBabyVaccineReminders()]);
+      setCampaign(campaignResponse);
+      setBabyReminders(babyResponse);
     } catch (error) {
       setFeedbackType("error");
       setFeedback(error instanceof Error ? error.message : "Nao foi possivel carregar a tela de vacinas.");
@@ -70,6 +86,15 @@ export function VaccinesPage() {
   useEffect(() => {
     void loadCampaign();
   }, [loadCampaign]);
+
+  function selectTab(tab: VaccinesTab) {
+    setActiveTab(tab);
+    try {
+      window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tab);
+    } catch {
+      // Preferencia so do navegador.
+    }
+  }
 
   function toggleHideContacted(value: boolean) {
     setHideContacted(value);
@@ -89,8 +114,10 @@ export function VaccinesPage() {
   }, [campaign, hideContacted]);
 
   const contactedCount = useMemo(
-    () => [...(campaign?.entering ?? []), ...(campaign?.eligible ?? [])].filter((item) => item.contacted).length,
-    [campaign]
+    () => activeTab === "bebes"
+      ? (babyReminders?.items ?? []).filter((item) => item.contacted).length
+      : [...(campaign?.entering ?? []), ...(campaign?.eligible ?? [])].filter((item) => item.contacted).length,
+    [activeTab, babyReminders, campaign]
   );
 
   async function handleContact(item: DtpaCampaignItem, contacted: boolean) {
@@ -240,10 +267,12 @@ export function VaccinesPage() {
     <section className="page-section">
       <div className="page-header">
         <div>
-          <p className="eyebrow">Campanha dTpa</p>
+          <p className="eyebrow">{activeTab === "bebes" ? "Calendario SBIm do bebe" : "Campanha dTpa"}</p>
           <h2>Vacinas</h2>
           <p className="page-description">
-            Gestantes com a dTpa pendente que ja podem vacinar (20 a 36 semanas) ou que entram na janela nos proximos 15 dias.
+            {activeTab === "bebes"
+              ? "Maes com bebe chegando a uma idade de vacinacao (ate 2 anos). Uma mensagem por idade: o que a MedFetus aplica e o que fica no posto de saude."
+              : "Gestantes com a dTpa pendente que ja podem vacinar (20 a 36 semanas) ou que entram na janela nos proximos 15 dias."}
           </p>
         </div>
         <div className="inline-actions">
@@ -264,6 +293,41 @@ export function VaccinesPage() {
         </div>
       ) : null}
 
+      <div className="patient-tabs-bar" role="tablist" aria-label="Tipo de aviso de vacina">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "gestantes"}
+          className={`patient-tab-button ${activeTab === "gestantes" ? "active" : ""}`}
+          onClick={() => selectTab("gestantes")}
+        >
+          <span>Gestantes (dTpa)</span>
+          <span className="patient-tab-count">{campaign?.summary.notContacted ?? 0}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "bebes"}
+          className={`patient-tab-button ${activeTab === "bebes" ? "active" : ""}`}
+          onClick={() => selectTab("bebes")}
+        >
+          <span>Bebes</span>
+          <span className="patient-tab-count">{babyReminders?.summary.notContacted ?? 0}</span>
+        </button>
+      </div>
+
+      {activeTab === "bebes" ? (
+        <BabyVaccinesPanel
+          reminders={babyReminders}
+          hideContacted={hideContacted}
+          onRemindersChange={setBabyReminders}
+          onFeedback={(message, type) => {
+            setFeedbackType(type);
+            setFeedback(message);
+          }}
+        />
+      ) : (
+      <>
       {renderSection(
         "Entram na janela nos proximos 15 dias",
         "Completam 20 semanas nos proximos 15 dias. Ordenadas por quem entra primeiro.",
@@ -278,6 +342,8 @@ export function VaccinesPage() {
         visible.eligible,
         campaign?.eligible.length ?? 0,
         "Nenhuma paciente na janela da dTpa agora."
+      )}
+      </>
       )}
     </section>
   );

@@ -29,6 +29,11 @@ import {
   listPatientsBaseRows,
   listPatientVaccineRows,
   listVaccineContactRows,
+  listBabyVaccineCatalogRows,
+  updateBabyVaccineCatalogRow,
+  listBabyVaccineContactRows,
+  upsertBabyVaccineContact,
+  deleteBabyVaccineContact,
   updatePatientAutoCloseFlags,
   upsertVaccineContact,
   deleteVaccineContact,
@@ -48,6 +53,7 @@ import {
 import { analyzePatientExamTimeline, calculateExamScheduleDates, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
 import { VACCINE_DEFINITIONS, VACCINE_STATUS, resolvePatientVaccineNeeds, buildVaccineReminderBlurb } from "../domain/vaccines.js";
 import { buildDtpaCampaign } from "../domain/vaccineCampaign.js";
+import { BABY_VACCINE_AVAILABILITY, buildBabyVaccineReminders } from "../domain/babyVaccines.js";
 import { AUTO_CLOSE_DAYS_AFTER_DPP, hasPassedAutoCloseDate, shouldAutoClosePregnancy } from "../domain/pregnancyClosure.js";
 import { listExamProtocolPresets } from "./examProtocolPresets.js";
 import {
@@ -2132,6 +2138,83 @@ export async function setVaccineContactCore(patientId, contacted, actorUserId) {
     await deleteVaccineContact(normalizedPatientId);
   }
   return getDtpaCampaignCore();
+}
+
+// ---- Vacinas do bebe (aba "Bebes" da tela Vacinas) ----
+
+export async function getBabyVaccineRemindersCore() {
+  const [patients, catalog, contactRows] = await Promise.all([
+    listPatientsCore(),
+    listBabyVaccineCatalogRows(),
+    listBabyVaccineContactRows()
+  ]);
+  const result = buildBabyVaccineReminders({
+    patients,
+    catalog,
+    contactsMap: new Map(contactRows.map((row) => [`${row.patientId}:${row.ageMonths}`, row])),
+    todayIso: todayIsoInTimeZone("America/Sao_Paulo")
+  });
+  return {
+    ...result,
+    summary: {
+      total: result.items.length,
+      notContacted: result.items.filter((item) => !item.contacted).length
+    }
+  };
+}
+
+export async function setBabyVaccineContactCore(patientId, ageMonths, contacted, actorUserId) {
+  const normalizedPatientId = Number(patientId);
+  const normalizedAge = Number(ageMonths);
+  if (!Number.isInteger(normalizedAge) || normalizedAge < 0) {
+    throw new Error("Idade do bebe invalida.");
+  }
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === normalizedPatientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+  if (contacted) {
+    await upsertBabyVaccineContact({
+      patientId: normalizedPatientId,
+      ageMonths: normalizedAge,
+      contactedByUserId: await resolveActorUserId(actorUserId),
+      contactedAt: new Date().toISOString()
+    });
+  } else {
+    await deleteBabyVaccineContact(normalizedPatientId, normalizedAge);
+  }
+  return getBabyVaccineRemindersCore();
+}
+
+export async function listBabyVaccineCatalogCore() {
+  return { catalog: await listBabyVaccineCatalogRows() };
+}
+
+export async function updateBabyVaccineCatalogCore(id, input = {}) {
+  const availability = input.availability === undefined ? undefined : String(input.availability);
+  if (availability !== undefined && !Object.values(BABY_VACCINE_AVAILABILITY).includes(availability)) {
+    throw new Error("Disponibilidade invalida. Use clinica ou posto.");
+  }
+  const updated = await updateBabyVaccineCatalogRow(Number(id), {
+    availability,
+    active: typeof input.active === "boolean" ? input.active : undefined,
+    updatedAt: todayIso()
+  });
+  if (!updated) {
+    throw new Error("Vacina nao encontrada.");
+  }
+  return listBabyVaccineCatalogCore();
+}
+
+// Contador do item "Vacinas" no menu: gestantes da campanha dTpa e maes com aviso
+// de vacina do bebe que ainda nao foram contatadas.
+export async function getVaccinesMenuCountCore() {
+  const [dtpa, baby] = await Promise.all([getDtpaCampaignCore(), getBabyVaccineRemindersCore()]);
+  return {
+    count: dtpa.summary.notContacted + baby.summary.notContacted,
+    dtpa: dtpa.summary.notContacted,
+    baby: baby.summary.notContacted
+  };
 }
 
 export async function getMessagingOverviewCore() {

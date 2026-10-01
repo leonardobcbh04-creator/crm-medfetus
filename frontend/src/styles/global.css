@@ -3195,3 +3195,103 @@ textarea:focus {
 .detail-header-actions > .danger-button:hover {
   background: var(--soft-red);
 }
+
+/* Tela Vacinas > Bebes */
+.baby-vaccine-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.baby-vaccine-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  font-size: 0.92rem;
+}
+
+.baby-vaccine-list em,
+.baby-catalog-name em {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.baby-vaccine-chip {
+  flex: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.baby-vaccine-chip.is-clinic {
+  background: var(--soft-blue);
+  color: var(--brand-dark);
+}
+
+.baby-vaccine-chip.is-public {
+  background: var(--soft-green);
+  color: var(--success);
+}
+
+.baby-catalog {
+  display: grid;
+  gap: 14px;
+}
+
+.baby-catalog-group {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-strong);
+}
+
+.baby-catalog-age {
+  color: var(--brand);
+}
+
+.baby-catalog-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+}
+
+.baby-catalog-row.is-inactive .baby-catalog-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.baby-catalog-row select {
+  width: auto;
+  padding: 6px 10px;
+}
+
+.baby-catalog-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.baby-catalog-active input {
+  width: auto;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .baby-catalog-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
