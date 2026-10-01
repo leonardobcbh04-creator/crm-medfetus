@@ -1,4 +1,6 @@
 import type {
+  BabyVaccineCatalogRow,
+  BabyVaccineReminders,
   DtpaCampaign,
   FutureScheduleImportConfirmResult,
   FutureScheduleImportPreview,
@@ -430,6 +432,27 @@ export const api = {
     return request<DtpaCampaign>(`/vaccines/dtpa/${patientId}/contact`, {
       method: "PUT",
       body: JSON.stringify({ contacted })
+    });
+  },
+  getVaccinesMenuCount() {
+    return request<{ count: number; dtpa: number; baby: number }>("/vaccines/count");
+  },
+  getBabyVaccineReminders() {
+    return request<BabyVaccineReminders>("/vaccines/baby");
+  },
+  setBabyVaccineContact(patientId: number, ageMonths: number, contacted: boolean) {
+    return request<BabyVaccineReminders>(`/vaccines/baby/${patientId}/${ageMonths}/contact`, {
+      method: "PUT",
+      body: JSON.stringify({ contacted })
+    });
+  },
+  getBabyVaccineCatalog() {
+    return request<{ catalog: BabyVaccineCatalogRow[] }>("/vaccines/baby/catalog");
+  },
+  updateBabyVaccineCatalog(id: number, payload: { availability?: string; active?: boolean }) {
+    return request<{ catalog: BabyVaccineCatalogRow[] }>(`/vaccines/baby/catalog/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
     });
   },
   getRemindersCount() {
