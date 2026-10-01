@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.21.1",
+    "express": "^5.2.1",
     "express-rate-limit": "^8.6.2",
     "pg": "^8.13.1",
     "xlsx": "^0.18.5"
