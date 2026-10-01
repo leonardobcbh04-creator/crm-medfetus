@@ -358,6 +358,15 @@ function isPatientTrackingClosed(patient) {
   return patient.status === "encerrada";
 }
 
+// A partir de 37 semanas nao ha mais exames do protocolo para marcar; a paciente
+// sai da Central de contatos (lembretes de exame e de vacina) para nao poluir a
+// fila. Ela continua ativa no sistema ate o encerramento automatico (DPP + 14 dias).
+export const CONTACT_CENTER_MAX_GESTATIONAL_WEEKS = 37;
+
+function isBeyondContactCenterWindow(patient) {
+  return Number(patient.gestationalWeeks) >= CONTACT_CENTER_MAX_GESTATIONAL_WEEKS;
+}
+
 function validatePatientInput(input, automaticExamCodes = []) {
   if (!input.name?.trim()) {
     throw new Error("Informe o nome completo da paciente.");
@@ -635,7 +644,7 @@ function getDashboardPriorityBucket(patient) {
 }
 
 function shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters = null) {
-  if (isPatientTrackingClosed(patient) || isMessagingBlockedByGestationalBase(patient) || !nextExamRow) {
+  if (isPatientTrackingClosed(patient) || isMessagingBlockedByGestationalBase(patient) || isBeyondContactCenterWindow(patient) || !nextExamRow) {
     return false;
   }
 
@@ -2206,6 +2215,7 @@ export async function getMessagingOverviewCore() {
   // Ainda assim precisam aparecer na Central de Lembretes para a recepcao avisar.
   const vaccineOnlyItems = patients
     .filter((patient) => !isPatientTrackingClosed(patient))
+    .filter((patient) => !isBeyondContactCenterWindow(patient))
     .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
     .filter((patient) => !patientsWithExamItem.has(patient.id))
     .map((patient) => {
