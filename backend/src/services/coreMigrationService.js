@@ -29,6 +29,7 @@ import {
   listPatientsBaseRows,
   listPatientVaccineRows,
   listVaccineContactRows,
+  updatePatientAutoCloseFlags,
   upsertVaccineContact,
   deleteVaccineContact,
   deleteVaccineContactsExcept,
@@ -47,6 +48,7 @@ import {
 import { analyzePatientExamTimeline, calculateExamScheduleDates, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
 import { VACCINE_DEFINITIONS, VACCINE_STATUS, resolvePatientVaccineNeeds, buildVaccineReminderBlurb } from "../domain/vaccines.js";
 import { buildDtpaCampaign } from "../domain/vaccineCampaign.js";
+import { AUTO_CLOSE_DAYS_AFTER_DPP, hasPassedAutoCloseDate, shouldAutoClosePregnancy } from "../domain/pregnancyClosure.js";
 import { listExamProtocolPresets } from "./examProtocolPresets.js";
 import {
   buildSessionExpiry,
@@ -837,7 +839,11 @@ function enrichPatient(patient, patientExamsMap, latestMessagesMap, patientVacci
     priorityScore: messagePriority.score,
     latestMessage,
     stageTitle: getStageTitle(normalizedStage),
-    closureReasonLabel: getClosureReasonLabel(patient.closureReason),
+    closureIsAutomatic: Boolean(patient.closureIsAutomatic),
+    autoCloseDisabled: Boolean(patient.autoCloseDisabled),
+    closureReasonLabel: patient.closureIsAutomatic && getClosureReasonLabel(patient.closureReason)
+      ? `${getClosureReasonLabel(patient.closureReason)} (encerrado automaticamente: DPP + ${AUTO_CLOSE_DAYS_AFTER_DPP} dias)`
+      : getClosureReasonLabel(patient.closureReason),
     vaccineNeeds: resolvePatientVaccineNeeds(
       {
         gestationalWeeks: snapshot.currentGestationalWeeks,
@@ -1581,6 +1587,17 @@ export async function closePatientTrackingCore(patientId, input = {}) {
     closedByUserId: actorUserId,
     updatedAt: now
   }));
+  await updatePatientAutoCloseFlags(patientId, { closureIsAutomatic: false });
+  await insertMovementRecord({
+    patientId,
+    fromStage: patient.stage,
+    toStage: patient.stage,
+    actionType: "acompanhamento_encerrado",
+    description: `Acompanhamento encerrado: ${getClosureReasonLabel(reason)}.`,
+    metadataJson: JSON.stringify({ reason, automatic: false }),
+    createdByUserId: actorUserId,
+    createdAt: now
+  });
 
   return getPatientDetailsCore(patientId);
 }
@@ -1599,7 +1616,56 @@ export async function reopenPatientTrackingCore(patientId, input = {}) {
     updatedAt: todayIso()
   }));
 
+  // Se a DPP + 14 dias ja passou, quem reabriu decidiu manter a paciente ativa:
+  // o encerramento automatico nao pode fecha-la de novo na proxima rodada.
+  const enrichedPatient = (await listPatientsCore()).find((item) => item.id === patientId);
+  await updatePatientAutoCloseFlags(patientId, {
+    closureIsAutomatic: false,
+    autoCloseDisabled: Boolean(enrichedPatient) && hasPassedAutoCloseDate(enrichedPatient, todayIsoInTimeZone("America/Sao_Paulo"))
+  });
+
   return getPatientDetailsCore(patientId);
+}
+
+// Encerra como "Parto realizado" as gestantes cuja DPP + 14 dias ja passou. Roda
+// sozinho (ao iniciar o servidor e de tempos em tempos) e pode rodar quantas vezes
+// for preciso: quem ja foi encerrada ou foi reaberta pela equipe nao e tocada.
+export async function autoCloseOverduePregnanciesCore(todayReference = todayIsoInTimeZone("America/Sao_Paulo")) {
+  const patients = await listPatientsCore();
+  const baseRows = new Map((await listPatientsBaseRows()).map((patient) => [patient.id, patient]));
+  const closed = [];
+  const now = todayIso();
+
+  for (const patient of patients) {
+    if (!shouldAutoClosePregnancy(patient, todayReference)) {
+      continue;
+    }
+    const baseRow = baseRows.get(patient.id);
+    if (!baseRow) {
+      continue;
+    }
+    await updatePatientRecord(patient.id, buildPatientUpdatePayload(baseRow, {
+      status: "encerrada",
+      closureReason: PATIENT_CLOSURE_REASONS.BIRTH,
+      closedAt: now,
+      closedByUserId: null,
+      updatedAt: now
+    }));
+    await updatePatientAutoCloseFlags(patient.id, { closureIsAutomatic: true });
+    await insertMovementRecord({
+      patientId: patient.id,
+      fromStage: patient.stage,
+      toStage: patient.stage,
+      actionType: "acompanhamento_encerrado_automatico",
+      description: `Acompanhamento encerrado automaticamente como parto realizado (DPP ${formatDatePtBr(patient.dpp)} + ${AUTO_CLOSE_DAYS_AFTER_DPP} dias).`,
+      metadataJson: JSON.stringify({ reason: PATIENT_CLOSURE_REASONS.BIRTH, automatic: true, dpp: patient.dpp }),
+      createdByUserId: null,
+      createdAt: now
+    });
+    closed.push({ patientId: patient.id, patientName: patient.name, dpp: patient.dpp });
+  }
+
+  return { today: todayReference, closed };
 }
 
 export async function updatePatientExamStatusCore(patientId, examId, input) {
@@ -2139,6 +2205,7 @@ export async function getMessagingOverviewCore() {
   // porque nao tem exame proximo pendente (ex: entre exames, ou exame ja agendado).
   // Ainda assim precisam aparecer na Central de Lembretes para a recepcao avisar.
   const vaccineOnlyItems = patients
+    .filter((patient) => !isPatientTrackingClosed(patient))
     .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
     .filter((patient) => !patientsWithExamItem.has(patient.id))
     .map((patient) => {

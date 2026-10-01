@@ -83,6 +83,8 @@ export async function listPatientsBaseRows() {
       closure_reason AS "closureReason",
       closed_at AS "closedAt",
       closed_by_user_id AS "closedByUserId",
+      closure_is_automatic AS "closureIsAutomatic",
+      auto_close_disabled AS "autoCloseDisabled",
       stage,
       created_at AS "createdAt",
       updated_at AS "updatedAt"
@@ -933,4 +935,17 @@ export async function deleteVaccineContact(patientId) {
 export async function deleteVaccineContactsExcept(patientIds) {
   const runtime = await getDatabaseRuntime();
   await runtime.query("DELETE FROM vacinas_contato WHERE NOT (patient_id = ANY($1::int[]))", [patientIds]);
+}
+
+// Marcas do encerramento automatico (DPP + 14 dias). Ficam fora de
+// updatePatientRecord para nao mexer no fluxo normal de edicao da paciente.
+export async function updatePatientAutoCloseFlags(patientId, { closureIsAutomatic, autoCloseDisabled }) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query(`
+    UPDATE patients
+    SET
+      closure_is_automatic = COALESCE($2, closure_is_automatic),
+      auto_close_disabled = COALESCE($3, auto_close_disabled)
+    WHERE id = $1
+  `, [patientId, closureIsAutomatic ?? null, autoCloseDisabled ?? null]);
 }
