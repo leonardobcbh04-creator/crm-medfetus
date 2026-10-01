@@ -349,6 +349,7 @@ export type Patient = {
   status?: string;
   closureReason?: string | null;
   closureReasonLabel?: string | null;
+  closureIsAutomatic?: boolean;
   closedAt?: string | null;
   stage: string;
   stageTitle?: string;

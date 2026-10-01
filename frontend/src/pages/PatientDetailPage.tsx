@@ -196,6 +196,37 @@ export function PatientDetailPage() {
     }
   }
 
+  // Perda gestacional: encerra o acompanhamento na hora (sem passar pelo menu de
+  // motivos) para a paciente parar de receber qualquer mensagem ou lembrete.
+  async function handleRegisterPregnancyLoss() {
+    if (!id || !details) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `Registrar perda gestacional de ${details.patient.name}?\n\n` +
+      "Ela sai de todas as telas de contato e nao recebe mais mensagens nem lembretes (exames e vacinas). " +
+      "O historico fica guardado e da para reabrir se tiver sido engano."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setIsSavingClosure(true);
+    try {
+      const response = await api.closePatientTracking(Number(id), "perda_gestacional");
+      setDetails(response);
+      setIsClosingTracking(false);
+      setClosureReasonDraft("");
+      setFeedbackType("success");
+      setFeedback("Perda gestacional registrada. A paciente nao vai mais receber mensagens ou lembretes.");
+    } catch (error) {
+      setFeedbackType("error");
+      setFeedback(error instanceof Error ? error.message : "Nao foi possivel registrar a perda gestacional.");
+    } finally {
+      setIsSavingClosure(false);
+    }
+  }
+
   async function handleReopenTracking() {
     if (!id) {
       return;
@@ -410,6 +441,16 @@ export function PatientDetailPage() {
               onClick={() => setIsClosingTracking((current) => !current)}
             >
               Encerrar acompanhamento
+            </button>
+          ) : null}
+          {details.patient.status !== "encerrada" ? (
+            <button
+              type="button"
+              className="danger-button"
+              onClick={() => void handleRegisterPregnancyLoss()}
+              disabled={isSavingClosure}
+            >
+              Perda gestacional
             </button>
           ) : null}
           <Link to="/kanban" className="secondary-button">Voltar ao fluxo</Link>

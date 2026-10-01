@@ -16,6 +16,7 @@ import { reminderRoutes } from "./routes/reminderRoutes.js";
 import { shospRoutes } from "./routes/shospRoutes.js";
 import { vaccineRoutes } from "./routes/vaccineRoutes.js";
 import { startLogRetentionWorker, stopLogRetentionWorker } from "./services/logRetentionService.js";
+import { startPregnancyAutoCloseWorker, stopPregnancyAutoCloseWorker } from "./services/pregnancyAutoCloseWorker.js";
 import { startShospSyncWorker, stopShospSyncWorker } from "./services/shospIntegration/shospSyncWorker.js";
 
 await getDatabaseRuntime();
@@ -87,11 +88,16 @@ if (RUN_BACKGROUND_WORKERS_IN_API) {
   startLogRetentionWorker();
 }
 
+// Sempre ligado (mesmo sem RUN_BACKGROUND_WORKERS_IN_API): e idempotente e sem
+// ele gestantes com DPP + 14 dias vencida continuariam recebendo mensagens.
+startPregnancyAutoCloseWorker();
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
 
 function shutdown() {
+  stopPregnancyAutoCloseWorker();
   if (RUN_BACKGROUND_WORKERS_IN_API && SHOSP_ENABLED) {
     stopShospSyncWorker();
   }

@@ -3177,3 +3177,21 @@ textarea:focus {
     max-width: 100%;
   }
 }
+
+.detail-header-actions > .danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border-radius: 14px;
+  box-shadow: var(--shadow-soft);
+  font-size: 0.92rem;
+  line-height: 1.2;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.detail-header-actions > .danger-button:hover {
+  background: var(--soft-red);
+}
