@@ -1,5 +1,5 @@
 // Validacao de ponta a ponta (PostgreSQL): encerramento automatico apos DPP + 14
-// dias, reabertura sem novo encerramento automatico e encerramento por perda
+// dias, saida da Central de contatos a partir de 37 semanas, reabertura sem novo encerramento automatico e encerramento por perda
 // gestacional tirando a paciente de todas as mensagens (inclusive vacinas).
 import assert from "node:assert/strict";
 
@@ -72,6 +72,14 @@ try {
   assert.equal(overdue.autoCloseDisabled, true);
   const afterReopen = await autoCloseOverduePregnanciesCore(addDays(today, 1));
   assert.ok(!afterReopen.closed.some((item) => item.patientId === overdueId), "Reaberta pela equipe nao deve ser encerrada de novo.");
+
+  // Central de contatos: a partir de 37 semanas a paciente nao aparece mais.
+  const weeks36Id = await create("Central Contatos 36 Semanas", 36, 0);
+  const weeks37Id = await create("Central Contatos 37 Semanas", 37, 0);
+  const contactCenter = await getMessagingOverviewCore();
+  assert.ok(contactCenter.some((item) => item.patientId === weeks36Id), "Com 36 semanas a paciente ainda deveria aparecer na Central de contatos.");
+  assert.ok(!contactCenter.some((item) => item.patientId === weeks37Id), "Com 37 semanas a paciente nao deveria aparecer na Central de contatos.");
+  assert.ok(!contactCenter.some((item) => item.patientId === almostId), "Com 42 semanas a paciente nao deveria aparecer na Central de contatos.");
 
   // Perda gestacional: some de todas as mensagens, inclusive lembrete de vacina.
   let messaging = await getMessagingOverviewCore();
