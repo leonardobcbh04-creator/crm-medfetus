@@ -11,6 +11,37 @@ import {
   setVaccineContactCore
 } from "../services/coreMigrationService.js";
 import { recordAuditEvent } from "../services/auditService.js";
+import { listPatientsBaseRows } from "../database/repositories/coreRepository.js";
+
+// Contexto gravado no audit_logs a cada marcacao de "Contatada" (usado pela aba
+// "Historico de contatos" da Administracao). Se a paciente ja nao estiver na
+// tela, usa nome e telefone da ficha.
+async function findPatientBasics(patientId) {
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === patientId);
+  return { patientName: patient?.name ?? null, phone: patient?.phone ?? null };
+}
+
+async function buildDtpaContactDetails(campaign, patientId) {
+  const entering = campaign.entering.find((item) => item.patientId === patientId);
+  const eligible = campaign.eligible.find((item) => item.patientId === patientId);
+  const item = entering || eligible;
+  if (!item) {
+    return { board: "dtpa", ...(await findPatientBasics(patientId)) };
+  }
+  return {
+    board: "dtpa",
+    patientName: item.patientName,
+    phone: item.phone,
+    gestationalAgeLabel: item.gestationalAgeLabel,
+    section: entering ? "A" : "B"
+  };
+}
+
+async function buildBabyContactDetails(reminders, patientId, ageMonths) {
+  const item = reminders.items.find((entry) => entry.patientId === patientId && entry.ageMonths === ageMonths);
+  const basics = item ? { patientName: item.patientName, phone: item.phone } : await findPatientBasics(patientId);
+  return { board: "bebe", ...basics, ageMonths };
+}
 
 // Tela "Vacinas" (campanha dTpa). Visivel para todos os perfis autenticados.
 export const vaccineRoutes = Router();
@@ -42,7 +73,8 @@ vaccineRoutes.put("/dtpa/:patientId/contact", async (request, response) => {
       entityType: "patient_vaccine",
       entityId: patientId,
       patientId,
-      description: contacted ? "Paciente marcada como contatada na tela Vacinas." : "Marca de contatada removida na tela Vacinas."
+      description: contacted ? "Paciente marcada como contatada na tela Vacinas." : "Marca de contatada removida na tela Vacinas.",
+      details: await buildDtpaContactDetails(data, patientId)
     });
     response.json(data);
   } catch (error) {
@@ -80,7 +112,8 @@ vaccineRoutes.put("/baby/:patientId/:ageMonths/contact", async (request, respons
       patientId,
       description: contacted
         ? `Mae contatada sobre as vacinas do bebe (${ageMonths} meses).`
-        : `Marca de contato das vacinas do bebe (${ageMonths} meses) removida.`
+        : `Marca de contato das vacinas do bebe (${ageMonths} meses) removida.`,
+      details: await buildBabyContactDetails(data, patientId, ageMonths)
     });
     response.json(data);
   } catch (error) {

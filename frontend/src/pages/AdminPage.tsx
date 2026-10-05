@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api } from "../services/api";
+import { ContactHistoryPanel } from "../components/ContactHistoryPanel";
 import { PageSkeleton } from "../components/PageSkeleton";
 import type {
   AdminPanelData,
@@ -18,7 +19,7 @@ import type {
   ShospSyncResult
 } from "../types";
 
-type AdminTab = "usuarios" | "cadastros" | "exames" | "auditoria" | "integracoes";
+type AdminTab = "usuarios" | "cadastros" | "exames" | "auditoria" | "historico_contatos" | "integracoes";
 type IntegrationSubTab = "visao" | "mapeamentos";
 type PatientCleanupPreset = "today" | "last_7_days" | "last_30_days" | "all" | "custom";
 const SHOSP_PRODUCT_VISIBLE = false;
@@ -1164,6 +1165,15 @@ export function AdminPage() {
           <span>Auditoria</span>
           <span className="patient-tab-count">{adminData.recentAuditLogs.length}</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "historico_contatos"}
+          className={`patient-tab-button ${activeTab === "historico_contatos" ? "active" : ""}`}
+          onClick={() => setActiveTab("historico_contatos")}
+        >
+          <span>Historico de contatos</span>
+        </button>
         {SHOSP_PRODUCT_VISIBLE ? (
           <button
             type="button"
@@ -1177,6 +1187,8 @@ export function AdminPage() {
           </button>
         ) : null}
       </div>
+
+      {activeTab === "historico_contatos" ? <ContactHistoryPanel /> : null}
 
       {activeTab === "auditoria" ? (
       <article className="panel-card stack-form admin-activity-panel" id="admin-activity-recent">

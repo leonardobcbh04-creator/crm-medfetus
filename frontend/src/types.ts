@@ -312,6 +312,55 @@ export type DtpaCampaignItem = {
   windowEndDate?: string;
 };
 
+export type ContactHistoryBoard = "dtpa" | "bebe";
+
+export type ContactHistoryRow = {
+  id: number;
+  createdAt: string;
+  createdAtLabel: string;
+  actorUserId: number | null;
+  actorName: string;
+  patientId: number | null;
+  patientName: string;
+  board: ContactHistoryBoard;
+  boardLabel: string;
+  ageMonths: number | null;
+  action: "contatada" | "desfeita";
+  actionLabel: string;
+  gestationalAgeLabel: string | null;
+  section: "A" | "B" | null;
+  sectionLabel: string | null;
+};
+
+export type ContactHistorySummaryRow = {
+  actorUserId: number | null;
+  actorName: string;
+  dtpa: number;
+  bebe: number;
+  total: number;
+};
+
+export type ContactHistoryResponse = {
+  filters: { from: string; to: string; actorUserId: number | null; type: ContactHistoryBoard | null };
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  rows: ContactHistoryRow[];
+  summary: ContactHistorySummaryRow[];
+  actors: Array<{ id: number; name: string; role: string; active: boolean }>;
+};
+
+export type ContactHistoryQuery = {
+  from?: string;
+  to?: string;
+  actorUserId?: string;
+  type?: string;
+  page?: number;
+  pageSize?: number;
+  all?: boolean;
+};
+
 export type BabyVaccineAvailability = "clinica" | "posto";
 
 export type BabyVaccineReminderItem = {

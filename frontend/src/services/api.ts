@@ -1,4 +1,6 @@
 import type {
+  ContactHistoryQuery,
+  ContactHistoryResponse,
   BabyVaccineCatalogRow,
   BabyVaccineReminders,
   DtpaCampaign,
@@ -433,6 +435,17 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ contacted })
     });
+  },
+  getContactHistory(query: ContactHistoryQuery) {
+    const params = new URLSearchParams();
+    if (query.from) params.set("from", query.from);
+    if (query.to) params.set("to", query.to);
+    if (query.actorUserId) params.set("actorUserId", query.actorUserId);
+    if (query.type) params.set("type", query.type);
+    if (query.page) params.set("page", String(query.page));
+    if (query.pageSize) params.set("pageSize", String(query.pageSize));
+    if (query.all) params.set("all", "1");
+    return request<ContactHistoryResponse>(`/admin/contact-history?${params.toString()}`);
   },
   getVaccinesMenuCount() {
     return request<{ count: number; dtpa: number; baby: number }>("/vaccines/count");
