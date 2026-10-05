@@ -8,11 +8,6 @@ export const DTPA_WINDOW_START_DAYS = 20 * 7; // 20s0d
 export const DTPA_WINDOW_END_DAYS = 36 * 7 + 6; // 36s6d
 export const DTPA_LOOKAHEAD_DAYS = 15;
 
-function formatShortDate(isoDate) {
-  const [, month, day] = String(isoDate).split("-");
-  return `${day}/${month}`;
-}
-
 function formatGestationalAge(totalDays) {
   return `${Math.floor(totalDays / 7)}s${totalDays % 7}d`;
 }
@@ -31,17 +26,28 @@ export function findNextScheduledExam(patientExams, todayIso) {
     )[0] ?? null;
 }
 
-export function buildDtpaWhatsAppMessage({ nextExam, fluPending }) {
+// Mensagem do WhatsApp da campanha dTpa (Eliana). Muda conforme a secao:
+// "janela" = ja esta entre 20s0d e 36s6d; "entrando" = completa 20 semanas nos
+// proximos 15 dias. Nao cita a semana (a recomendacao pode variar) nem o
+// proximo exame (a data pode estar desatualizada; a equipe ve o exame no cartao).
+// Se a gripe estiver pendente, acrescenta o lembrete da gripe.
+export function buildDtpaWhatsAppMessage({ fluPending, section = "janela" }) {
+  const isEntering = section === "entrando";
+  const opening = isEntering
+    ? "Você está chegando ao período recomendado para tomar a vacina dTpa na gestação. Ela protege o bebê contra a coqueluche nos primeiros meses de vida, antes de ele poder receber as próprias vacinas. 💚"
+    : "Vi que você entrou no período recomendado para tomar a vacina dTpa na gestação. Ela protege o bebê contra a coqueluche nos primeiros meses de vida, antes de ele poder receber as próprias vacinas. 💚";
+  const familyCall = "Aqui na MedFetus aplicamos a dTpa, e vale muito a pena trazer também o pai ou quem vai cuidar do bebê: quando quem convive com ele está vacinado, a proteção fica ainda maior.";
   const paragraphs = [
     "Oi! Tudo bem? 😊\nEu sou a Eliana, faço parte da equipe de vacinas da MedFetus.",
-    "Estou te enviando essa informação sobre a vacina dTpa na gestação, uma vacina importante para ajudar a proteger o bebê nos primeiros meses de vida. 💚",
-    nextExam
-      ? `Vi que você vai fazer o exame ${nextExam.name} no dia ${formatShortDate(nextExam.scheduledDate)}. Que tal aproveitar a ida à MedFetus e já agendar a vacina para você e, se precisar, para a família também?`
-      : "Que tal agendar seu próximo exame e já aproveitar para tomar a vacina? Se precisar, a família também pode se vacinar."
+    opening,
+    familyCall
   ];
   if (fluPending) {
-    paragraphs.push("Aproveitando: se você ainda não tomou a vacina da gripe, ela pode ser aplicada em qualquer fase da gestação, e dá para fazer as duas no mesmo dia.");
+    paragraphs.push("A vacina da gripe também é muito importante na gestação: pode ser tomada em qualquer fase, e dá para fazer as duas no mesmo dia.");
   }
+  paragraphs.push(isEntering
+    ? "Quer que eu já deixe um horário reservado para vocês?"
+    : "Quer que eu veja um horário para vocês?");
   return paragraphs.join("\n\n");
 }
 
@@ -90,7 +96,7 @@ export function buildDtpaCampaign({ patients, patientExamsMap, vaccineRowsMap, c
       contacted: Boolean(contact),
       contactedAt: contact?.contactedAt ?? null,
       contactedByName: contact?.contactedByName ?? null,
-      whatsappMessage: buildDtpaWhatsAppMessage({ nextExam, fluPending })
+      whatsappMessage: buildDtpaWhatsAppMessage({ fluPending, section: inLookahead ? "entrando" : "janela" })
     };
 
     if (inLookahead) {
