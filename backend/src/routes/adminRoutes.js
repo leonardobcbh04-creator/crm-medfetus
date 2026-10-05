@@ -21,6 +21,7 @@ import {
 import { runMariaGertrudesOperationalTest } from "../services/operationalTestService.js";
 import { getMessagingRuntimeConfig } from "../services/messaging/messagingService.js";
 import { recordAuditEvent } from "../services/auditService.js";
+import { getContactHistoryCore } from "../services/contactHistoryService.js";
 
 export const adminRoutes = Router();
 
@@ -63,6 +64,21 @@ adminRoutes.get("/", asyncRoute(async (_request, response) => {
     response.status(200).json(buildAdminPanelFallback());
   }
 }, "Nao foi possivel carregar a area administrativa."));
+
+// Historico de contatos da tela Vacinas (gestantes dTpa e bebes). So admin: o
+// router inteiro ja e montado com requireAuth + requireAdmin em server.js.
+adminRoutes.get("/contact-history", async (request, response) => {
+  try {
+    response.json(await getContactHistoryCore(request.query || {}));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Nao foi possivel carregar o historico de contatos.";
+    const isValidation = /invalida|nao pode/i.test(message);
+    if (!isValidation) {
+      console.error("[admin] Falha ao carregar historico de contatos.", error);
+    }
+    response.status(isValidation ? 400 : 500).send(message);
+  }
+});
 
 adminRoutes.post("/users", asyncRoute(async (request, response) => {
   try {
