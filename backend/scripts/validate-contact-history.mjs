@@ -95,6 +95,7 @@ try {
 
   const pregnantId = await createPatient("Gestante Historico Contatos", 25);
   const motherId = await createPatient("Mae Historico Contatos", 50);
+  const vsrId = await createPatient("Gestante VSR Historico", 30);
   await autoCloseOverduePregnanciesCore(todayIsoInTimeZone("America/Sao_Paulo"));
 
   const adminToken = await login("admin@clinica.com", "123456");
@@ -109,6 +110,11 @@ try {
   const babyItem = baby.data.items.find((item) => item.patientId === motherId);
   assert.ok(babyItem, "Mae deveria ter aviso de vacina do bebe.");
   assert.equal((await call(staffToken, "PUT", `/vaccines/baby/${motherId}/${babyItem.ageMonths}/contact`, { contacted: true })).status, 200);
+
+  // Aba VSR: rota HTTP grava o quadro "vsr".
+  const vsr = await call(staffToken, "PUT", `/vaccines/vsr/${vsrId}/contact`, { contacted: true });
+  assert.equal(vsr.status, 200, "Marcacao VSR falhou.");
+  assert.equal(vsr.data.items.find((item) => item.patientId === vsrId).contacted, true);
 
   // Registro "antigo" (sem details_json): idade so na descricao, nome da ficha.
   await recordAuditEvent({
@@ -127,7 +133,7 @@ try {
   const byStaff = await call(adminToken, "GET", `/admin/contact-history?actorUserId=${staffUser.id}`);
   assert.equal(byStaff.status, 200);
   const { rows, summary, total } = byStaff.data;
-  assert.equal(total, 5, "Funcionaria deveria ter 5 registros (3 dTpa + 2 bebe).");
+  assert.equal(total, 6, "Funcionaria deveria ter 6 registros (3 dTpa + 1 VSR + 2 bebe).");
   assert.equal(byStaff.data.filters.to, today);
   assert.equal(byStaff.data.filters.from, addDays(today, -29), "Periodo padrao: ultimos 30 dias.");
   assert.ok(rows.every((row, index) => index === 0 || rows[index - 1].createdAt >= row.createdAt), "Ordem: mais recente primeiro.");
@@ -140,25 +146,31 @@ try {
   assert.equal(dtpaRows[0].gestationalAgeLabel, "25s0d");
   assert.equal(dtpaRows[0].sectionLabel, "Ja podem vacinar");
   assert.match(dtpaRows[0].createdAtLabel, /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
+  const vsrRow = rows.find((row) => row.board === "vsr");
+  assert.equal(vsrRow.boardLabel, "Gestante VSR");
+  assert.equal(vsrRow.patientName, "Gestante VSR Historico");
+  assert.equal(vsrRow.gestationalAgeLabel, "30s0d");
   const newBabyRow = rows.find((row) => row.board === "bebe" && row.ageMonths === babyItem.ageMonths && row.id !== rows[0].id);
   assert.ok(newBabyRow, "Registro novo do bebe deveria ter a idade gravada.");
 
   assert.deepEqual(
-    summary.map(({ dtpa, bebe, total: sum }) => ({ dtpa, bebe, total: sum })),
-    [{ dtpa: 1, bebe: 2, total: 3 }],
+    summary.map(({ dtpa, vsr: vsrCount, bebe, total: sum }) => ({ dtpa, vsr: vsrCount, bebe, total: sum })),
+    [{ dtpa: 1, vsr: 1, bebe: 2, total: 4 }],
     "Resumo deveria descontar a marca desfeita."
   );
 
   // Filtros: tipo, paginacao e periodo.
   const onlyBaby = await call(adminToken, "GET", `/admin/contact-history?actorUserId=${staffUser.id}&type=bebe`);
   assert.equal(onlyBaby.data.total, 2);
+  const onlyVsr = await call(adminToken, "GET", `/admin/contact-history?actorUserId=${staffUser.id}&type=vsr`);
+  assert.deepEqual(onlyVsr.data.rows.map((row) => row.board), ["vsr"]);
   assert.ok(onlyBaby.data.rows.every((row) => row.board === "bebe"));
   const paged = await call(adminToken, "GET", `/admin/contact-history?actorUserId=${staffUser.id}&pageSize=2&page=2`);
   assert.equal(paged.data.rows.length, 2);
   assert.equal(paged.data.totalPages, 3);
   assert.equal(paged.data.rows[0].id, rows[2].id);
   const exportAll = await call(adminToken, "GET", `/admin/contact-history?actorUserId=${staffUser.id}&all=1`);
-  assert.equal(exportAll.data.rows.length, 5);
+  assert.equal(exportAll.data.rows.length, 6);
   const yesterday = addDays(today, -1);
   const pastPeriod = await call(adminToken, "GET", `/admin/contact-history?actorUserId=${staffUser.id}&from=${addDays(today, -10)}&to=${yesterday}`);
   assert.equal(pastPeriod.data.total, 0, "Periodo sem marcacoes deveria vir vazio.");

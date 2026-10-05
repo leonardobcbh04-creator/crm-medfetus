@@ -17,6 +17,7 @@
     "test:vaccines": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-vaccines.mjs",
     "test:auto-close": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-auto-close.mjs",
     "test:baby-vaccines": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-baby-vaccines.mjs",
+    "test:vsr": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-vsr.mjs",
     "test:contact-history": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-contact-history.mjs",
     "test": "npm run migrate:postgres && npm run seed:postgres-core && node scripts/validate-core-postgres.mjs"
   },

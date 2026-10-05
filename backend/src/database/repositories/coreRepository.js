@@ -937,6 +937,41 @@ export async function deleteVaccineContactsExcept(patientIds) {
   await runtime.query("DELETE FROM vacinas_contato WHERE NOT (patient_id = ANY($1::int[]))", [patientIds]);
 }
 
+// ---- Tela Vacinas: marca "Contatada" (aba Gestantes VSR) ----
+
+export async function listVsrContactRows() {
+  const runtime = await getDatabaseRuntime();
+  const result = await runtime.query(`
+    SELECT
+      c.patient_id AS "patientId",
+      c.contacted_at AS "contactedAt",
+      u.name AS "contactedByName"
+    FROM vacinas_vsr_contato c
+    LEFT JOIN users u ON u.id = c.contacted_by_user_id
+  `);
+  return result.rows;
+}
+
+export async function upsertVsrContact({ patientId, contactedByUserId, contactedAt }) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query(`
+    INSERT INTO vacinas_vsr_contato (patient_id, contacted_at, contacted_by_user_id, created_at)
+    VALUES ($1, $2, $3, $2)
+    ON CONFLICT (patient_id)
+    DO UPDATE SET contacted_at = $2, contacted_by_user_id = $3
+  `, [patientId, contactedAt, contactedByUserId]);
+}
+
+export async function deleteVsrContact(patientId) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query("DELETE FROM vacinas_vsr_contato WHERE patient_id = $1", [patientId]);
+}
+
+export async function deleteVsrContactsExcept(patientIds) {
+  const runtime = await getDatabaseRuntime();
+  await runtime.query("DELETE FROM vacinas_vsr_contato WHERE NOT (patient_id = ANY($1::int[]))", [patientIds]);
+}
+
 // Marcas do encerramento automatico (DPP + 14 dias). Ficam fora de
 // updatePatientRecord para nao mexer no fluxo normal de edicao da paciente.
 export async function updatePatientAutoCloseFlags(patientId, { closureIsAutomatic, autoCloseDisabled }) {

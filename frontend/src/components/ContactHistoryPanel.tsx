@@ -28,6 +28,8 @@ function formatDateBr(isoDate: string) {
   return `${day}/${month}/${year}`;
 }
 
+const TYPE_LABELS: Record<string, string> = { dtpa: "Gestante dTpa", vsr: "Gestante VSR", bebe: "Bebe" };
+
 type Filters = { from: string; to: string; actorUserId: string; type: string };
 
 function defaultFilters(): Filters {
@@ -36,6 +38,9 @@ function defaultFilters(): Filters {
 }
 
 function describeRowDetails(row: ContactHistoryRow) {
+  if (row.board === "vsr") {
+    return row.gestationalAgeLabel ? `IG ${row.gestationalAgeLabel}` : "";
+  }
   if (row.board === "dtpa") {
     return [row.gestationalAgeLabel ? `IG ${row.gestationalAgeLabel}` : null, row.sectionLabel].filter(Boolean).join(" · ");
   }
@@ -43,7 +48,7 @@ function describeRowDetails(row: ContactHistoryRow) {
 }
 
 // Aba "Historico de contatos" da Administracao: quem marcou "Contatada" nos
-// quadros da tela Vacinas (gestantes dTpa e bebes). Fonte: audit_logs.
+// quadros da tela Vacinas (gestantes dTpa, gestantes VSR e bebes). Fonte: audit_logs.
 export function ContactHistoryPanel() {
   const [draft, setDraft] = useState<Filters>(defaultFilters);
   const [applied, setApplied] = useState<Filters>(defaultFilters);
@@ -113,6 +118,7 @@ export function ContactHistoryPanel() {
       summarySheet.columns = [
         { header: "Funcionaria", key: "actorName", width: 26 },
         { header: "Gestantes (dTpa)", key: "dtpa", width: 18 },
+        { header: "Gestantes (VSR)", key: "vsr", width: 18 },
         { header: "Bebes", key: "bebe", width: 12 },
         { header: "Total", key: "total", width: 10 }
       ];
@@ -151,7 +157,7 @@ export function ContactHistoryPanel() {
         <div className="form-section-header">
           <p className="muted-label">Historico de contatos</p>
           <p className="field-hint">
-            Quem marcou "Contatada" na tela Vacinas (gestantes dTpa e bebes). A Central de contatos nao entra aqui.
+            Quem marcou "Contatada" na tela Vacinas (gestantes dTpa, gestantes VSR e bebes). A Central de contatos nao entra aqui.
           </p>
         </div>
         <button type="button" className="primary-button" onClick={() => void exportToExcel()} disabled={exporting || !data?.total}>
@@ -190,6 +196,7 @@ export function ContactHistoryPanel() {
           <select id="contact-history-type" value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })}>
             <option value="">Todos</option>
             <option value="dtpa">Gestante dTpa</option>
+            <option value="vsr">Gestante VSR</option>
             <option value="bebe">Bebe</option>
           </select>
         </label>
@@ -202,7 +209,7 @@ export function ContactHistoryPanel() {
       <p className="field-hint">
         Periodo: {formatDateBr(applied.from)} a {formatDateBr(applied.to)}
         {appliedActorName ? ` · ${appliedActorName}` : ""}
-        {applied.type ? ` · ${applied.type === "dtpa" ? "Gestante dTpa" : "Bebe"}` : ""}
+        {applied.type ? ` · ${TYPE_LABELS[applied.type] ?? applied.type}` : ""}
         {data ? ` · ${data.total} registro(s)` : ""}
       </p>
 
@@ -218,7 +225,8 @@ export function ContactHistoryPanel() {
               <span className="contact-history-summary-total">{item.total}</span>
               <span className="field-hint">contato(s) no periodo</span>
               <div className="contact-history-summary-split">
-                <span>Gestantes: <b>{item.dtpa}</b></span>
+                <span>dTpa: <b>{item.dtpa}</b></span>
+                <span>VSR: <b>{item.vsr}</b></span>
                 <span>Bebes: <b>{item.bebe}</b></span>
               </div>
             </div>

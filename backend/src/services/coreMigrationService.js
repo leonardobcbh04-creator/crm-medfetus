@@ -38,6 +38,10 @@ import {
   upsertVaccineContact,
   deleteVaccineContact,
   deleteVaccineContactsExcept,
+  listVsrContactRows,
+  upsertVsrContact,
+  deleteVsrContact,
+  deleteVsrContactsExcept,
   listPatientVaccineRowsForPatient,
   upsertPatientVaccineStatus,
   listPhysiciansRows,
@@ -53,6 +57,7 @@ import {
 import { analyzePatientExamTimeline, calculateExamScheduleDates, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
 import { VACCINE_DEFINITIONS, VACCINE_STATUS, resolvePatientVaccineNeeds, buildVaccineReminderBlurb } from "../domain/vaccines.js";
 import { buildDtpaCampaign } from "../domain/vaccineCampaign.js";
+import { buildVsrCampaign } from "../domain/vsrCampaign.js";
 import { BABY_VACCINE_AVAILABILITY, buildBabyVaccineReminders } from "../domain/babyVaccines.js";
 import { AUTO_CLOSE_DAYS_AFTER_DPP, hasPassedAutoCloseDate, shouldAutoClosePregnancy } from "../domain/pregnancyClosure.js";
 import { listExamProtocolPresets } from "./examProtocolPresets.js";
@@ -2140,6 +2145,54 @@ export async function setVaccineContactCore(patientId, contacted, actorUserId) {
   return getDtpaCampaignCore();
 }
 
+// Aba "Gestantes (VSR)": lista unica de 28s0d a 36s6d com a VSR pendente. A marca
+// "Contatada" vale enquanto a paciente estiver na lista.
+export async function getVsrCampaignCore() {
+  const [patients, patientVaccineRows, contactRows] = await Promise.all([
+    listPatientsCore(),
+    listPatientVaccineRows(),
+    listVsrContactRows()
+  ]);
+  const campaign = buildVsrCampaign({
+    patients,
+    vaccineRowsMap: buildPatientVaccinesMap(patientVaccineRows),
+    contactsMap: new Map(contactRows.map((row) => [row.patientId, row])),
+    todayIso: todayIsoInTimeZone("America/Sao_Paulo")
+  });
+
+  const onScreenIds = campaign.items.map((item) => item.patientId);
+  const onScreen = new Set(onScreenIds);
+  if (contactRows.some((row) => !onScreen.has(row.patientId))) {
+    await deleteVsrContactsExcept(onScreenIds);
+  }
+
+  return {
+    ...campaign,
+    summary: {
+      total: campaign.items.length,
+      notContacted: campaign.items.filter((item) => !item.contacted).length
+    }
+  };
+}
+
+export async function setVsrContactCore(patientId, contacted, actorUserId) {
+  const normalizedPatientId = Number(patientId);
+  const patient = (await listPatientsBaseRows()).find((item) => item.id === normalizedPatientId);
+  if (!patient) {
+    throw new Error("Paciente nao encontrada.");
+  }
+  if (contacted) {
+    await upsertVsrContact({
+      patientId: normalizedPatientId,
+      contactedByUserId: await resolveActorUserId(actorUserId),
+      contactedAt: new Date().toISOString()
+    });
+  } else {
+    await deleteVsrContact(normalizedPatientId);
+  }
+  return getVsrCampaignCore();
+}
+
 // ---- Vacinas do bebe (aba "Bebes" da tela Vacinas) ----
 
 export async function getBabyVaccineRemindersCore() {
@@ -2206,13 +2259,14 @@ export async function updateBabyVaccineCatalogCore(id, input = {}) {
   return listBabyVaccineCatalogCore();
 }
 
-// Contador do item "Vacinas" no menu: gestantes da campanha dTpa e maes com aviso
-// de vacina do bebe que ainda nao foram contatadas.
+// Contador do item "Vacinas" no menu: gestantes da campanha dTpa, gestantes da
+// lista VSR e maes com aviso de vacina do bebe que ainda nao foram contatadas.
 export async function getVaccinesMenuCountCore() {
-  const [dtpa, baby] = await Promise.all([getDtpaCampaignCore(), getBabyVaccineRemindersCore()]);
+  const [dtpa, vsr, baby] = await Promise.all([getDtpaCampaignCore(), getVsrCampaignCore(), getBabyVaccineRemindersCore()]);
   return {
-    count: dtpa.summary.notContacted + baby.summary.notContacted,
+    count: dtpa.summary.notContacted + vsr.summary.notContacted + baby.summary.notContacted,
     dtpa: dtpa.summary.notContacted,
+    vsr: vsr.summary.notContacted,
     baby: baby.summary.notContacted
   };
 }

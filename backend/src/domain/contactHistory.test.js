@@ -45,11 +45,12 @@ test("resumo por funcionaria desconta as marcas desfeitas e separa gestantes e b
     { actorUserId: 1, actorName: "Ana", board: "dtpa", action: "contatada" },
     { actorUserId: 1, actorName: "Ana", board: "dtpa", action: "desfeita" },
     { actorUserId: 1, actorName: "Ana", board: "bebe", action: "contatada" },
-    { actorUserId: 2, actorName: "Bia", board: "bebe", action: "desfeita" }
+    { actorUserId: 2, actorName: "Bia", board: "bebe", action: "desfeita" },
+    { actorUserId: 2, actorName: "Bia", board: "vsr", action: "contatada" }
   ];
   assert.deepEqual(summarizeContactHistory(rows), [
-    { actorUserId: 1, actorName: "Ana", dtpa: 1, bebe: 1, total: 2 },
-    { actorUserId: 2, actorName: "Bia", dtpa: 0, bebe: 0, total: 0 }
+    { actorUserId: 1, actorName: "Ana", dtpa: 1, vsr: 0, bebe: 1, total: 2 },
+    { actorUserId: 2, actorName: "Bia", dtpa: 0, vsr: 1, bebe: 0, total: 1 }
   ]);
 });
 
@@ -65,4 +66,21 @@ test("filtros: padrao ultimos 30 dias, paginacao e exportacao", () => {
   assert.equal(normalizeContactHistoryFilters({ type: "outro" }, "2026-10-05").type, null);
   assert.throws(() => normalizeContactHistoryFilters({ from: "2026-10-05", to: "2026-10-01" }), /data inicial/);
   assert.throws(() => normalizeContactHistoryFilters({ actorUserId: "abc" }), /Funcionaria invalida/);
+});
+
+test("quadro VSR: rotulo 'Gestante VSR' e filtro por tipo", () => {
+  const row = normalizeContactHistoryRow({
+    id: 9,
+    actionType: "vacina_vsr_contatada",
+    actorUserId: 1,
+    actorName: "Ana",
+    patientId: 3,
+    currentPatientName: "Maria",
+    detailsJson: JSON.stringify({ board: "vsr", patientName: "Maria", gestationalAgeLabel: "30s1d" })
+  });
+  assert.equal(row.board, "vsr");
+  assert.equal(row.boardLabel, "Gestante VSR");
+  assert.equal(row.gestationalAgeLabel, "30s1d");
+  assert.equal(normalizeContactHistoryFilters({ type: "vsr" }, "2026-10-05").type, "vsr");
+  assert.equal(normalizeContactHistoryFilters({ type: "toString" }, "2026-10-05").type, null);
 });
