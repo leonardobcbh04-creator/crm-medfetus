@@ -65,7 +65,7 @@ import {
   verifyPassword
 } from "../security/auth.js";
 import { addDays, formatDatePtBr, todayIso, todayIsoInTimeZone } from "../utils/date.js";
-import { normalizeBrazilPhone, toWhatsAppPhone } from "../utils/phone.js";
+import { buildWhatsAppUrl, normalizeBrazilPhone } from "../utils/phone.js";
 import { getMessagingRuntimeConfig } from "./messaging/messagingService.js";
 import { lookupFutureScheduledExamInShosp } from "./shospIntegration/shospIntegrationService.js";
 import { recordAuditEvent } from "./auditService.js";
@@ -1927,7 +1927,7 @@ export async function getRemindersCenterDataCore(inputFilters = {}) {
         gestationalBaseExplanation: patient.gestationalBaseExplanation || null,
         gestationalMessagingAlertLevel: gestationalMessagingAlert.level,
         gestationalMessagingAlertMessage: gestationalMessagingAlert.message,
-        whatsappUrl: `https://wa.me/${toWhatsAppPhone(patient.phone)}?text=${encodeURIComponent(suggestedMessage)}`
+        whatsappUrl: buildWhatsAppUrl(patient.phone, suggestedMessage)
       };
     });
 
@@ -2278,7 +2278,7 @@ export async function getMessagingOverviewCore() {
           reminderLabel: nextPendingExam ? buildReminderLabel(nextPendingExam) : "Sem mensagem pendente",
           examPatientId: nextPendingExam?.id ?? null,
           examModelId: nextPendingExam?.examModelId ?? null,
-          whatsappUrl: `https://wa.me/${toWhatsAppPhone(patient.phone)}?text=${encodeURIComponent(suggestedMessage)}`,
+          whatsappUrl: buildWhatsAppUrl(patient.phone, suggestedMessage),
           latestMessage,
           messageHistory: messageHistoryByPatient.get(patient.id) ?? [],
           gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
@@ -2332,7 +2332,7 @@ export async function getMessagingOverviewCore() {
         reminderLabel: pendingVaccines.map((item) => item.name).join(", "),
         examPatientId: null,
         examModelId: null,
-        whatsappUrl: `https://wa.me/${toWhatsAppPhone(patient.phone)}?text=${encodeURIComponent(suggestedMessage)}`,
+        whatsappUrl: buildWhatsAppUrl(patient.phone, suggestedMessage),
         latestMessage: latestMessagesMap.get(patient.id) ?? null,
         messageHistory: messageHistoryByPatient.get(patient.id) ?? [],
         gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
