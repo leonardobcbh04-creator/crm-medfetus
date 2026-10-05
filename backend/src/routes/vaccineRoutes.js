@@ -8,7 +8,9 @@ import {
   updateBabyVaccineCatalogCore,
   getDtpaCampaignCore,
   getDtpaCampaignCountCore,
-  setVaccineContactCore
+  setVaccineContactCore,
+  getVsrCampaignCore,
+  setVsrContactCore
 } from "../services/coreMigrationService.js";
 import { recordAuditEvent } from "../services/auditService.js";
 import { listPatientsBaseRows } from "../database/repositories/coreRepository.js";
@@ -43,6 +45,14 @@ async function buildBabyContactDetails(reminders, patientId, ageMonths) {
   return { board: "bebe", ...basics, ageMonths };
 }
 
+async function buildVsrContactDetails(campaign, patientId) {
+  const item = campaign.items.find((entry) => entry.patientId === patientId);
+  if (!item) {
+    return { board: "vsr", ...(await findPatientBasics(patientId)) };
+  }
+  return { board: "vsr", patientName: item.patientName, phone: item.phone, gestationalAgeLabel: item.gestationalAgeLabel };
+}
+
 // Tela "Vacinas" (campanha dTpa). Visivel para todos os perfis autenticados.
 export const vaccineRoutes = Router();
 
@@ -75,6 +85,34 @@ vaccineRoutes.put("/dtpa/:patientId/contact", async (request, response) => {
       patientId,
       description: contacted ? "Paciente marcada como contatada na tela Vacinas." : "Marca de contatada removida na tela Vacinas.",
       details: await buildDtpaContactDetails(data, patientId)
+    });
+    response.json(data);
+  } catch (error) {
+    response.status(400).send(error instanceof Error ? error.message : "Nao foi possivel atualizar o contato.");
+  }
+});
+
+vaccineRoutes.get("/vsr", async (_request, response) => {
+  try {
+    response.json(await getVsrCampaignCore());
+  } catch (error) {
+    response.status(500).send(error instanceof Error ? error.message : "Nao foi possivel carregar a lista da VSR.");
+  }
+});
+
+vaccineRoutes.put("/vsr/:patientId/contact", async (request, response) => {
+  try {
+    const patientId = Number(request.params.patientId);
+    const contacted = Boolean(request.body?.contacted);
+    const data = await setVsrContactCore(patientId, contacted, request.authUser?.id);
+    await recordAuditEvent({
+      actorUserId: request.authUser?.id || null,
+      actionType: contacted ? "vacina_vsr_contatada" : "vacina_vsr_contato_desfeito",
+      entityType: "patient_vaccine",
+      entityId: patientId,
+      patientId,
+      description: contacted ? "Paciente avisada sobre a vacina VSR (SUS)." : "Marca de contato da VSR removida.",
+      details: await buildVsrContactDetails(data, patientId)
     });
     response.json(data);
   } catch (error) {

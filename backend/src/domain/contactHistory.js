@@ -1,23 +1,31 @@
 import { addDays, todayIsoInTimeZone } from "../utils/date.js";
 
-// Historico de quem marcou "Contatada" nos quadros da tela Vacinas (gestantes dTpa
-// e bebes). A fonte e o audit_logs: as marcas em vacinas_contato e
+// Historico de quem marcou "Contatada" nos quadros da tela Vacinas (gestantes dTpa,
+// gestantes VSR e bebes). A fonte e o audit_logs: as marcas em vacinas_contato e
 // vacinas_bebe_contato sao apagadas quando a paciente sai da tela.
 export const CONTACT_HISTORY_ACTIONS = {
   vacina_contatada: { board: "dtpa", action: "contatada" },
   vacina_contato_desfeito: { board: "dtpa", action: "desfeita" },
+  vacina_vsr_contatada: { board: "vsr", action: "contatada" },
+  vacina_vsr_contato_desfeito: { board: "vsr", action: "desfeita" },
   vacina_bebe_contatada: { board: "bebe", action: "contatada" },
   vacina_bebe_contato_desfeito: { board: "bebe", action: "desfeita" }
 };
 
 export const ACTION_TYPES_BY_BOARD = {
   dtpa: ["vacina_contatada", "vacina_contato_desfeito"],
+  vsr: ["vacina_vsr_contatada", "vacina_vsr_contato_desfeito"],
   bebe: ["vacina_bebe_contatada", "vacina_bebe_contato_desfeito"]
 };
 
 const SECTION_LABELS = {
   A: "Entram na janela nos proximos 15 dias",
   B: "Ja podem vacinar"
+};
+
+const BOARD_LABELS = {
+  dtpa: "Gestante dTpa",
+  vsr: "Gestante VSR"
 };
 
 export const DEFAULT_PERIOD_DAYS = 30;
@@ -71,7 +79,7 @@ export function normalizeContactHistoryRow(raw) {
     patientId: raw.patientId ?? null,
     patientName,
     board: meta.board,
-    boardLabel: meta.board === "bebe" ? formatBabyBoardLabel(ageMonths) : "Gestante dTpa",
+    boardLabel: BOARD_LABELS[meta.board] ?? formatBabyBoardLabel(ageMonths),
     ageMonths: ageMonths === null || ageMonths === undefined ? null : Number(ageMonths),
     action: meta.action,
     actionLabel: meta.action === "contatada" ? "Contatada" : "Marca desfeita",
@@ -82,7 +90,7 @@ export function normalizeContactHistoryRow(raw) {
 }
 
 // Resumo por funcionaria: contatadas menos desfeitas (nunca abaixo de zero),
-// separado em gestantes (dTpa) e bebes.
+// separado em gestantes dTpa, gestantes VSR e bebes.
 export function summarizeContactHistory(rows) {
   const byActor = new Map();
   for (const row of rows) {
@@ -90,7 +98,7 @@ export function summarizeContactHistory(rows) {
     const current = byActor.get(key) ?? {
       actorUserId: row.actorUserId,
       actorName: row.actorName,
-      counts: { dtpa: 0, bebe: 0 }
+      counts: { dtpa: 0, vsr: 0, bebe: 0 }
     };
     current.counts[row.board] += row.action === "contatada" ? 1 : -1;
     byActor.set(key, current);
@@ -98,8 +106,9 @@ export function summarizeContactHistory(rows) {
   return [...byActor.values()]
     .map(({ actorUserId, actorName, counts }) => {
       const dtpa = Math.max(0, counts.dtpa);
+      const vsr = Math.max(0, counts.vsr);
       const bebe = Math.max(0, counts.bebe);
-      return { actorUserId, actorName, dtpa, bebe, total: dtpa + bebe };
+      return { actorUserId, actorName, dtpa, vsr, bebe, total: dtpa + vsr + bebe };
     })
     .sort((left, right) => right.total - left.total || String(left.actorName).localeCompare(String(right.actorName), "pt-BR"));
 }
@@ -118,7 +127,7 @@ export function normalizeContactHistoryFilters(query = {}, today = todayIsoInTim
   if (actorUserId !== null && !Number.isInteger(actorUserId)) {
     throw new Error("Funcionaria invalida.");
   }
-  const type = query.type === "dtpa" || query.type === "bebe" ? query.type : null;
+  const type = Object.hasOwn(ACTION_TYPES_BY_BOARD, String(query.type)) ? String(query.type) : null;
   const exportAll = query.all === "1" || query.all === "true" || query.all === true;
   const pageSize = exportAll
     ? MAX_EXPORT_ROWS

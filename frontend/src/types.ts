@@ -312,7 +312,27 @@ export type DtpaCampaignItem = {
   windowEndDate?: string;
 };
 
-export type ContactHistoryBoard = "dtpa" | "bebe";
+export type VsrCampaignItem = {
+  patientId: number;
+  patientName: string;
+  phone: string;
+  gestationalDaysToday: number;
+  gestationalAgeLabel: string;
+  daysUntilWindowEnd: number;
+  windowEndDate: string;
+  contacted: boolean;
+  contactedAt: string | null;
+  contactedByName: string | null;
+  whatsappMessage: string;
+};
+
+export type VsrCampaign = {
+  today: string;
+  items: VsrCampaignItem[];
+  summary: { total: number; notContacted: number };
+};
+
+export type ContactHistoryBoard = "dtpa" | "vsr" | "bebe";
 
 export type ContactHistoryRow = {
   id: number;
@@ -336,6 +356,7 @@ export type ContactHistorySummaryRow = {
   actorUserId: number | null;
   actorName: string;
   dtpa: number;
+  vsr: number;
   bebe: number;
   total: number;
 };

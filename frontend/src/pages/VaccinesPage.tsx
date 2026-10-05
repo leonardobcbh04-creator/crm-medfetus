@@ -2,18 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BabyVaccinesPanel } from "../components/BabyVaccinesPanel";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { VsrVaccinesPanel } from "../components/VsrVaccinesPanel";
 import { api } from "../services/api";
-import type { BabyVaccineReminders, DtpaCampaign, DtpaCampaignItem } from "../types";
+import type { BabyVaccineReminders, DtpaCampaign, DtpaCampaignItem, VsrCampaign } from "../types";
 import { formatBrazilPhone, getWhatsAppUrl } from "../utils/phone";
 
 const HIDE_CONTACTED_STORAGE_KEY = "vacinas.ocultarContatadas";
 const ACTIVE_TAB_STORAGE_KEY = "vacinas.abaAtiva";
 
-type VaccinesTab = "gestantes" | "bebes";
+type VaccinesTab = "gestantes" | "vsr" | "bebes";
 
 function readActiveTabPreference(): VaccinesTab {
   try {
-    return window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) === "bebes" ? "bebes" : "gestantes";
+    const stored = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+    return stored === "bebes" || stored === "vsr" ? stored : "gestantes";
   } catch {
     return "gestantes";
   }
@@ -62,6 +64,7 @@ function pluralDays(days: number) {
 
 export function VaccinesPage() {
   const [campaign, setCampaign] = useState<DtpaCampaign | null>(null);
+  const [vsrCampaign, setVsrCampaign] = useState<VsrCampaign | null>(null);
   const [babyReminders, setBabyReminders] = useState<BabyVaccineReminders | null>(null);
   const [activeTab, setActiveTab] = useState<VaccinesTab>(readActiveTabPreference);
   const [loading, setLoading] = useState(true);
@@ -72,8 +75,13 @@ export function VaccinesPage() {
 
   const loadCampaign = useCallback(async () => {
     try {
-      const [campaignResponse, babyResponse] = await Promise.all([api.getDtpaCampaign(), api.getBabyVaccineReminders()]);
+      const [campaignResponse, vsrResponse, babyResponse] = await Promise.all([
+        api.getDtpaCampaign(),
+        api.getVsrCampaign(),
+        api.getBabyVaccineReminders()
+      ]);
       setCampaign(campaignResponse);
+      setVsrCampaign(vsrResponse);
       setBabyReminders(babyResponse);
     } catch (error) {
       setFeedbackType("error");
@@ -116,8 +124,10 @@ export function VaccinesPage() {
   const contactedCount = useMemo(
     () => activeTab === "bebes"
       ? (babyReminders?.items ?? []).filter((item) => item.contacted).length
-      : [...(campaign?.entering ?? []), ...(campaign?.eligible ?? [])].filter((item) => item.contacted).length,
-    [activeTab, babyReminders, campaign]
+      : activeTab === "vsr"
+        ? (vsrCampaign?.items ?? []).filter((item) => item.contacted).length
+        : [...(campaign?.entering ?? []), ...(campaign?.eligible ?? [])].filter((item) => item.contacted).length,
+    [activeTab, babyReminders, campaign, vsrCampaign]
   );
 
   async function handleContact(item: DtpaCampaignItem, contacted: boolean) {
@@ -267,12 +277,14 @@ export function VaccinesPage() {
     <section className="page-section">
       <div className="page-header">
         <div>
-          <p className="eyebrow">{activeTab === "bebes" ? "Calendario SBIm do bebe" : "Campanha dTpa"}</p>
+          <p className="eyebrow">{activeTab === "bebes" ? "Calendario SBIm do bebe" : activeTab === "vsr" ? "Aviso VSR (SUS)" : "Campanha dTpa"}</p>
           <h2>Vacinas</h2>
           <p className="page-description">
             {activeTab === "bebes"
               ? "Maes com bebe chegando a uma idade de vacinacao (ate 2 anos). Uma mensagem por idade: o que a MedFetus aplica e o que fica no posto de saude."
-              : "Gestantes com a dTpa pendente que ja podem vacinar (20 a 36 semanas) ou que entram na janela nos proximos 15 dias."}
+              : activeTab === "vsr"
+                ? "Gestantes com a VSR pendente entre 28 e 36 semanas. A vacina e gratuita no SUS: o aviso informa a paciente que ela pode tomar no posto de saude."
+                : "Gestantes com a dTpa pendente que ja podem vacinar (20 a 36 semanas) ou que entram na janela nos proximos 15 dias."}
           </p>
         </div>
         <div className="inline-actions">
@@ -307,6 +319,16 @@ export function VaccinesPage() {
         <button
           type="button"
           role="tab"
+          aria-selected={activeTab === "vsr"}
+          className={`patient-tab-button ${activeTab === "vsr" ? "active" : ""}`}
+          onClick={() => selectTab("vsr")}
+        >
+          <span>Gestantes (VSR)</span>
+          <span className="patient-tab-count">{vsrCampaign?.summary.notContacted ?? 0}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
           aria-selected={activeTab === "bebes"}
           className={`patient-tab-button ${activeTab === "bebes" ? "active" : ""}`}
           onClick={() => selectTab("bebes")}
@@ -316,7 +338,18 @@ export function VaccinesPage() {
         </button>
       </div>
 
-      {activeTab === "bebes" ? (
+      {activeTab === "vsr" ? (
+        <VsrVaccinesPanel
+          campaign={vsrCampaign}
+          hideContacted={hideContacted}
+          onCampaignChange={setVsrCampaign}
+          onReload={loadCampaign}
+          onFeedback={(message, type) => {
+            setFeedbackType(type);
+            setFeedback(message);
+          }}
+        />
+      ) : activeTab === "bebes" ? (
         <BabyVaccinesPanel
           reminders={babyReminders}
           hideContacted={hideContacted}

@@ -4,6 +4,7 @@ import type {
   BabyVaccineCatalogRow,
   BabyVaccineReminders,
   DtpaCampaign,
+  VsrCampaign,
   FutureScheduleImportConfirmResult,
   FutureScheduleImportPreview,
   AdminPanelData,
@@ -436,6 +437,15 @@ export const api = {
       body: JSON.stringify({ contacted })
     });
   },
+  getVsrCampaign() {
+    return request<VsrCampaign>("/vaccines/vsr");
+  },
+  setVsrContact(patientId: number, contacted: boolean) {
+    return request<VsrCampaign>(`/vaccines/vsr/${patientId}/contact`, {
+      method: "PUT",
+      body: JSON.stringify({ contacted })
+    });
+  },
   getContactHistory(query: ContactHistoryQuery) {
     const params = new URLSearchParams();
     if (query.from) params.set("from", query.from);
@@ -448,7 +458,7 @@ export const api = {
     return request<ContactHistoryResponse>(`/admin/contact-history?${params.toString()}`);
   },
   getVaccinesMenuCount() {
-    return request<{ count: number; dtpa: number; baby: number }>("/vaccines/count");
+    return request<{ count: number; dtpa: number; vsr: number; baby: number }>("/vaccines/count");
   },
   getBabyVaccineReminders() {
     return request<BabyVaccineReminders>("/vaccines/baby");
