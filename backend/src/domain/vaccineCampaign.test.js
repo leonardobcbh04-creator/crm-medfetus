@@ -109,7 +109,7 @@ test("gripe pendente vira selo e paragrafo extra; contato e proximo exame aparec
   assert.equal(first.nextExam.scheduledDate, "2026-10-20");
   assert.equal(first.contacted, true);
   assert.equal(first.contactedByName, "Eliana");
-  assert.match(first.whatsappMessage, /aproveitar a vinda para o exame Ecocardiograma fetal, no dia 20\/10\./);
+  assert.doesNotMatch(first.whatsappMessage, /Ecocardiograma|20\/10/, "A mensagem nao cita o exame agendado.");
   assert.match(first.whatsappMessage, /vacina da gripe/);
   assert.equal(second.fluPending, false);
   assert.equal(second.nextExam, null);
@@ -122,27 +122,22 @@ test("proximo exame agendado considera so datas de hoje em diante", () => {
   assert.equal(findNextScheduledExam([{ id: 1, status: "agendado", scheduledDate: TODAY }], TODAY).id, 1);
 });
 
-test("texto do WhatsApp: secao 'ja podem vacinar' com exame e sem gripe", () => {
-  const message = buildDtpaWhatsAppMessage({
-    nextExam: { name: "Morfologico 2o trimestre", scheduledDate: "2026-10-05" },
-    fluPending: false,
-    section: "janela"
-  });
+test("texto do WhatsApp: secao 'ja podem vacinar' sem gripe", () => {
+  const message = buildDtpaWhatsAppMessage({ fluPending: false, section: "janela" });
   assert.equal(
     message,
     "Oi! Tudo bem? 😊\nEu sou a Eliana, faço parte da equipe de vacinas da MedFetus.\n\n" +
     "Vi que você entrou no período recomendado para tomar a vacina dTpa na gestação. Ela protege o bebê contra a coqueluche nos primeiros meses de vida, antes de ele poder receber as próprias vacinas. 💚\n\n" +
-    "Aqui na MedFetus aplicamos a dTpa, e vale muito a pena trazer também o pai ou quem vai cuidar do bebê: quando quem convive com ele está vacinado, a proteção fica ainda maior. " +
-    "Se for mais prático, dá para aproveitar a vinda para o exame Morfologico 2o trimestre, no dia 05/10.\n\n" +
+    "Aqui na MedFetus aplicamos a dTpa, e vale muito a pena trazer também o pai ou quem vai cuidar do bebê: quando quem convive com ele está vacinado, a proteção fica ainda maior.\n\n" +
     "Quer que eu veja um horário para vocês?"
   );
 });
 
 test("texto do WhatsApp: secao 'entrando em 15 dias', sem exame e com gripe pendente", () => {
-  const message = buildDtpaWhatsAppMessage({ nextExam: null, fluPending: true, section: "entrando" });
-  assert.ok(message.includes("Você está chegando ao período recomendado para tomar a vacina dTpa na gestação, que começa na 20ª semana."));
+  const message = buildDtpaWhatsAppMessage({ fluPending: true, section: "entrando" });
+  assert.ok(message.includes("Você está chegando ao período recomendado para tomar a vacina dTpa na gestação. Ela protege"));
+  assert.doesNotMatch(message, /semana/, "A mensagem nao cita o numero da semana.");
   assert.doesNotMatch(message, /entrou no período/);
-  assert.doesNotMatch(message, /aproveitar a vinda/);
   assert.ok(message.includes("trazer também o pai ou quem vai cuidar do bebê"));
   assert.ok(message.includes("A vacina da gripe também é muito importante na gestação: pode ser tomada em qualquer fase, e dá para fazer as duas no mesmo dia."));
   assert.ok(message.endsWith("Quer que eu já deixe um horário reservado para vocês?"));

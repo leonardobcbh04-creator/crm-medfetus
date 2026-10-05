@@ -8,11 +8,6 @@ export const DTPA_WINDOW_START_DAYS = 20 * 7; // 20s0d
 export const DTPA_WINDOW_END_DAYS = 36 * 7 + 6; // 36s6d
 export const DTPA_LOOKAHEAD_DAYS = 15;
 
-function formatShortDate(isoDate) {
-  const [, month, day] = String(isoDate).split("-");
-  return `${day}/${month}`;
-}
-
 function formatGestationalAge(totalDays) {
   return `${Math.floor(totalDays / 7)}s${totalDays % 7}d`;
 }
@@ -33,21 +28,19 @@ export function findNextScheduledExam(patientExams, todayIso) {
 
 // Mensagem do WhatsApp da campanha dTpa (Eliana). Muda conforme a secao:
 // "janela" = ja esta entre 20s0d e 36s6d; "entrando" = completa 20 semanas nos
-// proximos 15 dias. Se houver exame agendado, sugere aproveitar a ida a clinica;
-// se a gripe estiver pendente, acrescenta o lembrete da gripe.
-export function buildDtpaWhatsAppMessage({ nextExam, fluPending, section = "janela" }) {
+// proximos 15 dias. Nao cita a semana (a recomendacao pode variar) nem o
+// proximo exame (a data pode estar desatualizada; a equipe ve o exame no cartao).
+// Se a gripe estiver pendente, acrescenta o lembrete da gripe.
+export function buildDtpaWhatsAppMessage({ fluPending, section = "janela" }) {
   const isEntering = section === "entrando";
   const opening = isEntering
-    ? "Você está chegando ao período recomendado para tomar a vacina dTpa na gestação, que começa na 20ª semana. Ela protege o bebê contra a coqueluche nos primeiros meses de vida, antes de ele poder receber as próprias vacinas. 💚"
+    ? "Você está chegando ao período recomendado para tomar a vacina dTpa na gestação. Ela protege o bebê contra a coqueluche nos primeiros meses de vida, antes de ele poder receber as próprias vacinas. 💚"
     : "Vi que você entrou no período recomendado para tomar a vacina dTpa na gestação. Ela protege o bebê contra a coqueluche nos primeiros meses de vida, antes de ele poder receber as próprias vacinas. 💚";
   const familyCall = "Aqui na MedFetus aplicamos a dTpa, e vale muito a pena trazer também o pai ou quem vai cuidar do bebê: quando quem convive com ele está vacinado, a proteção fica ainda maior.";
-  const examHint = nextExam
-    ? ` Se for mais prático, dá para aproveitar a vinda para o exame ${nextExam.name}, no dia ${formatShortDate(nextExam.scheduledDate)}.`
-    : "";
   const paragraphs = [
     "Oi! Tudo bem? 😊\nEu sou a Eliana, faço parte da equipe de vacinas da MedFetus.",
     opening,
-    `${familyCall}${examHint}`
+    familyCall
   ];
   if (fluPending) {
     paragraphs.push("A vacina da gripe também é muito importante na gestação: pode ser tomada em qualquer fase, e dá para fazer as duas no mesmo dia.");
@@ -103,7 +96,7 @@ export function buildDtpaCampaign({ patients, patientExamsMap, vaccineRowsMap, c
       contacted: Boolean(contact),
       contactedAt: contact?.contactedAt ?? null,
       contactedByName: contact?.contactedByName ?? null,
-      whatsappMessage: buildDtpaWhatsAppMessage({ nextExam, fluPending, section: inLookahead ? "entrando" : "janela" })
+      whatsappMessage: buildDtpaWhatsAppMessage({ fluPending, section: inLookahead ? "entrando" : "janela" })
     };
 
     if (inLookahead) {
