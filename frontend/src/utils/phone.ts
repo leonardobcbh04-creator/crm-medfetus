@@ -33,5 +33,7 @@ export function formatBrazilPhone(value: string) {
 export function getWhatsAppUrl(phone: string, message: string) {
   const digits = normalizeBrazilPhone(phone);
   const whatsappNumber = digits ? `55${digits}` : "";
-  return `https://wa.me/${whatsappNumber}?text=${message}`;
+  // api.whatsapp.com/send (e nao wa.me): o redirecionamento do wa.me quebra emojis
+  // como 😊 e 💚 no WhatsApp Web/desktop, que chegam como "\uFFFD".
+  return `https://api.whatsapp.com/send?phone=${whatsappNumber}&text=${message}`;
 }
