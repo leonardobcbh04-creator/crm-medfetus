@@ -13,6 +13,7 @@ import {
   createPatientCore,
   deletePatientCore,
   getAdminPanelDataCore,
+  getDtpaCampaignCore,
   getPatientDetailsCore,
   previewFutureScheduleImportDataCore,
   updatePatientExamStatusCore
@@ -104,6 +105,13 @@ try {
   morf = await examByCode(patientId, "morfologico_2_trimestre");
   assert.equal(morf.scheduledTime, "14:30");
 
+  // 3b) Tela Vacinas: a mensagem da dTpa convida a aproveitar o horario importado.
+  const dtpaItem = async () => (await getDtpaCampaignCore()).eligible.find((item) => item.patientId === patientId);
+  let vaccineItem = await dtpaItem();
+  assert.equal(vaccineItem.agendaVisit?.scheduledTime, "14:30");
+  const [, futureMonth, futureDay] = futureDate.split("-");
+  assert.ok(vaccineItem.whatsappMessage.includes(`no dia ${futureDay}/${futureMonth}, às 14:30. Quer aproveitar a vinda`));
+
   // 4) Agendamento manual de outro exame na mesma data nao e tocado pelo reenvio.
   const eco = await examByCode(patientId, "ecocardiograma_fetal");
   await updatePatientExamStatusCore(patientId, eco.id, { status: "agendado", scheduledDate: futureDate, scheduledTime: "11:00", actorUserId: auth.user.id });
@@ -115,6 +123,9 @@ try {
   assert.equal(morf.status, "pendente");
   assert.equal(morf.scheduledDate, null);
   assert.equal((await examByCode(patientId, "ecocardiograma_fetal")).status, "agendado", "Agendamento manual nao pode ser removido.");
+  vaccineItem = await dtpaItem();
+  assert.equal(vaccineItem.agendaVisit, null, "Agendamento manual nao entra na mensagem da vacina.");
+  assert.doesNotMatch(vaccineItem.whatsappMessage, /Quer aproveitar a vinda/);
 
   // 6) CANCELOU remove o agendamento daquela data.
   await confirmFutureScheduleImportCore({ ...agendaFile([morfRow]), actorUserId: auth.user.id });

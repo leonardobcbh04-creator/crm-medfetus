@@ -7,6 +7,8 @@ import { VACCINE_STATUS } from "./vaccines.js";
 export const DTPA_WINDOW_START_DAYS = 20 * 7; // 20s0d
 export const DTPA_WINDOW_END_DAYS = 36 * 7 + 6; // 36s6d
 export const DTPA_LOOKAHEAD_DAYS = 15;
+// Mesma origem gravada pela importacao da agenda futura (patientImportService).
+export const AGENDA_IMPORT_SOURCE = "importacao_agenda";
 
 function formatGestationalAge(totalDays) {
   return `${Math.floor(totalDays / 7)}s${totalDays % 7}d`;
@@ -26,12 +28,38 @@ export function findNextScheduledExam(patientExams, todayIso) {
     )[0] ?? null;
 }
 
+// Horario que a mensagem pode citar: so agendamentos vindos da importacao da
+// agenda futura (a fonte mais atual, substituida a cada reenvio), de amanha em
+// diante e dentro do periodo em que ela ja pode tomar a dTpa (para a visita
+// servir para aplicar a vacina). O mais proximo.
+export function findAgendaVisitForVaccine(patientExams, todayIso, { fromDate, toDate }) {
+  return [...patientExams]
+    .filter((exam) =>
+      exam.status === "agendado" &&
+      exam.schedulingSource === AGENDA_IMPORT_SOURCE &&
+      exam.scheduledDate &&
+      exam.scheduledDate > todayIso &&
+      exam.scheduledDate >= fromDate &&
+      exam.scheduledDate <= toDate
+    )
+    .sort((left, right) =>
+      String(left.scheduledDate).localeCompare(String(right.scheduledDate)) ||
+      String(left.scheduledTime || "").localeCompare(String(right.scheduledTime || ""))
+    )[0] ?? null;
+}
+
+function formatShortDate(isoDate) {
+  const [, month, day] = String(isoDate).slice(0, 10).split("-");
+  return `${day}/${month}`;
+}
+
 // Mensagem do WhatsApp da campanha dTpa (Eliana). Muda conforme a secao:
 // "janela" = ja esta entre 20s0d e 36s6d; "entrando" = completa 20 semanas nos
-// proximos 15 dias. Nao cita a semana (a recomendacao pode variar) nem o
-// proximo exame (a data pode estar desatualizada; a equipe ve o exame no cartao).
-// Se a gripe estiver pendente, acrescenta o lembrete da gripe.
-export function buildDtpaWhatsAppMessage({ fluPending, section = "janela" }) {
+// proximos 15 dias. Nao cita a semana (a recomendacao pode variar). Se a
+// paciente tem horario vindo da agenda futura (agendaVisit), o fechamento
+// convida a aproveitar a vinda. Se a gripe estiver pendente, acrescenta o
+// lembrete da gripe.
+export function buildDtpaWhatsAppMessage({ fluPending, section = "janela", agendaVisit = null }) {
   const isEntering = section === "entrando";
   const opening = isEntering
     ? "Você está chegando ao período recomendado para tomar a vacina dTpa na gestação. Ela protege o bebê contra a coqueluche nos primeiros meses de vida, antes de ele poder receber as próprias vacinas. 💚"
@@ -45,9 +73,14 @@ export function buildDtpaWhatsAppMessage({ fluPending, section = "janela" }) {
   if (fluPending) {
     paragraphs.push("A vacina da gripe também é muito importante na gestação: pode ser tomada em qualquer fase, e dá para fazer as duas no mesmo dia.");
   }
-  paragraphs.push(isEntering
-    ? "Quer que eu já deixe um horário reservado para vocês?"
-    : "Quer que eu veja um horário para vocês?");
+  if (agendaVisit) {
+    const when = `no dia ${formatShortDate(agendaVisit.scheduledDate)}${agendaVisit.scheduledTime ? `, às ${agendaVisit.scheduledTime}` : ""}`;
+    paragraphs.push(`Vi que você tem um horário agendado aqui na clínica ${when}. Quer aproveitar a vinda e já deixar a aplicação da vacina marcada para o mesmo dia?`);
+  } else {
+    paragraphs.push(isEntering
+      ? "Quer que eu já deixe um horário reservado para vocês?"
+      : "Quer que eu veja um horário para vocês?");
+  }
   return paragraphs.join("\n\n");
 }
 
@@ -84,6 +117,14 @@ export function buildDtpaCampaign({ patients, patientExamsMap, vaccineRowsMap, c
       ? { id: nextExamRow.id, name: nextExamRow.name, scheduledDate: nextExamRow.scheduledDate, scheduledTime: nextExamRow.scheduledTime ?? null }
       : null;
     const contact = contactsMap.get(patient.id) ?? null;
+    const section = inLookahead ? "entrando" : "janela";
+    const agendaVisitRow = findAgendaVisitForVaccine(patientExamsMap.get(patient.id) ?? [], todayIso, {
+      fromDate: addDays(patient.dum, DTPA_WINDOW_START_DAYS),
+      toDate: addDays(patient.dum, DTPA_WINDOW_END_DAYS)
+    });
+    const agendaVisit = agendaVisitRow
+      ? { examId: agendaVisitRow.id, name: agendaVisitRow.name, scheduledDate: agendaVisitRow.scheduledDate, scheduledTime: agendaVisitRow.scheduledTime ?? null }
+      : null;
 
     const item = {
       patientId: patient.id,
@@ -93,10 +134,11 @@ export function buildDtpaCampaign({ patients, patientExamsMap, vaccineRowsMap, c
       gestationalAgeLabel: formatGestationalAge(gestationalDaysToday),
       fluPending,
       nextExam,
+      agendaVisit,
       contacted: Boolean(contact),
       contactedAt: contact?.contactedAt ?? null,
       contactedByName: contact?.contactedByName ?? null,
-      whatsappMessage: buildDtpaWhatsAppMessage({ fluPending, section: inLookahead ? "entrando" : "janela" })
+      whatsappMessage: buildDtpaWhatsAppMessage({ fluPending, section, agendaVisit })
     };
 
     if (inLookahead) {
