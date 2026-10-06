@@ -47,7 +47,8 @@ export default function App() {
         <Route path="/contatos" element={<ContactCenterPage />} />
         <Route path="/vacinas" element={<VaccinesPage />} />
         <Route path="/kanban" element={<KanbanPage />} />
-        <Route path="/pacientes/novo" element={<PatientFormPage />} />
+        {/* Cadastro manual retirado: as pacientes entram pela importacao de planilha. */}
+        <Route path="/pacientes/novo" element={<Navigate to="/pacientes/importar" replace />} />
         <Route path="/pacientes/importar" element={<PatientImportPage />} />
         <Route path="/pacientes/:id" element={<PatientDetailPage />} />
         <Route path="/pacientes/:id/editar" element={<PatientFormPage />} />

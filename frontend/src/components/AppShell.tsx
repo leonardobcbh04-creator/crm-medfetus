@@ -7,7 +7,6 @@ import {
   AdminIcon,
   ContactsIcon,
   FlowIcon,
-  PatientAddIcon,
   PatientsIcon,
   ReviewIcon,
   VaccineIcon
@@ -20,7 +19,6 @@ export function AppShell() {
   const [vaccinesCount, setVaccinesCount] = useState(0);
   const storedUser = getStoredUser();
   const menuItems = [
-    { to: "/pacientes/novo", label: "Cadastrar paciente", icon: PatientAddIcon },
     { to: "/clientes", label: "Pacientes", icon: PatientsIcon },
     { to: "/kanban", label: "Fluxo de atendimento", icon: FlowIcon },
     { to: "/contatos", label: "Central de contatos", badgeKey: "reminders", icon: ContactsIcon },
