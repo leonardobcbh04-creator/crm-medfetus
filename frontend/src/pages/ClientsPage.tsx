@@ -155,9 +155,6 @@ export function ClientsPage() {
           <Link to="/pacientes/importar" className="secondary-button">
             Importar planilha
           </Link>
-          <Link to="/pacientes/novo" className="secondary-button">
-            Nova paciente
-          </Link>
         </div>
       </div>
 
@@ -290,8 +287,8 @@ export function ClientsPage() {
               </button>
             ) : null}
             {!patients.length ? (
-              <Link to="/pacientes/novo" className="secondary-button">
-                Cadastrar paciente
+              <Link to="/pacientes/importar" className="secondary-button">
+                Importar planilha
               </Link>
             ) : null}
           </div>
