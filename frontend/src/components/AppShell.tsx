@@ -8,7 +8,6 @@ import {
   ContactsIcon,
   FlowIcon,
   PatientsIcon,
-  ReviewIcon,
   VaccineIcon
 } from "./NavIcons";
 
@@ -23,7 +22,6 @@ export function AppShell() {
     { to: "/kanban", label: "Fluxo de atendimento", icon: FlowIcon },
     { to: "/contatos", label: "Central de contatos", badgeKey: "reminders", icon: ContactsIcon },
     { to: "/vacinas", label: "Vacinas", badgeKey: "vaccines", icon: VaccineIcon },
-    { to: "/revisao-base-gestacional", label: "Revisao da base gestacional", icon: ReviewIcon },
     ...(storedUser?.role === "admin" ? [{ to: "/admin", label: "Administracao", icon: AdminIcon }] : [])
   ];
 
