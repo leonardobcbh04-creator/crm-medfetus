@@ -287,12 +287,15 @@ export function calculateExamScheduleDates(
 }
 
 // Regras de prazo:
-// - atrasado: passou da data ideal e ainda nao foi realizado
-// - pendente: chegou no lembrete final ou no dia ideal
+// - atrasado: passou do fim do intervalo do exame (ex.: Obstetrica para sexo,
+//   depois de 17s0d) e ainda nao foi realizado. Sem o fim do intervalo, vale a
+//   data ideal.
+// - pendente: chegou no lembrete final ou no dia ideal (e segue pendente ate o
+//   fim do intervalo)
 // - aproximando: entrou na janela do primeiro lembrete
 // - dentro_do_prazo: ainda esta confortavel dentro da janela
 export function calculateDeadlineStatus(
-  { predictedDate, reminderDate1, reminderDate2, completedDate, completedOutsideClinic, status },
+  { predictedDate, reminderDate1, reminderDate2, completedDate, completedOutsideClinic, status, idealWindowEndDate },
   referenceDate = todayIso()
 ) {
   const baseDate = normalizeReferenceDate(referenceDate);
@@ -306,8 +309,9 @@ export function calculateDeadlineStatus(
   }
 
   const daysUntilIdealDate = daysBetween(baseDate, predictedDate);
+  const overdueAfterDate = idealWindowEndDate || predictedDate;
 
-  if (daysUntilIdealDate < 0) {
+  if (baseDate > overdueAfterDate) {
     return {
       key: DEADLINE_STATUS.OVERDUE,
       label: DEADLINE_LABELS[DEADLINE_STATUS.OVERDUE],

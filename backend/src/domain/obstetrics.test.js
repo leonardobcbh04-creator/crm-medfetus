@@ -168,6 +168,28 @@ test("classifica corretamente os status de prazo do exame", () => {
   assert.equal(calculateDeadlineStatus(baseExam, "2026-04-02").key, DEADLINE_STATUS.OVERDUE);
 });
 
+test("atrasado so depois do fim do intervalo do exame (ex.: Obstetrica para sexo ate 17s0d)", () => {
+  const exam = {
+    predictedDate: "2026-04-01", // 15s
+    reminderDate1: "2026-03-27",
+    reminderDate2: "2026-03-29",
+    idealWindowEndDate: "2026-04-15", // 17s0d
+    completedDate: null
+  };
+  assert.equal(calculateDeadlineStatus(exam, "2026-04-05").key, DEADLINE_STATUS.PENDING, "Depois da semana ideal, dentro do intervalo: pendente.");
+  assert.equal(calculateDeadlineStatus(exam, "2026-04-15").key, DEADLINE_STATUS.PENDING, "Ultimo dia do intervalo ainda nao e atraso.");
+  assert.equal(calculateDeadlineStatus(exam, "2026-04-16").key, DEADLINE_STATUS.OVERDUE);
+
+  const timeline = analyzePatientExamTimeline(
+    [{ examModelId: 3, code: "obstetrica_sexo", name: "Obstetrica para sexo", flowType: "automatico", sortOrder: 3, status: "pendente",
+       startWeek: 14.43, endWeek: 17, targetWeek: 15, predictedDate: "2026-04-01", reminderDate1: "2026-03-27", reminderDate2: "2026-03-29" }],
+    "2026-04-10"
+  );
+  assert.equal(timeline.overdueExam, null);
+  assert.equal(timeline.nextExam.deadlineStatus, DEADLINE_STATUS.PENDING);
+  assert.equal(analyzePatientExamTimeline(timeline.assessedExams, "2026-04-16").overdueExam?.code, "obstetrica_sexo");
+});
+
 test("identifica exame atrasado e proximo exame da paciente", () => {
   const timeline = analyzePatientExamTimeline(
     [
