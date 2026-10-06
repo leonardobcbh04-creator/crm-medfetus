@@ -302,6 +302,7 @@ export type DtpaCampaignItem = {
   gestationalAgeLabel: string;
   fluPending: boolean;
   nextExam: { id: number; name: string; scheduledDate: string; scheduledTime: string | null } | null;
+  agendaVisit: { examId: number; name: string; scheduledDate: string; scheduledTime: string | null } | null;
   contacted: boolean;
   contactedAt: string | null;
   contactedByName: string | null;

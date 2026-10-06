@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { addDays } from "../utils/date.js";
-import { buildDtpaCampaign, buildDtpaWhatsAppMessage, findNextScheduledExam } from "./vaccineCampaign.js";
+import { buildDtpaCampaign, buildDtpaWhatsAppMessage, findAgendaVisitForVaccine, findNextScheduledExam } from "./vaccineCampaign.js";
 import { VACCINE_DEFINITIONS, buildVaccineReminderBlurb, resolvePatientVaccineNeeds } from "./vaccines.js";
 
 const TODAY = "2026-09-30";
@@ -147,4 +147,47 @@ test("a campanha usa o texto da secao certa", () => {
   const result = campaign([patient(1, W(19, 6)), patient(2, W(25))]);
   assert.match(result.entering[0].whatsappMessage, /chegando ao período recomendado/);
   assert.match(result.eligible[0].whatsappMessage, /entrou no período recomendado/);
+});
+
+const agendaExam = (id, scheduledDate, overrides = {}) => ({
+  id,
+  name: "Ecocardiograma fetal",
+  status: "agendado",
+  scheduledDate,
+  scheduledTime: "09:30",
+  schedulingSource: "importacao_agenda",
+  ...overrides
+});
+
+test("agenda futura: mensagem convida a aproveitar a vinda (data e horario)", () => {
+  const result = campaign([patient(1, W(25))], { exams: { 1: [agendaExam(11, "2026-10-08")] } });
+  const [item] = result.eligible;
+  assert.equal(item.agendaVisit.scheduledDate, "2026-10-08");
+  assert.ok(item.whatsappMessage.endsWith(
+    "Vi que você tem um horário agendado aqui na clínica no dia 08/10, às 09:30. Quer aproveitar a vinda e já deixar a aplicação da vacina marcada para o mesmo dia?"
+  ));
+  assert.doesNotMatch(item.whatsappMessage, /Quer que eu veja um horário/);
+});
+
+test("agenda futura: sem horario, cita so o dia", () => {
+  const message = buildDtpaWhatsAppMessage({ fluPending: true, agendaVisit: { scheduledDate: "2026-10-08", scheduledTime: null } });
+  assert.match(message, /agendado aqui na clínica no dia 08\/10\. Quer aproveitar/);
+  assert.match(message, /vacina da gripe/);
+});
+
+test("agenda futura: so agenda importada, de amanha em diante e dentro do periodo da dTpa", () => {
+  const window = { fromDate: "2026-10-01", toDate: "2026-12-31" };
+  const pick = (exams) => findAgendaVisitForVaccine(exams, TODAY, window)?.id ?? null;
+  assert.equal(pick([agendaExam(1, TODAY)]), null, "Hoje nao.");
+  assert.equal(pick([agendaExam(1, "2026-10-08", { schedulingSource: null })]), null, "Agendamento manual nao.");
+  assert.equal(pick([agendaExam(1, "2026-10-08", { status: "realizado" })]), null);
+  assert.equal(pick([agendaExam(1, "2027-01-05")]), null, "Depois de 36s6d nao.");
+  assert.equal(pick([agendaExam(1, "2026-11-20"), agendaExam(2, "2026-10-08")]), 2, "O mais proximo.");
+
+  // Secao "entrando": exame antes de completar 20 semanas nao serve para vacinar.
+  const entering = campaign([patient(1, W(19))], {
+    exams: { 1: [agendaExam(11, addDays(TODAY, 3)), agendaExam(12, addDays(TODAY, 10), { scheduledTime: "14:00" })] }
+  });
+  assert.equal(entering.entering[0].agendaVisit.examId, 12);
+  assert.match(entering.entering[0].whatsappMessage, /às 14:00\. Quer aproveitar a vinda/);
 });

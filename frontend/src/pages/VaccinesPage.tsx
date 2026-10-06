@@ -206,6 +206,12 @@ export function VaccinesPage() {
               ? `${item.nextExam.name} em ${formatShortDate(item.nextExam.scheduledDate)}${item.nextExam.scheduledTime ? ` as ${item.nextExam.scheduledTime}` : ""}`
               : "Nenhum exame agendado"}
           </span>
+          {item.agendaVisit ? (
+            <span className="field-hint">
+              A mensagem convida a aproveitar o horario de {formatShortDate(item.agendaVisit.scheduledDate)}
+              {item.agendaVisit.scheduledTime ? ` as ${item.agendaVisit.scheduledTime}` : ""} (agenda importada).
+            </span>
+          ) : null}
           {item.contacted && item.contactedAt ? (
             <span className="field-hint">
               Contatada em {formatContactedAt(item.contactedAt)}{item.contactedByName ? ` por ${item.contactedByName}` : ""}
