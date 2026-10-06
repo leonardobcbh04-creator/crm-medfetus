@@ -3,7 +3,6 @@ import { AppShell } from "./components/AppShell";
 import { AdminPage } from "./pages/AdminPage";
 import { ClientsPage } from "./pages/ClientsPage";
 import { ExamSettingsPage } from "./pages/ExamSettingsPage";
-import { GestationalBaseReviewPage } from "./pages/GestationalBaseReviewPage";
 import { KanbanPage } from "./pages/KanbanPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PatientDetailPage } from "./pages/PatientDetailPage";
@@ -41,7 +40,8 @@ export default function App() {
         {/* Relatorios retirado do menu por enquanto; pages/ReportsPage.tsx continua no projeto. */}
         <Route path="/relatorios" element={<Navigate to={HOME_PATH} replace />} />
         <Route path="/clientes" element={<ClientsPage />} />
-        <Route path="/revisao-base-gestacional" element={<GestationalBaseReviewPage />} />
+        {/* Revisao da base gestacional retirada do menu; pages/GestationalBaseReviewPage.tsx continua no projeto. */}
+        <Route path="/revisao-base-gestacional" element={<Navigate to={HOME_PATH} replace />} />
         <Route path="/lembretes" element={<Navigate to="/contatos" replace />} />
         <Route path="/mensagens" element={<Navigate to="/contatos" replace />} />
         <Route path="/contatos" element={<ContactCenterPage />} />
