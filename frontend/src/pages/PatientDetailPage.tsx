@@ -3,110 +3,82 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../services/api";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { getStoredUser } from "../services/auth";
-import type { PatientDetails } from "../types";
+import type { PatientDetails, PatientExamRecord } from "../types";
 import { getPatientPriorityMeta } from "../utils/patientPriority";
 import { formatBrazilPhone, getWhatsAppUrl } from "../utils/phone";
 
-type PatientDetailTab = "resumo" | "exames" | "historico";
+// Ficha da paciente em versao enxuta: cabecalho com os dados principais, cartao
+// "Agora" com o proximo exame, linha do tempo compacta (uma linha por exame; as
+// acoes aparecem ao clicar) e coluna lateral com dados e vacinas.
 
-function getTrimesterMeta(predictedDate: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(predictedDate);
-  if (!match) {
-    return {
-      label: "Fase nao definida",
-      className: "badge-trimester-second"
-    };
+type PatientDetailTab = "resumo" | "historico";
+type ExamAction = "agendar" | "realizar" | "externo";
+type DotColor = "verde" | "amarelo" | "laranja" | "vermelho" | "cinza";
+
+function formatGestationalAge(details: PatientDetails) {
+  const { gestationalWeeks, gestationalDays, gestationalAgeLabel } = details.patient;
+  if (gestationalWeeks === null || gestationalWeeks === undefined) {
+    return gestationalAgeLabel || "-";
   }
+  return `${gestationalWeeks}s${gestationalDays ?? 0}d`;
+}
 
+function examDotColor(exam: PatientExamRecord): DotColor {
+  if (exam.status === "realizado" || exam.timelineStatus === "superado") return "cinza";
+  if (exam.status === "agendado") return "verde";
+  if (exam.showOperationalAlert || exam.deadlineStatus === "atrasado") return "vermelho";
+  if (exam.deadlineStatus === "pendente") return "laranja";
+  if (exam.deadlineStatus === "aproximando") return "amarelo";
+  return "verde";
+}
+
+function describeSchedule(exam: PatientExamRecord) {
+  if (!exam.scheduledDateLabel) return "";
+  return `${exam.scheduledDateLabel}${exam.scheduledTime ? ` às ${exam.scheduledTime}` : ""}`;
+}
+
+function examStatusChip(exam: PatientExamRecord) {
+  if (exam.status === "realizado") {
+    return exam.completedOutsideClinic
+      ? { label: "Historico anterior", tone: "neutral" }
+      : { label: `Realizado${exam.completedDateLabel ? ` ${exam.completedDateLabel}` : ""}`, tone: "neutral" };
+  }
+  if (exam.status === "agendado") return { label: `Agendado ${describeSchedule(exam)}`.trim(), tone: "success" };
+  if (exam.timelineStatus === "superado") return { label: "Etapa superada", tone: "neutral" };
+  if (exam.showOperationalAlert) return { label: "Atrasado", tone: "danger" };
+  return { label: `Previsto ${exam.predictedDateLabel}`, tone: "info" };
+}
+
+function formatHistoryDate(value: string | null | undefined) {
+  if (!value) return "Sem data";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-");
+    return `${day}/${month}/${year}`;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function buildExamRecordMaps(exams: PatientExamRecord[]) {
+  const pick = (field: (exam: PatientExamRecord) => string | null | undefined) =>
+    exams.reduce<Record<number, string>>((accumulator, exam) => {
+      accumulator[exam.id] = field(exam) || "";
+      return accumulator;
+    }, {});
   return {
-    label: "Fase da gestacao",
-    className: "badge-trimester-second"
+    scheduledDates: pick((exam) => exam.scheduledDate),
+    scheduledTimes: pick((exam) => exam.scheduledTime),
+    schedulingNotes: pick((exam) => exam.schedulingNotes),
+    completedDates: pick((exam) => exam.completedDate)
   };
-}
-
-function getExamTrimesterMeta(exam: PatientDetails["exams"][number]) {
-  if (exam.code === "exame_obstetrico_inicial" || exam.code === "morfologico_1_trimestre" || exam.code === "obstetrica_sexo") {
-    return {
-      label: "1o trimestre",
-      className: "badge-trimester-first"
-    };
-  }
-
-  if (exam.code === "morfologico_2_trimestre" || exam.code === "doppler_obstetrico" || exam.code === "ecocardiograma_fetal") {
-    return {
-      label: "2o trimestre",
-      className: "badge-trimester-second"
-    };
-  }
-
-  if (exam.code === "perfil_biofisico_fetal" || exam.code === "morfologico_3_trimestre") {
-    return {
-      label: "3o trimestre",
-      className: "badge-trimester-third"
-    };
-  }
-
-  return getTrimesterMeta(exam.predictedDate);
-}
-
-function getTimelineActionMeta(exam: PatientDetails["exams"][number]) {
-  if (exam.timelineStatus === "historico_anterior_confirmado") {
-    return {
-      label: "OK",
-      text: "Historico previo confirmado",
-      className: "timeline-icon-done"
-    };
-  }
-
-  if (exam.timelineStatus === "realizado") {
-    return {
-      label: "OK",
-      text: "Exame realizado",
-      className: "timeline-icon-done"
-    };
-  }
-
-  if (exam.status === "agendado") {
-    return { label: "AG", text: "Exame agendado", className: "timeline-icon-scheduled" };
-  }
-
-  if (exam.showOperationalAlert) {
-    return { label: "!", text: "Exame em atraso", className: "timeline-icon-alert" };
-  }
-
-  if (exam.timelineStatus === "superado") {
-    return { label: ">>", text: "Etapa superada", className: "timeline-icon-planned" };
-  }
-
-  return { label: "EX", text: "Exame previsto", className: "timeline-icon-planned" };
-}
-
-function getTimelinePrimaryBadge(exam: PatientDetails["exams"][number]) {
-  if (exam.timelineStatus === "historico_anterior_confirmado") {
-    return { label: "Historico previo confirmado", className: "badge-priority-blue" };
-  }
-
-  if (exam.timelineStatus === "realizado") {
-    return { label: "Realizado", className: "badge-priority-green" };
-  }
-
-  if (exam.timelineStatus === "superado") {
-    return { label: "Superado", className: "badge-priority-blue" };
-  }
-
-  if (exam.showOperationalAlert) {
-    return { label: "Atrasado", className: "badge-priority-red" };
-  }
-
-  if (exam.deadlineStatus === "pendente") {
-    return { label: exam.deadlineStatusLabel || "Pendente", className: "badge-priority-orange" };
-  }
-
-  if (exam.deadlineStatus === "aproximando") {
-    return { label: exam.deadlineStatusLabel || "Aproximando", className: "badge-priority-yellow" };
-  }
-
-  return { label: exam.deadlineStatusLabel || "Planejado", className: "badge-priority-green" };
 }
 
 export function PatientDetailPage() {
@@ -116,17 +88,16 @@ export function PatientDetailPage() {
   const [feedback, setFeedback] = useState("");
   const [feedbackType, setFeedbackType] = useState<"error" | "success">("success");
   const [activeTab, setActiveTab] = useState<PatientDetailTab>("resumo");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [pastOpen, setPastOpen] = useState(false);
+  const [openExamId, setOpenExamId] = useState<number | null>(null);
+  const [examAction, setExamAction] = useState<{ examId: number; action: ExamAction; where: "agora" | "linha" } | null>(null);
   const [savingExamId, setSavingExamId] = useState<number | null>(null);
-  const [confirmingScheduledExamId, setConfirmingScheduledExamId] = useState<number | null>(null);
-  const [confirmingRealizedExamId, setConfirmingRealizedExamId] = useState<number | null>(null);
-  const [confirmingExternalRealizedExamId, setConfirmingExternalRealizedExamId] = useState<number | null>(null);
-  const [invalidScheduleFields, setInvalidScheduleFields] = useState<Record<number, { scheduledDate: boolean; scheduledTime: boolean }>>({});
-  const [invalidCompletedDateExamId, setInvalidCompletedDateExamId] = useState<number | null>(null);
+  const [invalidField, setInvalidField] = useState<"scheduledDate" | "scheduledTime" | "completedDate" | null>(null);
   const [scheduledDates, setScheduledDates] = useState<Record<number, string>>({});
   const [scheduledTimes, setScheduledTimes] = useState<Record<number, string>>({});
   const [schedulingNotes, setSchedulingNotes] = useState<Record<number, string>>({});
   const [completedDates, setCompletedDates] = useState<Record<number, string>>({});
-  const [highlightedExamId, setHighlightedExamId] = useState<number | null>(null);
   const [isClosingTracking, setIsClosingTracking] = useState(false);
   const [isSavingClosure, setIsSavingClosure] = useState(false);
   const [isReopeningTracking, setIsReopeningTracking] = useState(false);
@@ -137,60 +108,44 @@ export function PatientDetailPage() {
     if (!id) {
       return;
     }
-
-    loadPatientDetails(Number(id));
+    void loadPatientDetails(Number(id));
   }, [id]);
+
+  function applyDetails(response: PatientDetails) {
+    setDetails(response);
+    const maps = buildExamRecordMaps(response.exams);
+    setScheduledDates(maps.scheduledDates);
+    setScheduledTimes(maps.scheduledTimes);
+    setSchedulingNotes(maps.schedulingNotes);
+    setCompletedDates(maps.completedDates);
+  }
 
   async function loadPatientDetails(patientId: number) {
     setLoading(true);
     try {
-      const response = await api.getPatientDetails(patientId);
-      setDetails(response);
-      setScheduledDates(
-        response.exams.reduce<Record<number, string>>((accumulator, exam) => {
-          accumulator[exam.id] = exam.scheduledDate || "";
-          return accumulator;
-        }, {})
-      );
-      setScheduledTimes(
-        response.exams.reduce<Record<number, string>>((accumulator, exam) => {
-          accumulator[exam.id] = exam.scheduledTime || "";
-          return accumulator;
-        }, {})
-      );
-      setSchedulingNotes(
-        response.exams.reduce<Record<number, string>>((accumulator, exam) => {
-          accumulator[exam.id] = exam.schedulingNotes || "";
-          return accumulator;
-        }, {})
-      );
-      setCompletedDates(
-        response.exams.reduce<Record<number, string>>((accumulator, exam) => {
-          accumulator[exam.id] = exam.completedDate || "";
-          return accumulator;
-        }, {})
-      );
+      applyDetails(await api.getPatientDetails(patientId));
     } finally {
       setLoading(false);
     }
+  }
+
+  function showFeedback(type: "error" | "success", message: string) {
+    setFeedbackType(type);
+    setFeedback(message);
   }
 
   async function handleConfirmCloseTracking() {
     if (!id || !closureReasonDraft) {
       return;
     }
-
     setIsSavingClosure(true);
     try {
-      const response = await api.closePatientTracking(Number(id), closureReasonDraft);
-      setDetails(response);
+      setDetails(await api.closePatientTracking(Number(id), closureReasonDraft));
       setIsClosingTracking(false);
       setClosureReasonDraft("");
-      setFeedbackType("success");
-      setFeedback("Acompanhamento encerrado. A paciente nao vai mais receber mensagens ou lembretes automaticos.");
+      showFeedback("success", "Acompanhamento encerrado. A paciente nao vai mais receber mensagens ou lembretes automaticos.");
     } catch (error) {
-      setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel encerrar o acompanhamento.");
+      showFeedback("error", error instanceof Error ? error.message : "Nao foi possivel encerrar o acompanhamento.");
     } finally {
       setIsSavingClosure(false);
     }
@@ -210,18 +165,14 @@ export function PatientDetailPage() {
     if (!confirmed) {
       return;
     }
-
     setIsSavingClosure(true);
     try {
-      const response = await api.closePatientTracking(Number(id), "perda_gestacional");
-      setDetails(response);
+      setDetails(await api.closePatientTracking(Number(id), "perda_gestacional"));
       setIsClosingTracking(false);
       setClosureReasonDraft("");
-      setFeedbackType("success");
-      setFeedback("Perda gestacional registrada. A paciente nao vai mais receber mensagens ou lembretes.");
+      showFeedback("success", "Perda gestacional registrada. A paciente nao vai mais receber mensagens ou lembretes.");
     } catch (error) {
-      setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel registrar a perda gestacional.");
+      showFeedback("error", error instanceof Error ? error.message : "Nao foi possivel registrar a perda gestacional.");
     } finally {
       setIsSavingClosure(false);
     }
@@ -231,16 +182,12 @@ export function PatientDetailPage() {
     if (!id) {
       return;
     }
-
     setIsReopeningTracking(true);
     try {
-      const response = await api.reopenPatientTracking(Number(id));
-      setDetails(response);
-      setFeedbackType("success");
-      setFeedback("Acompanhamento reativado. A paciente volta a aparecer no fluxo de atendimento.");
+      setDetails(await api.reopenPatientTracking(Number(id)));
+      showFeedback("success", "Acompanhamento reativado. A paciente volta a aparecer no fluxo de atendimento.");
     } catch (error) {
-      setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel reativar o acompanhamento.");
+      showFeedback("error", error instanceof Error ? error.message : "Nao foi possivel reativar o acompanhamento.");
     } finally {
       setIsReopeningTracking(false);
     }
@@ -254,95 +201,51 @@ export function PatientDetailPage() {
     if (!id) {
       return;
     }
-
     const completedOutsideClinic = Boolean(options?.completedOutsideClinic);
 
     if (status === "agendado" && !scheduledDates[examId]) {
-      setInvalidScheduleFields((current) => ({
-        ...current,
-        [examId]: { scheduledDate: true, scheduledTime: !scheduledTimes[examId] }
-      }));
-      setFeedbackType("error");
-      setFeedback("Informe a data do agendamento.");
+      setInvalidField("scheduledDate");
+      showFeedback("error", "Informe a data do agendamento.");
       return;
     }
-
     if (status === "agendado" && !scheduledTimes[examId]) {
-      setInvalidScheduleFields((current) => ({
-        ...current,
-        [examId]: { scheduledDate: false, scheduledTime: true }
-      }));
-      setFeedbackType("error");
-      setFeedback("Informe o horario do agendamento.");
+      setInvalidField("scheduledTime");
+      showFeedback("error", "Informe o horario do agendamento.");
       return;
     }
-
     if (status === "realizado" && !completedOutsideClinic && !completedDates[examId]) {
-      setInvalidCompletedDateExamId(examId);
-      setFeedbackType("error");
-      setFeedback("Informe a data de realizacao do exame.");
+      setInvalidField("completedDate");
+      showFeedback("error", "Informe a data de realizacao do exame.");
       return;
     }
 
-    setInvalidScheduleFields((current) => ({
-      ...current,
-      [examId]: { scheduledDate: false, scheduledTime: false }
-    }));
-    if (status === "realizado") {
-      setInvalidCompletedDateExamId(null);
-    }
+    setInvalidField(null);
     setSavingExamId(examId);
-    setFeedbackType("success");
     setFeedback("");
-
     try {
-      const storedUser = getStoredUser();
       const response = await api.updatePatientExamStatus(Number(id), examId, {
         status,
         scheduledDate: scheduledDates[examId] || null,
         scheduledTime: scheduledTimes[examId] || null,
         schedulingNotes: schedulingNotes[examId] || null,
-        actorUserId: storedUser?.id ?? null,
+        actorUserId: getStoredUser()?.id ?? null,
         completedDate: completedDates[examId] || null,
         completedOutsideClinic
       });
-      setDetails(response.patient);
-      setScheduledDates(
-        response.patient.exams.reduce<Record<number, string>>((accumulator, exam) => {
-          accumulator[exam.id] = exam.scheduledDate || "";
-          return accumulator;
-        }, {})
-      );
-      setScheduledTimes(
-        response.patient.exams.reduce<Record<number, string>>((accumulator, exam) => {
-          accumulator[exam.id] = exam.scheduledTime || "";
-          return accumulator;
-        }, {})
-      );
-      setSchedulingNotes(
-        response.patient.exams.reduce<Record<number, string>>((accumulator, exam) => {
-          accumulator[exam.id] = exam.schedulingNotes || "";
-          return accumulator;
-        }, {})
-      );
-      setCompletedDates(
-        response.patient.exams.reduce<Record<number, string>>((accumulator, exam) => {
-          accumulator[exam.id] = exam.completedDate || "";
-          return accumulator;
-        }, {})
-      );
-      setFeedback(
+      applyDetails(response.patient);
+      setExamAction(null);
+      showFeedback(
+        "success",
         status === "realizado"
-            ? completedOutsideClinic
-              ? "Exame registrado como ja realizado e fluxo recalculado."
-              : "Exame marcado como realizado e fluxo recalculado."
-            : status === "agendado"
-              ? "Agendamento registrado com sucesso."
-              : "Exame voltou para acompanhamento."
+          ? completedOutsideClinic
+            ? "Exame registrado como ja realizado e fluxo recalculado."
+            : "Exame marcado como realizado e fluxo recalculado."
+          : status === "agendado"
+            ? "Agendamento registrado com sucesso."
+            : "Exame voltou para acompanhamento."
       );
     } catch (error) {
-      setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar o exame.");
+      showFeedback("error", error instanceof Error ? error.message : "Nao foi possivel atualizar o exame.");
     } finally {
       setSavingExamId(null);
     }
@@ -352,23 +255,16 @@ export function PatientDetailPage() {
     if (!id) {
       return;
     }
-
     setSavingVaccineCode(vaccineCode);
-    setFeedbackType("success");
     setFeedback("");
-
     try {
       const response = await api.updatePatientVaccineStatus(Number(id), vaccineCode, status);
       setDetails((current) =>
-        current
-          ? { ...current, patient: { ...current.patient, vaccineNeeds: response.vaccineNeeds } }
-          : current
+        current ? { ...current, patient: { ...current.patient, vaccineNeeds: response.vaccineNeeds } } : current
       );
-      setFeedbackType("success");
-      setFeedback("Status da vacina atualizado.");
+      showFeedback("success", "Status da vacina atualizado.");
     } catch (error) {
-      setFeedbackType("error");
-      setFeedback(error instanceof Error ? error.message : "Nao foi possivel atualizar a vacina.");
+      showFeedback("error", error instanceof Error ? error.message : "Nao foi possivel atualizar a vacina.");
     } finally {
       setSavingVaccineCode(null);
     }
@@ -382,80 +278,333 @@ export function PatientDetailPage() {
     return <p className="loading-text">Paciente nao encontrada.</p>;
   }
 
-  const priority = getPatientPriorityMeta(details.patient);
-  const upcomingExams = details.exams.filter((exam) => exam.status !== "realizado");
-  const completedExams = details.exams.filter((exam) => exam.status === "realizado");
-  const gestationalProgressPercent = Math.min(
-    100,
-    Math.max(0, ((details.patient.gestationalWeeks || 0) / 40) * 100)
+  const patient = details.patient;
+  const isClosed = patient.status === "encerrada";
+  const priority = getPatientPriorityMeta(patient);
+  const timelineItems = [...details.exams].sort((left, right) =>
+    String(left.predictedDate || "").localeCompare(String(right.predictedDate || ""))
   );
-  const timelineItems = [...details.exams].sort((left, right) => {
-    const leftDate = left.predictedDate || "";
-    const rightDate = right.predictedDate || "";
-    return leftDate.localeCompare(rightDate);
-  });
-  const historyItemsCount = details.messages.length + details.movements.length + details.auditLogs.length;
-  const overdueCode = details.patient.nextExam.overdueExam?.code;
-  const nextCode = details.patient.nextExam.code;
-  const currentTimelineExamId = overdueCode
-    ? details.exams.find((exam) => exam.code === overdueCode)?.id ?? null
-    : nextCode
-      ? details.exams.find((exam) => exam.code === nextCode)?.id ?? null
-      : upcomingExams[0]?.id ?? null;
-  const whatsappMessage = encodeURIComponent(
-    `Ola, ${details.patient.name}. Tudo bem? Aqui e da clinica obstetrica. ` +
-    `Estamos entrando em contato sobre seu proximo exame: ${details.patient.nextExam.name}. ` +
-    `${details.patient.nextExam.idealDate ? `A data ideal e ${details.patient.nextExam.idealDate}. ` : ""}` +
-    `Se quiser, podemos ajudar com o agendamento.`
-  );
-  const whatsappUrl = getWhatsAppUrl(details.patient.phone, whatsappMessage);
+  const upcomingExams = timelineItems.filter((exam) => exam.status !== "realizado");
+  const overdueCode = patient.nextExam.overdueExam?.code;
+  const nextCode = patient.nextExam.code;
+  const currentExam =
+    (overdueCode ? details.exams.find((exam) => exam.code === overdueCode) : null) ||
+    (nextCode ? details.exams.find((exam) => exam.code === nextCode) : null) ||
+    upcomingExams[0] ||
+    null;
+  const pastExams = timelineItems.filter((exam) => exam.timelineStatus === "superado" && exam.id !== currentExam?.id);
+  const mainExams = timelineItems.filter((exam) => !pastExams.includes(exam));
+  // O intervalo (ex.: "janela 24 a 28 semanas") vem do proximo exame do protocolo.
+  const [, nextExamWindow] = patient.nextExam.dateLabel && currentExam?.code === nextCode
+    ? patient.nextExam.dateLabel.split(" • ")
+    : [null, null];
 
-  function openTimelineExamInExamsTab(examId: number) {
-    setActiveTab("exames");
-    setHighlightedExamId(examId);
-    window.setTimeout(() => {
-      const examElement = document.getElementById(`exam-detail-${examId}`);
-      examElement?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 80);
+  const whatsappUrl = getWhatsAppUrl(
+    patient.phone,
+    encodeURIComponent(
+      patient.nextExam.suggestedMessage ||
+        `Ola, ${patient.name}. Tudo bem? Aqui e da clinica obstetrica. ` +
+          `Estamos entrando em contato sobre seu proximo exame: ${patient.nextExam.name}. ` +
+          "Se quiser, podemos ajudar com o agendamento."
+    )
+  );
+
+  const historyItems = [
+    ...details.messages.map((message) => ({
+      key: `m-${message.id}`,
+      date: message.sentAt || message.responseAt || "",
+      what:
+        `Mensagem ${message.deliveryStatus === "enviada" ? "enviada" : message.deliveryStatus}` +
+        (message.responseStatus === "respondida" ? " · respondida" : ""),
+      detail: message.content,
+      who: ""
+    })),
+    ...details.movements.map((movement) => ({
+      key: `f-${movement.id}`,
+      date: movement.createdAt,
+      what: movement.description || movement.actionType,
+      detail: "",
+      who: ""
+    })),
+    ...details.auditLogs.map((log) => ({
+      key: `a-${log.id}`,
+      date: log.createdAt,
+      what: log.description,
+      detail: "",
+      who: log.actorUserName || ""
+    }))
+  ].sort((left, right) => String(right.date).localeCompare(String(left.date)));
+
+  // where = "agora": o formulario abre no cartao "Agora" (acoes do cabecalho e do
+  // proprio cartao); "linha": abre na linha do exame na linha do tempo.
+  function startExamAction(examId: number, action: ExamAction, where: "agora" | "linha") {
+    setExamAction({ examId, action, where });
+    setInvalidField(null);
+    setMenuOpen(false);
+    setActiveTab("resumo");
+    if (where === "linha") {
+      setOpenExamId(examId);
+      if (pastExams.some((exam) => exam.id === examId)) {
+        setPastOpen(true);
+      }
+    }
   }
 
-  return (
-    <section className="page-section">
-      <div className="page-header">
-        <div>
-          <p className="eyebrow">Paciente</p>
-          <h2>{details.patient.name}</h2>
-            <p className="page-description">
-              Acompanhe exames, contatos e historico operacional da paciente em um unico lugar.
-            </p>
+  function renderExamForm(exam: PatientExamRecord) {
+    if (examAction?.examId !== exam.id) {
+      return null;
+    }
+    const saving = savingExamId === exam.id;
+    const cancel = () => {
+      setExamAction(null);
+      setInvalidField(null);
+    };
+
+    if (examAction.action === "agendar") {
+      return (
+        <div className="ficha-exam-form">
+          <div className="ficha-form-grid">
+            <label>
+              Data do agendamento
+              <input
+                type="date"
+                className={invalidField === "scheduledDate" ? "field-input-error" : ""}
+                value={scheduledDates[exam.id] || ""}
+                onChange={(event) => setScheduledDates((current) => ({ ...current, [exam.id]: event.target.value }))}
+              />
+            </label>
+            <label>
+              Horario
+              <input
+                type="time"
+                className={invalidField === "scheduledTime" ? "field-input-error" : ""}
+                value={scheduledTimes[exam.id] || ""}
+                onChange={(event) => setScheduledTimes((current) => ({ ...current, [exam.id]: event.target.value }))}
+              />
+            </label>
+          </div>
+          <label>
+            Observacoes (opcional)
+            <textarea
+              rows={2}
+              value={schedulingNotes[exam.id] || ""}
+              onChange={(event) => setSchedulingNotes((current) => ({ ...current, [exam.id]: event.target.value }))}
+              placeholder="Ex.: prefere periodo da tarde, levar pedido medico."
+            />
+          </label>
+          <div className="ficha-form-actions">
+            <button type="button" className="primary-button" disabled={saving} onClick={() => void handleExamStatusUpdate(exam.id, "agendado")}>
+              {saving ? "Salvando..." : "Confirmar agendamento"}
+            </button>
+            <button type="button" className="ghost-button" disabled={saving} onClick={cancel}>Cancelar</button>
+          </div>
         </div>
-        <div className="detail-header-actions">
-          <Link to={`/pacientes/${details.patient.id}/editar`} className="secondary-button">Editar paciente</Link>
-          <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar agendamento</button>
-          <button type="button" className="secondary-button" onClick={() => setActiveTab("exames")}>Registrar exame realizado</button>
-          <a href={whatsappUrl} target="_blank" rel="noreferrer" className="whatsapp-link">Abrir WhatsApp</a>
-          {details.patient.status !== "encerrada" ? (
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={() => setIsClosingTracking((current) => !current)}
-            >
-              Encerrar acompanhamento
+      );
+    }
+
+    if (examAction.action === "realizar") {
+      return (
+        <div className="ficha-exam-form">
+          <div className="ficha-form-grid">
+            <label>
+              Data em que foi realizado
+              <input
+                type="date"
+                className={invalidField === "completedDate" ? "field-input-error" : ""}
+                value={completedDates[exam.id] || ""}
+                onChange={(event) => setCompletedDates((current) => ({ ...current, [exam.id]: event.target.value }))}
+              />
+            </label>
+          </div>
+          <div className="ficha-form-actions">
+            <button type="button" className="primary-button" disabled={saving} onClick={() => void handleExamStatusUpdate(exam.id, "realizado")}>
+              {saving ? "Salvando..." : "Confirmar realizacao"}
             </button>
-          ) : null}
-          {details.patient.status !== "encerrada" ? (
-            <button
-              type="button"
-              className="danger-button"
-              onClick={() => void handleRegisterPregnancyLoss()}
-              disabled={isSavingClosure}
-            >
-              Perda gestacional
-            </button>
-          ) : null}
-          <Link to="/kanban" className="secondary-button">Voltar ao fluxo</Link>
+            <button type="button" className="ghost-button" disabled={saving} onClick={cancel}>Cancelar</button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="ficha-exam-form">
+        <p className="field-hint">Registrar que este exame ja foi feito (fora da clinica ou antes do cadastro)? O fluxo e recalculado.</p>
+        <div className="ficha-form-actions">
+          <button
+            type="button"
+            className="primary-button"
+            disabled={saving}
+            onClick={() => void handleExamStatusUpdate(exam.id, "realizado", { completedOutsideClinic: true })}
+          >
+            {saving ? "Salvando..." : "Confirmar"}
+          </button>
+          <button type="button" className="ghost-button" disabled={saving} onClick={cancel}>Cancelar</button>
         </div>
       </div>
+    );
+  }
+
+  function renderExamActions(exam: PatientExamRecord) {
+    const saving = savingExamId === exam.id;
+    if (exam.status === "realizado") {
+      return (
+        <div className="ficha-exam-actions">
+          <button type="button" className="ficha-action-button" disabled={saving} onClick={() => void handleExamStatusUpdate(exam.id, "pendente")}>
+            {saving ? "Salvando..." : "Desfazer realizado"}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className="ficha-exam-actions">
+        <button type="button" className="ficha-action-button" onClick={() => startExamAction(exam.id, "agendar", "linha")}>
+          {exam.status === "agendado" ? "Remarcar" : "Registrar agendamento"}
+        </button>
+        <button type="button" className="ficha-action-button" onClick={() => startExamAction(exam.id, "realizar", "linha")}>Marcar como realizado</button>
+        <button type="button" className="ficha-action-button" onClick={() => startExamAction(exam.id, "externo", "linha")}>Ja realizado (fora)</button>
+        {exam.status === "agendado" ? (
+          <button type="button" className="ficha-action-button" disabled={saving} onClick={() => void handleExamStatusUpdate(exam.id, "pendente")}>
+            Cancelar agendamento
+          </button>
+        ) : null}
+        <a
+          className="ficha-text-link"
+          href={getWhatsAppUrl(
+            patient.phone,
+            encodeURIComponent(exam.suggestedMessage || `Ola, ${patient.name}. Podemos ajudar com o agendamento do exame ${exam.name}?`)
+          )}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Enviar mensagem
+        </a>
+      </div>
+    );
+  }
+
+  function renderExamRow(exam: PatientExamRecord) {
+    const open = openExamId === exam.id;
+    const chip = examStatusChip(exam);
+    const isCurrent = currentExam?.id === exam.id;
+    return (
+      <div key={exam.id} className={`ficha-exam ${isCurrent ? "is-current" : ""}`}>
+        <button
+          type="button"
+          className="ficha-exam-row"
+          aria-expanded={open}
+          onClick={() => {
+            setOpenExamId(open ? null : exam.id);
+            if (open) setExamAction(null);
+          }}
+        >
+          <span className={`funnel-dot funnel-dot-${examDotColor(exam)}`} aria-hidden="true" />
+          <span className="ficha-exam-text">
+            <span className="ficha-exam-name">{exam.name}</span>
+            <span className="ficha-muted">
+              {isCurrent ? "Proximo exame · " : ""}Data ideal {exam.predictedDateLabel}
+            </span>
+          </span>
+          <span className={`ficha-chip ficha-chip-${chip.tone}`}>{chip.label}</span>
+        </button>
+        {open ? (
+          <div className="ficha-exam-body">
+            {exam.schedulingNotes ? <p className="ficha-muted">Obs.: {exam.schedulingNotes}</p> : null}
+            {exam.status === "realizado" && exam.completedByName ? (
+              <p className="ficha-muted">Registrado por {exam.completedByName}</p>
+            ) : null}
+            {exam.status === "agendado" && exam.scheduledByName ? (
+              <p className="ficha-muted">Agendado por {exam.scheduledByName}</p>
+            ) : null}
+            {examAction?.examId === exam.id && examAction.where === "linha" ? renderExamForm(exam) : renderExamActions(exam)}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  const vaccines = patient.vaccineNeeds || [];
+
+  return (
+    <section className="page-section ficha-page">
+      <header className="ficha-header">
+        <div className="ficha-header-main">
+          <Link to="/clientes" className="ficha-back">‹ Pacientes</Link>
+          <h2>{patient.name}</h2>
+          <div className="ficha-facts">
+            <span><strong>{formatGestationalAge(details)}</strong> de gestacao</span>
+            <span>DPP <strong>{patient.estimatedDueDate}</strong></span>
+            <span>{formatBrazilPhone(patient.phone) || "Sem telefone"}</span>
+            {patient.physicianName ? <span>{patient.physicianName}</span> : null}
+            {patient.clinicUnit ? <span>{patient.clinicUnit}</span> : null}
+          </div>
+          {patient.gestationalReviewRequired || patient.gestationalBaseIsEstimated || patient.highRisk ? (
+            <div className="ficha-flags">
+              {patient.highRisk ? <span className="ficha-chip ficha-chip-danger">Alto risco</span> : null}
+              {patient.gestationalReviewRequired ? <span className="ficha-chip ficha-chip-danger">Revisao da base</span> : null}
+              {patient.gestationalBaseIsEstimated ? <span className="ficha-chip ficha-chip-info">Idade gestacional estimada</span> : null}
+            </div>
+          ) : null}
+        </div>
+        <div className="ficha-header-actions">
+          <a href={whatsappUrl} target="_blank" rel="noreferrer" className="funnel-whatsapp ficha-whatsapp">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 20l1.3-5.1A8.4 8.4 0 1 1 21 11.5z" />
+            </svg>
+            WhatsApp
+          </a>
+          {!isClosed && currentExam ? (
+            <button type="button" className="ficha-outline-button" onClick={() => startExamAction(currentExam.id, "agendar", "agora")}>
+              Registrar agendamento
+            </button>
+          ) : null}
+          <div className="ficha-menu-wrap">
+            <button type="button" className="ficha-menu-button" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+              Mais acoes
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {menuOpen ? (
+              <div className="ficha-menu" role="menu">
+                <Link role="menuitem" className="ficha-menu-item" to={`/pacientes/${patient.id}/editar`}>Editar dados da paciente</Link>
+                {!isClosed && currentExam ? (
+                  <button type="button" role="menuitem" className="ficha-menu-item" onClick={() => startExamAction(currentExam.id, "realizar", "agora")}>
+                    Registrar exame realizado
+                  </button>
+                ) : null}
+                {!isClosed ? (
+                  <>
+                    <div className="ficha-menu-divider" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="ficha-menu-item"
+                      onClick={() => {
+                        setIsClosingTracking(true);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      Encerrar acompanhamento
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="ficha-menu-item ficha-menu-danger"
+                      disabled={isSavingClosure}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void handleRegisterPregnancyLoss();
+                      }}
+                    >
+                      Encerrar como perda gestacional
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </header>
 
       {feedback ? (
         <div className={feedbackType === "error" ? "form-alert form-alert-error" : "form-alert form-alert-success"}>
@@ -464,48 +613,33 @@ export function PatientDetailPage() {
         </div>
       ) : null}
 
-      {details.patient.status === "encerrada" ? (
+      {isClosed ? (
         <div className="form-alert form-alert-error">
-          <strong>Acompanhamento encerrado{details.patient.closureReasonLabel ? ` - ${details.patient.closureReasonLabel}` : ""}</strong>
-          <span>
-            Esta paciente nao aparece mais no fluxo de atendimento, na central de contatos nem nos lembretes
-            automaticos de exame.
-          </span>
-          <button
-            type="button"
-            className="secondary-button"
-            disabled={isReopeningTracking}
-            onClick={handleReopenTracking}
-          >
+          <strong>Acompanhamento encerrado{patient.closureReasonLabel ? ` - ${patient.closureReasonLabel}` : ""}</strong>
+          <span>Esta paciente nao aparece mais no fluxo de atendimento, na central de contatos nem nos lembretes automaticos.</span>
+          <button type="button" className="secondary-button" disabled={isReopeningTracking} onClick={() => void handleReopenTracking()}>
             {isReopeningTracking ? "Reativando..." : "Reativar acompanhamento"}
           </button>
         </div>
       ) : isClosingTracking ? (
-        <div className="panel-card">
-          <p className="muted-label">Encerrar acompanhamento</p>
+        <div className="ficha-card">
+          <p className="ficha-card-title">Encerrar acompanhamento</p>
           <p className="field-hint">
-            A paciente para de receber mensagens e lembretes automaticos de exame, e sai do fluxo de atendimento e da
-            central de contatos. O historico dela continua acessivel por aqui.
+            A paciente para de receber mensagens e lembretes automaticos e sai do fluxo de atendimento e da central de contatos.
+            O historico continua acessivel por aqui.
           </p>
-          <div className="two-columns">
-            <label className="field inline-field">
-              <span>Motivo</span>
-              <select value={closureReasonDraft} onChange={(event) => setClosureReasonDraft(event.target.value)}>
-                <option value="">Selecione um motivo</option>
-                <option value="perda_gestacional">Perda gestacional</option>
-                <option value="parto_realizado">Parto realizado</option>
-                <option value="transferencia">Transferencia para outro servico</option>
-                <option value="desistencia">Desistencia do acompanhamento</option>
-              </select>
-            </label>
-          </div>
-          <div className="inline-actions">
-            <button
-              type="button"
-              className="primary-button"
-              disabled={!closureReasonDraft || isSavingClosure}
-              onClick={handleConfirmCloseTracking}
-            >
+          <label className="ficha-close-field">
+            Motivo
+            <select value={closureReasonDraft} onChange={(event) => setClosureReasonDraft(event.target.value)}>
+              <option value="">Selecione um motivo</option>
+              <option value="perda_gestacional">Perda gestacional</option>
+              <option value="parto_realizado">Parto realizado</option>
+              <option value="transferencia">Transferencia para outro servico</option>
+              <option value="desistencia">Desistencia do acompanhamento</option>
+            </select>
+          </label>
+          <div className="ficha-form-actions">
+            <button type="button" className="primary-button" disabled={!closureReasonDraft || isSavingClosure} onClick={() => void handleConfirmCloseTracking()}>
               {isSavingClosure ? "Salvando..." : "Confirmar encerramento"}
             </button>
             <button
@@ -523,612 +657,165 @@ export function PatientDetailPage() {
         </div>
       ) : null}
 
-      <div className="patient-tabs-bar" role="tablist" aria-label="Abas da paciente">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "resumo"}
-          className={`patient-tab-button ${activeTab === "resumo" ? "active" : ""}`}
-          onClick={() => setActiveTab("resumo")}
-        >
-          <span>Resumo</span>
+      <div className="ficha-tabs" role="tablist" aria-label="Secoes da ficha">
+        <button type="button" role="tab" aria-selected={activeTab === "resumo"} className={`ficha-tab ${activeTab === "resumo" ? "active" : ""}`} onClick={() => setActiveTab("resumo")}>
+          Resumo
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "exames"}
-          className={`patient-tab-button ${activeTab === "exames" ? "active" : ""}`}
-          onClick={() => setActiveTab("exames")}
-        >
-          <span>Exames</span>
-          <span className="patient-tab-count">{details.exams.length}</span>
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "historico"}
-          className={`patient-tab-button ${activeTab === "historico" ? "active" : ""}`}
-          onClick={() => setActiveTab("historico")}
-        >
-          <span>Historico</span>
-          <span className="patient-tab-count">{historyItemsCount}</span>
+        <button type="button" role="tab" aria-selected={activeTab === "historico"} className={`ficha-tab ${activeTab === "historico" ? "active" : ""}`} onClick={() => setActiveTab("historico")}>
+          Historico ({historyItems.length})
         </button>
       </div>
 
-      <div className="patient-tab-panel">
-        {activeTab === "resumo" ? (
-          <div className="detail-layout">
-        <article className={`panel-card patient-summary-card ${priority.cardClassName} ${priority.needsImmediateAction ? "patient-card-immediate" : ""}`}>
-          <p className="muted-label">Status atual</p>
-          <div className="priority-badge-row">
-            <span className={`badge ${priority.badgeClassName}`}>{priority.label}</span>
-            {priority.badgeText !== priority.label ? (
-              <span className={`badge badge-soft ${priority.badgeClassName}`}>{priority.badgeText}</span>
-            ) : null}
-            {details.patient.gestationalBaseIsEstimated ? <span className="badge badge-priority-blue">Base estimada</span> : null}
-            {details.patient.gestationalReviewRequired ? <span className="badge badge-priority-red">Revisao da base</span> : null}
-            {priority.needsImmediateAction ? <span className="badge badge-attention">Prioridade imediata</span> : null}
-          </div>
-          <div className="message-metadata">
-            <span><strong>Proximo exame:</strong> {details.patient.nextExam.name}</span>
-            <span><strong>Classificacao do exame:</strong> {details.patient.nextExam.required ? "Obrigatorio" : "Recomendado"}</span>
-            <span><strong>Janela atual:</strong> {details.patient.nextExam.deadlineStatusLabel || "Nao definida"}</span>
-            <span>
-              <strong>Status:</strong>{" "}
-              {details.patient.status === "encerrada"
-                ? `Encerrado${details.patient.closureReasonLabel ? ` - ${details.patient.closureReasonLabel}` : ""}`
-                : "Ativo"}
-            </span>
-            <span><strong>Coluna atual:</strong> {details.patient.stageTitle || details.patient.stage}</span>
-            <span><strong>Base gestacional:</strong> {details.patient.gestationalBaseSourceLabel || "Nao definida"}</span>
-            {details.patient.nextExam.overdueExam ? (
-              <span className="exam-warning-text"><strong>Exame em atraso:</strong> {details.patient.nextExam.overdueExam.name}</span>
-            ) : null}
-          </div>
-        </article>
-
-        <article className="panel-card">
-          <p className="muted-label">Dados cadastrais</p>
-          <div className="message-metadata">
-            <span><strong>Nome completo:</strong> {details.patient.name}</span>
-            <span><strong>Telefone:</strong> {formatBrazilPhone(details.patient.phone) || "Nao informado"}</span>
-            <span><strong>ID da clinica:</strong> {details.patient.clinicPatientId || "Nao informado"}</span>
-            <span><strong>Data de nascimento:</strong> {details.patient.birthDate || "Nao informada"}</span>
-            <span><strong>Medico solicitante:</strong> {details.patient.physicianName || "Nao informado"}</span>
-            <span><strong>Unidade:</strong> {details.patient.clinicUnit || "Nao informada"}</span>
-            <span><strong>Origem:</strong> Cadastro local</span>
-          </div>
-        </article>
-
-        <article className="panel-card">
-          <p className="muted-label">Dados gestacionais</p>
-          <div className="priority-badge-row">
-            {details.patient.gestationalBaseIsEstimated ? <span className="badge badge-priority-blue">Estimativa operacional</span> : null}
-            {details.patient.gestationalReviewRequired ? <span className="badge badge-priority-red">Revisao da base necessaria</span> : null}
-          </div>
-          <div className="message-metadata">
-            <span><strong>Idade gestacional informada:</strong> {details.patient.gestationalAgeLabel}</span>
-            <span><strong>DPP:</strong> {details.patient.estimatedDueDate}</span>
-            <span><strong>Origem da base:</strong> {details.patient.gestationalBaseSourceLabel || "Nao definida"}</span>
-            <span><strong>Tipo de gestacao:</strong> {details.patient.pregnancyType || "Nao informado"}</span>
-            <span><strong>Alto risco:</strong> {details.patient.highRisk ? "Sim" : "Nao"}</span>
-          </div>
-        </article>
-
-        <article className="panel-card">
-          <p className="muted-label">Vacinas da gestante</p>
-          {(details.patient.vaccineNeeds || []).length ? (
-            <div className="vaccine-list">
-              {(details.patient.vaccineNeeds || []).map((vaccine) => (
-                <div key={vaccine.code} className="vaccine-row">
-                  <div className="vaccine-row-info">
-                    <strong>{vaccine.name}</strong>
-                    <span
-                      className={`badge-priority-${
-                        vaccine.status === "tomada" ? "green" : vaccine.needsAttention ? "yellow" : "blue"
-                      }`}
-                    >
-                      {vaccine.statusLabel}
-                    </span>
-                    {!vaccine.actionable ? <span className="muted-label">Aviso apenas (SUS oferece)</span> : null}
-                    {vaccine.needsAttention ? (
-                      <span className="muted-label">
-                        {vaccine.isInIdealWindow ? "Dentro da janela ideal agora" : "Dentro da janela recomendada"}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="inline-actions">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      disabled={savingVaccineCode === vaccine.code || vaccine.status === "tomada"}
-                      onClick={() => handleVaccineStatusUpdate(vaccine.code, "tomada")}
-                    >
-                      {savingVaccineCode === vaccine.code ? "Salvando..." : "Marcar como tomada"}
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      disabled={savingVaccineCode === vaccine.code || vaccine.status === "nao_se_aplica"}
-                      onClick={() => handleVaccineStatusUpdate(vaccine.code, "nao_se_aplica")}
-                    >
-                      Nao se aplica
-                    </button>
-                    {vaccine.status !== "pendente" ? (
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        disabled={savingVaccineCode === vaccine.code}
-                        onClick={() => handleVaccineStatusUpdate(vaccine.code, "pendente")}
-                      >
-                        Voltar para pendente
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">Sem dados de vacina para esta paciente.</p>
-          )}
-        </article>
-
-        <article className="panel-card timeline-card">
-          <p className="muted-label">Linha do tempo da gestacao</p>
-          <div className="gestation-band-wrapper">
-            <div
-              className="gestation-band-current"
-              style={{ left: `calc(${gestationalProgressPercent}% - 18px)` }}
-            >
-              <span>{details.patient.gestationalWeeks || 0} sem</span>
-            </div>
-            <div className="gestation-band-current-line" style={{ left: `${gestationalProgressPercent}%` }} />
-            <div className="gestation-band">
-              <div className="gestation-band-segment gestation-band-first">
-                <strong>1o trimestre</strong>
-                <span>0 a 13 semanas</span>
+      {activeTab === "resumo" ? (
+        <div className="ficha-layout">
+          <div className="ficha-main">
+            <article className="ficha-card">
+              <div className="ficha-card-head">
+                <span className="ficha-card-title">Agora</span>
+                {!isClosed ? (
+                  <span className={`funnel-stage-chip funnel-stage-chip-${patient.stage}`}>Etapa: {patient.stageTitle || patient.stage}</span>
+                ) : null}
               </div>
-              <div className="gestation-band-segment gestation-band-second">
-                <strong>2o trimestre</strong>
-                <span>14 a 27 semanas</span>
-              </div>
-              <div className="gestation-band-segment gestation-band-third">
-                <strong>3o trimestre</strong>
-                <span>28 semanas em diante</span>
-              </div>
-            </div>
-          </div>
-          <div className="timeline-list">
-            {timelineItems.length ? timelineItems.map((exam) => (
-              <div
-                key={exam.id}
-                className={`timeline-item ${currentTimelineExamId === exam.id ? "timeline-item-current" : ""} ${exam.showOperationalAlert ? "timeline-item-overdue" : ""}`}
-              >
-                <div className={`timeline-marker ${getExamTrimesterMeta(exam).className}`} />
-                <div className="timeline-content">
-                  <div className="card-row">
-                    <div className="timeline-title-row">
-                      <span className={`timeline-status-icon ${getTimelineActionMeta(exam).className}`}>
-                        {getTimelineActionMeta(exam).label}
-                      </span>
-                      <div>
-                        <strong>{exam.name}</strong>
-                          <p className="timeline-subtitle">{getTimelineActionMeta(exam).text}</p>
+              {currentExam ? (
+                <>
+                  <div className="ficha-now">
+                    <span className={`funnel-dot funnel-dot-${examDotColor(currentExam)} ficha-now-dot`} title={priority.label} aria-label={priority.label} role="img" />
+                    <div>
+                      <div className="ficha-now-name">{currentExam.name}</div>
+                      <div className="ficha-now-status">
+                        {currentExam.status === "agendado"
+                          ? <strong>Agendado para {describeSchedule(currentExam)}</strong>
+                          : currentExam.showOperationalAlert
+                            ? <strong className="ficha-text-danger">Passou do intervalo e ainda nao foi realizado</strong>
+                            : <strong>{priority.label}</strong>}
+                      </div>
+                      <div className="ficha-muted">
+                        {nextExamWindow ? `${nextExamWindow.charAt(0).toUpperCase()}${nextExamWindow.slice(1)} · ` : ""}data ideal {currentExam.predictedDateLabel}
                       </div>
                     </div>
-                    <div className="priority-badge-row">
-                      {currentTimelineExamId === exam.id ? (
-                        <span className="badge badge-attention">Proximo exame</span>
-                      ) : null}
-                      <span className={`badge ${getExamTrimesterMeta(exam).className}`}>
-                        {getExamTrimesterMeta(exam).label}
-                      </span>
-                      <span className={`badge ${getTimelinePrimaryBadge(exam).className}`}>
-                        {getTimelinePrimaryBadge(exam).label}
-                      </span>
-                      <span className={`badge badge-soft ${exam.required ? "badge-priority-red" : "badge-priority-blue"}`}>
-                        {exam.required ? "Obrigatorio" : "Recomendado"}
-                      </span>
-                      {exam.completedOutsideClinic ? (
-                        <span className="badge badge-priority-blue">Historico anterior</span>
-                      ) : null}
-                      {exam.showOperationalAlert ? (
-                        <span className="badge badge-priority-red">Janela encerrada</span>
-                      ) : null}
-                    </div>
                   </div>
-                  <div className="timeline-meta">
-                    <span><strong>Data prevista:</strong> {exam.predictedDateLabel}</span>
-                    <span><strong>Agendado para:</strong> {exam.scheduledDateLabel || "Ainda nao agendado"}</span>
-                    <span><strong>Horario:</strong> {exam.scheduledTime || "Nao informado"}</span>
-                      <span><strong>Realizado em:</strong> {exam.completedDateLabel || "Nao informado"}</span>
-                  </div>
-                  {exam.showOperationalAlert ? (
-                      <p className="timeline-warning">A janela ideal deste exame ja passou e a equipe deve revisar a paciente.</p>
-                  ) : null}
-                  {exam.timelineStatus === "superado" ? (
-                      <p className="timeline-notes">Esta etapa ja foi superada pela evolucao da gestacao e nao exige acao operacional no momento.</p>
-                  ) : null}
-                  {exam.schedulingNotes ? <p className="timeline-notes">{exam.schedulingNotes}</p> : null}
-                  {exam.status !== "realizado" ? (
-                    <div className="inline-actions timeline-action-row">
-                      <a
-                        href={getWhatsAppUrl(
-                          details.patient.phone,
-                          encodeURIComponent(
-                            exam.suggestedMessage ||
-                              `Ola, ${details.patient.name}. Podemos ajudar com o agendamento do exame ${exam.name}?`
-                          )
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="whatsapp-link timeline-compact-action"
-                      >
-                          Enviar mensagem no WhatsApp
-                      </a>
-                      <button
-                        type="button"
-                        className="secondary-button timeline-compact-action"
-                        onClick={() => openTimelineExamInExamsTab(exam.id)}
-                      >
-                          Registrar agendamento
-                      </button>
-                      {confirmingExternalRealizedExamId === exam.id ? (
-                        <>
-                          <button
-                            type="button"
-                            className="primary-button timeline-compact-action"
-                            disabled={savingExamId === exam.id}
-                            onClick={async () => {
-                              try {
-                                await handleExamStatusUpdate(exam.id, "realizado", { completedOutsideClinic: true });
-                              } finally {
-                                setConfirmingExternalRealizedExamId(null);
-                              }
-                            }}
-                          >
-                            {savingExamId === exam.id ? "Salvando..." : "Confirmar"}
+                  {!isClosed ? (
+                    examAction?.examId === currentExam.id && examAction.where === "agora"
+                      ? renderExamForm(currentExam)
+                      : (
+                        <div className="ficha-exam-actions">
+                          <button type="button" className="ficha-action-button" onClick={() => startExamAction(currentExam.id, "agendar", "agora")}>
+                            {currentExam.status === "agendado" ? "Remarcar" : "Registrar agendamento"}
                           </button>
-                          <button
-                            type="button"
-                            className="ghost-button timeline-compact-action"
-                            disabled={savingExamId === exam.id}
-                            onClick={() => setConfirmingExternalRealizedExamId(null)}
-                          >
-                            Cancelar
+                          <button type="button" className="ficha-action-button" onClick={() => startExamAction(currentExam.id, "realizar", "agora")}>
+                            Marcar como realizado
                           </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className="secondary-button timeline-compact-action"
-                          disabled={savingExamId === exam.id}
-                          onClick={() => setConfirmingExternalRealizedExamId(exam.id)}
-                        >
-                          Ja realizado
-                        </button>
-                      )}
-                    </div>
+                        </div>
+                      )
                   ) : null}
-                </div>
+                </>
+              ) : (
+                <p className="ficha-muted">Todos os exames do protocolo ja foram realizados.</p>
+              )}
+            </article>
+
+            <article className="ficha-card">
+              <div className="ficha-card-head">
+                <span className="ficha-card-title">Linha do tempo</span>
+                <span className="ficha-muted">Clique num exame para ver as acoes</span>
               </div>
-            )) : <p className="empty-state">Nenhum exame encontrado para montar a linha do tempo.</p>}
-          </div>
-        </article>
-
-          </div>
-        ) : null}
-
-        {activeTab === "exames" ? (
-          <div className="detail-layout detail-layout-single">
-        <article className="panel-card" id="exames-paciente">
-            <p className="muted-label">Exames em acompanhamento</p>
-          <div className="message-history-list">
-            {upcomingExams.length ? upcomingExams.map((exam) => (
-              <div
-                key={exam.id}
-                id={`exam-detail-${exam.id}`}
-                className={`message-history-item exam-detail-card ${
-                  confirmingScheduledExamId === exam.id || confirmingRealizedExamId === exam.id || highlightedExamId === exam.id
-                    ? "exam-detail-card-pending-confirmation"
-                    : ""
-                }`}
-              >
-                <div className="card-row">
-                  <span className="exam-name-strong"><strong>{exam.name}</strong></span>
-                  <div className="priority-badge-row">
-                    {exam.deadlineStatusLabel ? (
-                      <span className={`badge ${
-                        exam.deadlineStatus === "atrasado"
-                          ? "badge-priority-red"
-                          : exam.deadlineStatus === "pendente"
-                            ? "badge-priority-orange"
-                            : exam.deadlineStatus === "aproximando"
-                              ? "badge-priority-yellow"
-                              : "badge-priority-green"
-                      }`}>
-                        {exam.deadlineStatusLabel}
-                      </span>
-                    ) : null}
-                    <span className={`badge badge-soft ${exam.required ? "badge-priority-red" : "badge-priority-blue"}`}>
-                      {exam.required ? "Obrigatorio" : "Recomendado"}
+              {pastExams.length ? (
+                <>
+                  <button type="button" className="ficha-exam-row ficha-past-toggle" aria-expanded={pastOpen} onClick={() => setPastOpen(!pastOpen)}>
+                    <span className="funnel-dot funnel-dot-cinza" aria-hidden="true" />
+                    <span className="ficha-exam-name">
+                      {pastExams.length === 1 ? "1 etapa anterior" : `${pastExams.length} etapas anteriores`} · {pastOpen ? "esconder" : "ver"}
                     </span>
-                  </div>
-                </div>
-                <span><strong>Previsao:</strong> {exam.predictedDateLabel}</span>
-                <span><strong>Status:</strong> {exam.status}</span>
-                <span><strong>Lembrete 1:</strong> {exam.reminderDate1 || "Nao definido"}</span>
-                <span><strong>Lembrete 2:</strong> {exam.reminderDate2 || "Nao definido"}</span>
-                <div className="two-columns">
-                  <label>
-                      Data do agendamento
-                    <input
-                      type="date"
-                      className={invalidScheduleFields[exam.id]?.scheduledDate ? "field-input-error" : ""}
-                      value={scheduledDates[exam.id] || ""}
-                      onChange={(event) => {
-                        setScheduledDates((current) => ({ ...current, [exam.id]: event.target.value }));
-                        setInvalidScheduleFields((current) => ({
-                          ...current,
-                          [exam.id]: {
-                            scheduledDate: false,
-                            scheduledTime: current[exam.id]?.scheduledTime ?? false
-                          }
-                        }));
-                      }}
-                    />
-                  </label>
-                  <label>
-                    Horario do exame
-                    <input
-                      type="time"
-                      className={invalidScheduleFields[exam.id]?.scheduledTime ? "field-input-error" : ""}
-                      value={scheduledTimes[exam.id] || ""}
-                      onChange={(event) => {
-                        setScheduledTimes((current) => ({ ...current, [exam.id]: event.target.value }));
-                        setInvalidScheduleFields((current) => ({
-                          ...current,
-                          [exam.id]: {
-                            scheduledDate: current[exam.id]?.scheduledDate ?? false,
-                            scheduledTime: false
-                          }
-                        }));
-                      }}
-                    />
-                  </label>
-                </div>
-                <label>
-                    Observacoes do agendamento
-                  <textarea
-                    rows={3}
-                    value={schedulingNotes[exam.id] || ""}
-                    onChange={(event) =>
-                      setSchedulingNotes((current) => ({ ...current, [exam.id]: event.target.value }))
-                    }
-                    placeholder="Ex.: paciente prefere periodo da tarde, levar pedido medico, retorno em unidade X."
-                  />
-                </label>
-                <div className="two-columns">
-                  <label>
-                    Data real de realizacao
-                    <input
-                      type="date"
-                      className={invalidCompletedDateExamId === exam.id ? "field-input-error" : ""}
-                      value={completedDates[exam.id] || ""}
-                      onChange={(event) => {
-                        setCompletedDates((current) => ({ ...current, [exam.id]: event.target.value }));
-                        if (invalidCompletedDateExamId === exam.id) {
-                          setInvalidCompletedDateExamId(null);
-                        }
-                      }}
-                    />
-                  </label>
-                </div>
-                <span><strong>Agendamento salvo:</strong> {exam.scheduledDateLabel || "Nao informado"}</span>
-                <span><strong>Horario salvo:</strong> {exam.scheduledTime || "Nao informado"}</span>
-                <span><strong>Agendado por:</strong> {exam.scheduledByName || "Nao registrado"}</span>
-                <span><strong>Observacoes:</strong> {exam.schedulingNotes || "Sem observacoes"}</span>
-                <span><strong>Realizacao salva:</strong> {exam.completedDateLabel || "Nao informada"}</span>
-                <span><strong>Realizado por:</strong> {exam.completedByName || "Nao registrado"}</span>
-                {exam.shouldHaveBeenDone ? <span className="exam-warning-text">Ja deveria ter sido realizado.</span> : null}
-                <div className="inline-actions list-action-bar exam-action-bar">
-                  {confirmingScheduledExamId === exam.id ? (
-                    <>
-                      <button
-                        className="primary-button"
-                        type="button"
-                        disabled={savingExamId === exam.id || exam.status === "agendado"}
-                        onClick={async () => {
-                          try {
-                            await handleExamStatusUpdate(exam.id, "agendado");
-                          } finally {
-                            setConfirmingScheduledExamId(null);
-                          }
-                        }}
-                      >
-                        {savingExamId === exam.id ? "Salvando..." : "Confirmar agendamento"}
-                      </button>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        disabled={savingExamId === exam.id}
-                        onClick={() => setConfirmingScheduledExamId(null)}
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      disabled={savingExamId === exam.id || exam.status === "agendado"}
-                      onClick={() => setConfirmingScheduledExamId(exam.id)}
-                    >
-                      Marcar agendado
-                    </button>
-                  )}
-                  {confirmingRealizedExamId === exam.id ? (
-                    <>
-                      <button
-                        className="primary-button"
-                        type="button"
-                        disabled={savingExamId === exam.id || exam.status === "realizado"}
-                        onClick={async () => {
-                          try {
-                            await handleExamStatusUpdate(exam.id, "realizado");
-                          } finally {
-                            setConfirmingRealizedExamId(null);
-                          }
-                        }}
-                      >
-                        {savingExamId === exam.id ? "Salvando..." : "Confirmar realizacao"}
-                      </button>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        disabled={savingExamId === exam.id}
-                        onClick={() => setConfirmingRealizedExamId(null)}
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      disabled={savingExamId === exam.id || exam.status === "realizado"}
-                      onClick={() => setConfirmingRealizedExamId(exam.id)}
-                    >
-                      Registrar realizacao
-                    </button>
-                  )}
-                  {confirmingExternalRealizedExamId === exam.id ? (
-                    <>
-                      <button
-                        className="primary-button"
-                        type="button"
-                        disabled={savingExamId === exam.id || exam.status === "realizado"}
-                        onClick={async () => {
-                          try {
-                            await handleExamStatusUpdate(exam.id, "realizado", { completedOutsideClinic: true });
-                          } finally {
-                            setConfirmingExternalRealizedExamId(null);
-                          }
-                        }}
-                        >
-                        {savingExamId === exam.id ? "Salvando..." : "Confirmar"}
-                      </button>
-                      <button
-                        className="ghost-button"
-                        type="button"
-                        disabled={savingExamId === exam.id}
-                        onClick={() => setConfirmingExternalRealizedExamId(null)}
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      disabled={savingExamId === exam.id || exam.status === "realizado"}
-                      onClick={() => setConfirmingExternalRealizedExamId(exam.id)}
-                    >
-                      Ja realizado
-                    </button>
-                  )}
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={savingExamId === exam.id || exam.status === "pendente"}
-                    onClick={() => handleExamStatusUpdate(exam.id, "pendente")}
-                  >
-                    {savingExamId === exam.id ? "Salvando..." : "Voltar para pendente"}
                   </button>
+                  {pastOpen ? <div className="ficha-past-list">{pastExams.map(renderExamRow)}</div> : null}
+                </>
+              ) : null}
+              {mainExams.length ? mainExams.map(renderExamRow) : <p className="ficha-muted">Nenhum exame encontrado.</p>}
+            </article>
+          </div>
+
+          <aside className="ficha-side">
+            <article className="ficha-card">
+              <span className="ficha-card-title">Dados da paciente</span>
+              <dl className="ficha-data">
+                <dt>Telefone</dt><dd>{formatBrazilPhone(patient.phone) || "Nao informado"}</dd>
+                <dt>ID da clinica</dt><dd>{patient.clinicPatientId || "Nao informado"}</dd>
+                <dt>Nascimento</dt><dd>{patient.birthDate || "Nao informado"}</dd>
+                <dt>Medico</dt><dd>{patient.physicianName || "Nao informado"}</dd>
+                <dt>Unidade</dt><dd>{patient.clinicUnit || "Nao informada"}</dd>
+                <dt>Gestacao</dt><dd>{patient.pregnancyType || "Nao informada"} · {patient.highRisk ? "alto risco" : "risco habitual"}</dd>
+                <dt>DPP</dt><dd>{patient.estimatedDueDate}</dd>
+              </dl>
+            </article>
+
+            <article className="ficha-card">
+              <span className="ficha-card-title">Vacinas</span>
+              {vaccines.length ? (
+                <div className="ficha-vaccines">
+                  {vaccines.map((vaccine) => {
+                    const saving = savingVaccineCode === vaccine.code;
+                    const chip = vaccine.status === "tomada"
+                      ? { label: "Tomada", tone: "success" }
+                      : vaccine.status === "nao_se_aplica"
+                        ? { label: "Nao se aplica", tone: "neutral" }
+                        : !vaccine.actionable
+                          ? { label: "Aviso (SUS)", tone: "info" }
+                          : { label: "Pendente", tone: "warning" };
+                    return (
+                      <div key={vaccine.code} className="ficha-vaccine">
+                        <div className="ficha-vaccine-head">
+                          <span className="ficha-vaccine-name">{vaccine.name}</span>
+                          <span className={`ficha-chip ficha-chip-${chip.tone}`}>{chip.label}</span>
+                        </div>
+                        {vaccine.status === "pendente" && !vaccine.actionable ? (
+                          <span className="ficha-muted">Oferecida no posto de saude</span>
+                        ) : null}
+                        <div className="ficha-vaccine-actions">
+                          {vaccine.status === "pendente" ? (
+                            <>
+                              <button type="button" className="ficha-small-button" disabled={saving} onClick={() => void handleVaccineStatusUpdate(vaccine.code, "tomada")}>
+                                {saving ? "Salvando..." : "Tomada"}
+                              </button>
+                              <button type="button" className="ficha-small-button" disabled={saving} onClick={() => void handleVaccineStatusUpdate(vaccine.code, "nao_se_aplica")}>
+                                Nao se aplica
+                              </button>
+                            </>
+                          ) : (
+                            <button type="button" className="ficha-small-button" disabled={saving} onClick={() => void handleVaccineStatusUpdate(vaccine.code, "pendente")}>
+                              {saving ? "Salvando..." : "Voltar para pendente"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            )) : <p className="empty-state">Nenhum exame pendente no momento.</p>}
-          </div>
+              ) : (
+                <p className="ficha-muted">Sem dados de vacina para esta paciente.</p>
+              )}
+            </article>
+          </aside>
+        </div>
+      ) : (
+        <article className="ficha-card">
+          {historyItems.length ? (
+            <ul className="ficha-history">
+              {historyItems.map((item) => (
+                <li key={item.key}>
+                  <span className="ficha-history-date">{formatHistoryDate(item.date)}</span>
+                  <span className="ficha-history-text">
+                    <strong>{item.what}</strong>
+                    {item.who ? ` · ${item.who}` : ""}
+                    {item.detail ? <span className="ficha-muted ficha-history-detail">{item.detail}</span> : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="ficha-muted">Nenhum registro ainda.</p>
+          )}
         </article>
-
-        <article className="panel-card">
-          <p className="muted-label">Exames concluidos</p>
-          <div className="message-history-list">
-            {completedExams.length ? completedExams.map((exam) => (
-                  <div key={exam.id} className="message-history-item exam-detail-card exam-detail-card-completed">
-                  <div className="card-row">
-                      <span className="exam-name-strong"><strong>{exam.name}</strong></span>
-                      <div className="priority-badge-row">
-                    <span className="badge badge-priority-green">Realizado</span>
-                    <span className={`badge badge-soft ${exam.required ? "badge-priority-red" : "badge-priority-blue"}`}>
-                      {exam.required ? "Obrigatorio" : "Recomendado"}
-                    </span>
-                    {exam.completedOutsideClinic ? <span className="badge badge-priority-blue">Historico anterior</span> : null}
-                  </div>
-                </div>
-                <span><strong>Previsao:</strong> {exam.predictedDateLabel}</span>
-                <span><strong>Agendamento salvo:</strong> {exam.scheduledDateLabel || "Nao informado"}</span>
-                <span><strong>Horario salvo:</strong> {exam.scheduledTime || "Nao informado"}</span>
-                <span><strong>Agendado por:</strong> {exam.scheduledByName || "Nao registrado"}</span>
-                <span><strong>Observacoes:</strong> {exam.schedulingNotes || "Sem observacoes"}</span>
-                <span><strong>Realizacao salva:</strong> {exam.completedDateLabel || "Nao informada"}</span>
-                <span><strong>Realizado por:</strong> {exam.completedByName || "Nao registrado"}</span>
-              </div>
-            )) : <p className="empty-state">Nenhum exame concluido ainda.</p>}
-          </div>
-        </article>
-
-          </div>
-        ) : null}
-
-        {activeTab === "historico" ? (
-          <div className="detail-layout detail-layout-single">
-        <article className="panel-card">
-          <p className="muted-label">Historico de contatos</p>
-          <div className="message-history-list">
-            {details.messages.length ? details.messages.map((message) => (
-              <div key={message.id} className="message-history-item">
-                <span><strong>Envio:</strong> {message.deliveryStatus}</span>
-                <span><strong>Resposta:</strong> {message.responseStatus}</span>
-                <span><strong>Data:</strong> {message.sentAt || "Nao registrada"}</span>
-                <p>{message.content}</p>
-              </div>
-            )) : <p className="empty-state">Nenhum contato registrado ainda.</p>}
-          </div>
-        </article>
-
-        <article className="panel-card">
-          <p className="muted-label">Historico do fluxo</p>
-          <div className="message-history-list">
-            {details.movements.length ? details.movements.map((movement) => (
-              <div key={movement.id} className="message-history-item">
-                <span><strong>Acao:</strong> {movement.actionType}</span>
-                <span><strong>De:</strong> {movement.fromStage || "Sem coluna anterior"}</span>
-                <span><strong>Para:</strong> {movement.toStage || "Sem coluna de destino"}</span>
-                <span><strong>Data:</strong> {movement.createdAt}</span>
-                <p>{movement.description}</p>
-              </div>
-            )) : <p className="empty-state">Nenhuma movimentacao registrada ainda.</p>}
-          </div>
-        </article>
-
-        <article className="panel-card">
-          <p className="muted-label">Auditoria da paciente</p>
-          <div className="message-history-list">
-            {details.auditLogs.length ? details.auditLogs.map((log) => (
-              <div key={log.id} className="message-history-item">
-                <span><strong>Acao:</strong> {log.description}</span>
-                <span><strong>Usuario:</strong> {log.actorUserName || "Nao identificado"}</span>
-                <span><strong>Data:</strong> {log.createdAt}</span>
-                <span><strong>Tipo:</strong> {log.actionType}</span>
-              </div>
-            )) : <p className="empty-state">Nenhuma acao auditada nesta paciente ate o momento.</p>}
-          </div>
-        </article>
-
-          </div>
-        ) : null}
-      </div>
+      )}
     </section>
   );
 }
