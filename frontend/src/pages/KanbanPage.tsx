@@ -293,7 +293,7 @@ export function KanbanPage() {
         </span>
         <span className="kanban-legend-item kanban-legend-red">
           <strong>Vermelho</strong>
-          <span>Atrasado (passou da data ideal e o exame ainda nao foi realizado)</span>
+          <span>Atrasado (passou do fim do intervalo do exame e ele ainda nao foi realizado)</span>
         </span>
       </div>
       <p className="field-hint kanban-legend-note">

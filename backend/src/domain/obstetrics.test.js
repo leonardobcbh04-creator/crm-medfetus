@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   analyzePatientExamTimeline,
   calculateDeadlineStatus,
+  isPastContactGracePeriod,
   calculateExamScheduleDates,
   DEADLINE_STATUS,
   GESTATIONAL_BASE_CONFIDENCE,
@@ -166,6 +167,43 @@ test("classifica corretamente os status de prazo do exame", () => {
   assert.equal(calculateDeadlineStatus(baseExam, "2026-03-21").key, DEADLINE_STATUS.APPROACHING);
   assert.equal(calculateDeadlineStatus(baseExam, "2026-03-30").key, DEADLINE_STATUS.PENDING);
   assert.equal(calculateDeadlineStatus(baseExam, "2026-04-02").key, DEADLINE_STATUS.OVERDUE);
+});
+
+test("atrasado so depois do fim do intervalo do exame (ex.: Obstetrica para sexo ate 17s0d)", () => {
+  const exam = {
+    predictedDate: "2026-04-01", // 15s
+    reminderDate1: "2026-03-27",
+    reminderDate2: "2026-03-29",
+    idealWindowEndDate: "2026-04-15", // 17s0d
+    completedDate: null
+  };
+  assert.equal(calculateDeadlineStatus(exam, "2026-04-05").key, DEADLINE_STATUS.PENDING, "Depois da semana ideal, dentro do intervalo: pendente.");
+  assert.equal(calculateDeadlineStatus(exam, "2026-04-15").key, DEADLINE_STATUS.PENDING, "Ultimo dia do intervalo ainda nao e atraso.");
+  assert.equal(calculateDeadlineStatus(exam, "2026-04-16").key, DEADLINE_STATUS.OVERDUE);
+
+  const timeline = analyzePatientExamTimeline(
+    [{ examModelId: 3, code: "obstetrica_sexo", name: "Obstetrica para sexo", flowType: "automatico", sortOrder: 3, status: "pendente",
+       startWeek: 14.43, endWeek: 17, targetWeek: 15, predictedDate: "2026-04-01", reminderDate1: "2026-03-27", reminderDate2: "2026-03-29" }],
+    "2026-04-10"
+  );
+  assert.equal(timeline.overdueExam, null);
+  assert.equal(timeline.nextExam.deadlineStatus, DEADLINE_STATUS.PENDING);
+});
+
+test("cartao da Central: sexo e morfologico 1o tri saem no fim do intervalo; os demais 7 dias depois", () => {
+  // Obstetrica para sexo: alvo 15s em 01/04, fim do intervalo (17s) em 15/04.
+  const sexo = { code: "obstetrica_sexo", startWeek: 14.43, endWeek: 17, targetWeek: 15, predictedDate: "2026-04-01" };
+  assert.equal(isPastContactGracePeriod(sexo, "2026-04-15"), false);
+  assert.equal(isPastContactGracePeriod(sexo, "2026-04-16"), true);
+  // Morfologico 1o trimestre: alvo 12s em 01/04, fim (14s) em 15/04.
+  const morfo1 = { code: "morfologico_1_trimestre", startWeek: 11, endWeek: 14, targetWeek: 12, predictedDate: "2026-04-01" };
+  assert.equal(isPastContactGracePeriod(morfo1, "2026-04-16"), true);
+  // Morfologico 2o trimestre: alvo 22s em 01/04, fim (24s) em 15/04, cartao ate 22/04.
+  const morfo2 = { code: "morfologico_2_trimestre", startWeek: 20, endWeek: 24, targetWeek: 22, predictedDate: "2026-04-01" };
+  assert.equal(isPastContactGracePeriod(morfo2, "2026-04-22"), false);
+  assert.equal(isPastContactGracePeriod(morfo2, "2026-04-23"), true);
+  // Sem intervalo cadastrado: nao corta.
+  assert.equal(isPastContactGracePeriod({ code: "x", predictedDate: "2026-04-01" }, "2027-01-01"), false);
 });
 
 test("identifica exame atrasado e proximo exame da paciente", () => {

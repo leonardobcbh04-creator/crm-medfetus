@@ -287,12 +287,15 @@ export function calculateExamScheduleDates(
 }
 
 // Regras de prazo:
-// - atrasado: passou da data ideal e ainda nao foi realizado
-// - pendente: chegou no lembrete final ou no dia ideal
+// - atrasado: passou do fim do intervalo do exame (ex.: Obstetrica para sexo,
+//   depois de 17s0d) e ainda nao foi realizado. Sem o fim do intervalo, vale a
+//   data ideal.
+// - pendente: chegou no lembrete final ou no dia ideal (e segue pendente ate o
+//   fim do intervalo)
 // - aproximando: entrou na janela do primeiro lembrete
 // - dentro_do_prazo: ainda esta confortavel dentro da janela
 export function calculateDeadlineStatus(
-  { predictedDate, reminderDate1, reminderDate2, completedDate, completedOutsideClinic, status },
+  { predictedDate, reminderDate1, reminderDate2, completedDate, completedOutsideClinic, status, idealWindowEndDate },
   referenceDate = todayIso()
 ) {
   const baseDate = normalizeReferenceDate(referenceDate);
@@ -306,8 +309,9 @@ export function calculateDeadlineStatus(
   }
 
   const daysUntilIdealDate = daysBetween(baseDate, predictedDate);
+  const overdueAfterDate = idealWindowEndDate || predictedDate;
 
-  if (daysUntilIdealDate < 0) {
+  if (baseDate > overdueAfterDate) {
     return {
       key: DEADLINE_STATUS.OVERDUE,
       label: DEADLINE_LABELS[DEADLINE_STATUS.OVERDUE],
@@ -387,6 +391,25 @@ function calculateIdealWindowRange(exam) {
     idealWindowStartDate: addDays(exam.predictedDate, (startWeek - targetWeek) * 7),
     idealWindowEndDate: addDays(exam.predictedDate, (endWeek - targetWeek) * 7)
   };
+}
+
+// Central de contatos: por quantos dias depois do fim do intervalo o exame
+// atrasado continua gerando cartao. Obstetrica para sexo e Morfologico 1o
+// trimestre nao fazem sentido fora do intervalo; os demais ficam mais 7 dias
+// (ou ate o intervalo do proximo exame comecar, quando o atrasado e superado).
+export const CONTACT_GRACE_DAYS_AFTER_WINDOW = 7;
+export const CONTACT_GRACE_DAYS_BY_EXAM_CODE = {
+  obstetrica_sexo: 0,
+  morfologico_1_trimestre: 0
+};
+
+export function isPastContactGracePeriod(exam, referenceDate = todayIso()) {
+  const { idealWindowEndDate } = calculateIdealWindowRange(exam);
+  if (!idealWindowEndDate) {
+    return false;
+  }
+  const graceDays = CONTACT_GRACE_DAYS_BY_EXAM_CODE[exam.code] ?? CONTACT_GRACE_DAYS_AFTER_WINDOW;
+  return normalizeReferenceDate(referenceDate) > addDays(idealWindowEndDate, graceDays);
 }
 
 // Analisa todos os exames previstos de uma paciente e devolve:
