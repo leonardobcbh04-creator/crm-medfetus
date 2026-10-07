@@ -48,12 +48,12 @@ try {
   assert.notEqual(inside.deadlineStatus ?? inside.patient?.nextExam?.deadlineStatus, "atrasado", "Dentro do intervalo nao e atraso.");
   assert.ok(!reminders.items.some((item) => item.patientId === pastId), "Com 17s3d o cartao do Obstetrica para sexo ja saiu.");
 
-  // Tela de contatos: sem cartao de exame. (Se houver vacina pendente, ela pode
-  // seguir aparecendo so com o aviso de vacina, como qualquer paciente entre exames.)
+  // Tela de contatos: sem cartao de exame e sem cartao so de vacina (os avisos
+  // de vacina ficam na tela Vacinas), mesmo com a gripe pendente.
   const overview = await getMessagingOverviewCore();
   const overviewItems = Array.isArray(overview) ? overview : overview.items ?? [];
-  const pastItems = overviewItems.filter((item) => item.patientId === pastId);
-  assert.ok(pastItems.every((item) => item.kind === "vacina"), "Tela de contatos nao pode mostrar o cartao do exame vencido.");
+  assert.ok(!overviewItems.some((item) => item.patientId === pastId), "Tela de contatos nao pode mostrar a paciente fora do prazo do exame.");
+  assert.ok(!overviewItems.some((item) => item.kind === "vacina"), "A Central nao tem mais cartao so de vacina.");
   assert.ok(overviewItems.some((item) => item.patientId === insideId && item.kind !== "vacina"), "Dentro do intervalo o cartao do exame aparece.");
 
   console.log("Validacao do limite do cartao na Central concluida com sucesso.");

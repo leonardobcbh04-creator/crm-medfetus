@@ -2287,7 +2287,6 @@ export async function getMessagingOverviewCore() {
   const patientExamsMap = buildPatientExamsMap(patientExamRows);
   const latestMessagesMap = buildLatestMessageMap(latestMessages);
   const messageHistoryByPatient = buildMessageHistoryMap(messageRows);
-  const patientsWithExamItem = new Set();
 
   const examItems = sortPatientsByPriority(
     patients
@@ -2313,7 +2312,6 @@ export async function getMessagingOverviewCore() {
           vaccineBlurb
         ].filter(Boolean).join(" ");
         const gestationalMessagingAlert = buildGestationalMessagingAlert(patient);
-        patientsWithExamItem.add(patient.id);
 
         return {
           kind: "exame",
@@ -2352,60 +2350,10 @@ export async function getMessagingOverviewCore() {
       .filter(Boolean)
   );
 
-  // Pacientes que tem vacina pendente na janela, mas que nao entraram na lista acima
-  // porque nao tem exame proximo pendente (ex: entre exames, ou exame ja agendado).
-  // Ainda assim precisam aparecer na Central de Lembretes para a recepcao avisar.
-  const vaccineOnlyItems = patients
-    .filter((patient) => !isPatientTrackingClosed(patient))
-    .filter((patient) => !isBeyondContactCenterWindow(patient))
-    .filter((patient) => !isMessagingBlockedByGestationalBase(patient))
-    .filter((patient) => !patientsWithExamItem.has(patient.id))
-    .map((patient) => {
-      const pendingVaccines = (patient.vaccineNeeds || []).filter((item) => item.needsAttention);
-      if (!pendingVaccines.length) {
-        return null;
-      }
-      const vaccineBlurb = buildVaccineReminderBlurb(patient.vaccineNeeds || []);
-      const suggestedMessage = `Ola, ${patient.name}. Aqui e da clinica obstetrica. ${vaccineBlurb}`.trim();
-      const hasActionable = pendingVaccines.some((item) => item.actionable);
-
-      return {
-        kind: "vacina",
-        patientId: patient.id,
-        patientName: patient.name,
-        phone: patient.phone,
-        physicianName: patient.physicianName,
-        clinicUnit: patient.clinicUnit,
-        stage: patient.stage,
-        gestationalAgeLabel: patient.gestationalAgeLabel,
-        nextExam: patient.nextExam,
-        pendingVaccines,
-        priorityScore: hasActionable ? 2 : 3,
-        priorityLevel: hasActionable ? "baixa" : "baixa",
-        priorityLabel: hasActionable ? "Vacina pendente" : "Aviso de vacina",
-        messageType: "vacina",
-        messageTypeLabel: "Vacina",
-        messageOrigin: "vacina",
-        messageOriginLabel: "Janela de vacina",
-        suggestedMessage,
-        reminderLabel: pendingVaccines.map((item) => item.name).join(", "),
-        examPatientId: null,
-        examModelId: null,
-        whatsappUrl: buildWhatsAppUrl(patient.phone, suggestedMessage),
-        latestMessage: latestMessagesMap.get(patient.id) ?? null,
-        messageHistory: messageHistoryByPatient.get(patient.id) ?? [],
-        gestationalBaseSourceLabel: patient.gestationalBaseSourceLabel || "Base nao definida",
-        gestationalBaseConfidenceLabel: patient.gestationalBaseConfidenceLabel || "Nao avaliada",
-        gestationalBaseIsEstimated: Boolean(patient.gestationalBaseIsEstimated),
-        gestationalReviewRequired: Boolean(patient.gestationalReviewRequired),
-        gestationalBaseExplanation: patient.gestationalBaseExplanation || null,
-        gestationalMessagingAlertLevel: "ok",
-        gestationalMessagingAlertMessage: null
-      };
-    })
-    .filter(Boolean);
-
-  return sortPatientsByPriority([...examItems, ...vaccineOnlyItems]);
+  // Avisos de vacina ficam so na tela Vacinas: a Central mostra apenas cartoes
+  // de exame (antes havia tambem um cartao so de vacina para quem estava entre
+  // exames).
+  return sortPatientsByPriority(examItems);
 }
 
 export async function createMessageCore(input) {
