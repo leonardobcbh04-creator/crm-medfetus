@@ -467,6 +467,7 @@ export type Patient = {
   estimatedDueDate: string;
   priorityScore?: number;
   latestMessage?: MessageRecord | null;
+  lastContactAt?: string | null;
   vaccineNeeds?: VaccineNeed[];
   nextExam: {
     id?: number;

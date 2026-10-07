@@ -789,6 +789,10 @@ function inferStage(patient, patientExams, latestMessage, nextExamRow) {
   if ((pendingMessageReply || pendingManualFollowUp) && latestRelevantContactDate && addDays(latestRelevantContactDate, 2) <= todayIso()) {
     return "follow_up";
   }
+  // Contato feito ha menos de 2 dias: aguardando resposta.
+  if ((pendingMessageReply || pendingManualFollowUp) && latestRelevantContactDate) {
+    return "mensagem_enviada";
+  }
 
   return "contato_pendente";
 }
@@ -863,6 +867,10 @@ function enrichPatient(patient, patientExamsMap, latestMessagesMap, patientVacci
     },
     priorityScore: messagePriority.score,
     latestMessage,
+    lastContactAt: [latestMessage?.sentAt || latestMessage?.createdAt || null, nextPendingExamRow?.lastContactedAt || null]
+      .filter(Boolean)
+      .sort()
+      .at(-1) || null,
     stageTitle: getStageTitle(normalizedStage),
     closureIsAutomatic: Boolean(patient.closureIsAutomatic),
     autoCloseDisabled: Boolean(patient.autoCloseDisabled),
@@ -987,20 +995,14 @@ export async function listPatientsCore() {
 
 export async function getKanbanDataCore() {
 
-  const [columns, patients] = await Promise.all([
-    listKanbanColumnsRows(),
-    listPatientsCore()
-  ]);
-
-  const visibleStageIds = new Set(KANBAN_STAGES.map((stage) => stage.id));
-
+  // Funil fixo de 4 etapas (KANBAN_STAGES); a etapa de cada paciente e inferida
+  // pelo sistema (inferStage).
+  const patients = await listPatientsCore();
   const activePatients = patients.filter((patient) => !isPatientTrackingClosed(patient));
 
-  return columns
-    .filter((stage) => visibleStageIds.has(stage.id))
-    .map((stage) => ({
+  return KANBAN_STAGES.map((stage) => ({
     ...stage,
-    isSystem: Boolean(stage.isSystem),
+    isSystem: true,
     patients: sortPatientsByPriority(activePatients.filter((patient) => patient.stage === stage.id))
   }));
 }

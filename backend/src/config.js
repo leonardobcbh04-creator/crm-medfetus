@@ -132,15 +132,26 @@ export const LOG_RETENTION_CONFIG = {
   cleanupIntervalHours: readNumberEnv(process.env.LOG_RETENTION_CLEANUP_INTERVAL_HOURS, 24)
 };
 
+// Etapas do funil da tela "Fluxo de atendimento", na ordem em que aparecem.
 export const KANBAN_STAGES = [
   {
     id: "contato_pendente",
-    title: "Contato pendente",
-    description: "Pacientes que ainda precisam de contato da recepcao"
+    title: "A contatar",
+    description: "Ainda sem mensagem enviada"
+  },
+  {
+    id: "mensagem_enviada",
+    title: "Aguardando resposta",
+    description: "Mensagem enviada, sem resposta"
   },
   {
     id: "follow_up",
-    title: "Follow up",
-    description: "Mensagens sem resposta ha mais de 2 dias para nova tentativa"
+    title: "Follow-up",
+    description: "Sem resposta ha mais de 2 dias"
+  },
+  {
+    id: "agendada",
+    title: "Agendada",
+    description: "Exame marcado"
   }
 ];
