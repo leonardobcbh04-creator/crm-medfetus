@@ -54,7 +54,7 @@ import {
   updatePatientStage,
   updateUserPasswordHash
 } from "../database/repositories/coreRepository.js";
-import { analyzePatientExamTimeline, calculateExamScheduleDates, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
+import { analyzePatientExamTimeline, calculateExamScheduleDates, isPastContactGracePeriod, resolvePregnancySnapshot, DEADLINE_STATUS } from "../domain/obstetrics.js";
 import { VACCINE_DEFINITIONS, VACCINE_STATUS, resolvePatientVaccineNeeds, buildVaccineReminderBlurb } from "../domain/vaccines.js";
 import { buildDtpaCampaign } from "../domain/vaccineCampaign.js";
 import { buildVsrCampaign } from "../domain/vsrCampaign.js";
@@ -660,6 +660,11 @@ function shouldPatientEnterReminderQueue(patient, nextExamRow, today, filters = 
   }
 
   if (isOperationallyScheduled(patient, nextExamRow)) {
+    return false;
+  }
+
+  // Exame atrasado so gera cartao ate o limite depois do fim do intervalo.
+  if (isPastContactGracePeriod(nextExamRow, today)) {
     return false;
   }
 
