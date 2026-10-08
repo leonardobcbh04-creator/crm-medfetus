@@ -15,6 +15,19 @@ export function getPatientPriorityMeta(patient: Patient): PriorityMeta {
   const status = patient.nextExam.deadlineStatus;
   const isTodayReminder = patient.nextExam.alertLevel === "hoje";
 
+  // Proximo exame ja agendado: nao ha contato a fazer, entao fica verde em todas
+  // as telas (mesma regra do cartao "Agora" da ficha).
+  if (patient.nextExam.status === "agendado" || patient.nextExam.scheduledDate) {
+    return {
+      color: "verde",
+      label: "Exame agendado",
+      badgeText: "Exame agendado",
+      cardClassName: "patient-card-green",
+      badgeClassName: "badge-priority-green",
+      needsImmediateAction: false
+    };
+  }
+
   if (status === "atrasado") {
     return {
       color: "vermelho",
